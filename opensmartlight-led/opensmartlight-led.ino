@@ -8,8 +8,8 @@
 #include <WDT.h>
 #include <avr/sleep.h>
 
-#define LIGHT_TH_LOW  3800
-#define LIGHT_TH_HIGH 4000
+#define LIGHT_TH_LOW  3700
+#define LIGHT_TH_HIGH 3800
 #define DELAY_ON_MOV  30000
 #define DELAY_ON_OCC  20000
 #define OCC_TRIG_TH  65530
@@ -18,7 +18,7 @@
 #define MOV_CONT_TH  250
 #define CHECK_INTERVAL  125   // N*0.032 sec
 #define LED_BEGIN 100
-#define LED_END  120
+#define LED_END  125
 
 // min day time that is considered as right before night begins, in the night, turning on other lights will also trigger day mode, but not for that long
 #define MIN_DAY_LENGTH_MILLIS 3600000
@@ -33,7 +33,9 @@
 #define PIN_LED_ADJ DAC0
 
 uint16_t adc_value;
+bool is_smartlight_on = false;
 bool is_light_on = false;
+bool is_led_on = false;
 bool DEBUG = false;
 extern volatile unsigned long timer0_millis;
 int sleep_cnter=0;
@@ -60,7 +62,15 @@ void sensor_off(){
   HDR = 0;
 }
 
-bool is_led_on = false;
+void led_flash(){
+  analogWrite(PIN_LED_ADJ, 120);
+  digitalWrite(PIN_LED_GATE, 1);
+  delay(200);
+  digitalWrite(PIN_LED_GATE, 0);
+  delay(200);
+  analogWrite(PIN_LED_ADJ, 0);
+}
+
 void led_on(){
   if(is_led_on) return;
   analogWrite(PIN_LED_ADJ, 0);
@@ -116,10 +126,10 @@ inline void light_off(){
 void all_off(){
   analogWrite(PIN_LED_ADJ, 0);
   digitalWrite(PIN_LED_GATE, 0);
+  is_led_on = false;
   light_off();
   sensor_off();
-  is_led_on = false;
-  is_light_on = false;
+  is_smartlight_on = false;
 }
 
 void smartlight_on(){
@@ -134,6 +144,7 @@ void smartlight_on(){
 void smartlight_off(){
   if(is_led_on)led_off();
   if(is_light_on)light_off();
+  is_smartlight_on = false;
 }
 
 int readAvgVolt(int pin){
@@ -145,8 +156,6 @@ int readAvgVolt(int pin){
 
 void setup() {
   // 0. Initialize
-  delay(1000); // avoid soft brick
-
   // avoid floating ports
   for(int x=D2; x<=D13; x++){
     pinMode(x, OUTPUT);
@@ -156,6 +165,11 @@ void setup() {
     pinMode(x, OUTPUT);
     digitalWrite(x, 0);
   }
+
+  // flash LED once for init
+  digitalWrite(PIN_LED_GATE, 1);
+  delay(1000); // avoid soft brick
+  digitalWrite(PIN_LED_GATE, 0);
 
   // prevent PD6 from OC0A
   TCCR0B |= (1<<OC0AS);
@@ -203,7 +217,7 @@ ISR(PCINT1_vect){
         DEBUG = false;
       }
       DEBUG = !DEBUG;
-      digitalWrite(LED_BUILTIN, DEBUG&&is_light_on);
+      digitalWrite(LED_BUILTIN, DEBUG&&is_smartlight_on);
     }
   }else{
     if((++pc_int_cnt)&1)
@@ -216,9 +230,10 @@ ISR(PCINT1_vect){
         PMX2 &= ~1;
         pinMode(PC6, OUTPUT);
         DEBUG = false;
+        Serial.println("RESET button reset function restored");
       }
       DEBUG = !DEBUG;
-      digitalWrite(LED_BUILTIN, DEBUG&&is_light_on);
+      digitalWrite(LED_BUILTIN, DEBUG&&is_smartlight_on);
     }
   }
   sei();
@@ -230,10 +245,10 @@ ISR(TIMER2_COMPA_vect){
   sei();
 }
 
-int parse_output_value(String s){
+float parse_output_value(String s){
   char posi = s.lastIndexOf(' ');
   if(posi<0)return 0;
-  return s.substring(posi+1).toInt();
+  return s.substring(posi+1).toFloat();
 }
 
 void loop() {
@@ -262,8 +277,8 @@ void loop() {
   // B. enter dark mode
   if(millis()-day_start_time_millis>MIN_DAY_LENGTH_MILLIS)
     night_start_time_millis = millis();
+  smartlight_off();
   sensor_on();
-  is_light_on = false;
   // reset timer0 counter
   // noInterrupts ();
   // timer0_millis = 0;
@@ -274,12 +289,13 @@ void loop() {
 
   unsigned long elapse = millis(), ul=0;
   while(1){
-    if(is_light_on){  // when light is on
+    if(is_smartlight_on){  // when light is on
       if(Serial.available()){
         String s = Serial.readStringUntil('\n');
         if(DEBUG) Serial.println(s);
         if(s.startsWith("mov") && parse_output_value(s)>=MOV_CONT_TH){
           ul = millis()+DELAY_ON_MOV;
+          // led_flash();
         }else if(s.startsWith("occ") && parse_output_value(s)>=OCC_CONT_TH){
           ul = millis()+DELAY_ON_OCC;
         }
@@ -298,7 +314,7 @@ void loop() {
           smartlight_on();
           elapse = millis()+DELAY_ON_MOV;          
         }
-      }else if(readAvgVolt(A0)<LIGHT_TH_LOW){
+      }else if(readAvgVolt(A0)<LIGHT_TH_LOW){ // return to day mode
         sensor_off();
         delay(1000);
         break;
