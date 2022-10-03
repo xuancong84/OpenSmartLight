@@ -13,9 +13,9 @@
 #define DELAY_ON_MOV  30000
 #define DELAY_ON_OCC  20000
 #define OCC_TRIG_TH  65530
-#define OCC_CONT_TH  500
+#define OCC_CONT_TH  800
 #define MOV_TRIG_TH  500
-#define MOV_CONT_TH  250
+#define MOV_CONT_TH  300
 #define CHECK_INTERVAL  125   // N*0.032 sec
 #define LED_BEGIN 100
 #define LED_END  125
@@ -26,6 +26,8 @@
 #define MIN_TIME_AFTER_NIGHTFALL_MILLIS 5*3600000
 // after this amount of time since night start, external light will be turned on
 #define MAX_TIME_AFTER_NIGHTFALL_MILLIS 13*3600000
+// debug mode duration after RESET is pressed
+#define DEBUG_DURATION 1800000
 
 #define PIN_CONTROL D8
 #define PIN_SENSOR D5
@@ -39,7 +41,8 @@ bool is_led_on = false;
 bool DEBUG = false;
 extern volatile unsigned long timer0_millis;
 int sleep_cnter=0;
-long day_start_time_millis=millis(), night_start_time_millis=millis();
+unsigned long debug_start_millis = 0;
+unsigned long day_start_time_millis = millis(), night_start_time_millis = millis();
 
 void tx_to_pd6(char *str){
   char old = PMX0;
@@ -62,12 +65,12 @@ void sensor_off(){
   HDR = 0;
 }
 
-void led_flash(){
+void led_flash(int mode=0){
   analogWrite(PIN_LED_ADJ, 120);
   digitalWrite(PIN_LED_GATE, 1);
-  delay(200);
+  delay(mode?100:200);
   digitalWrite(PIN_LED_GATE, 0);
-  delay(200);
+  delay(mode?100:200);
   analogWrite(PIN_LED_ADJ, 0);
 }
 
@@ -139,6 +142,7 @@ void smartlight_on(){
     led_on();
   else
     light_on();
+  is_smartlight_on = true;
 }
 
 void smartlight_off(){
@@ -195,7 +199,7 @@ void setup() {
   Serial.setTimeout(1000);
   Serial.print("\nSystem initialized, light sensor = ");
   Serial.println(readAvgVolt(A0));
-  Serial.println("Press RESET button to toggle DEBUG/verbose mode; long-press RESET to restore reset functionality.");
+  Serial.println("Press RESET button to activate DEBUG mode for 30 minutes; long-press RESET to restore reset functionality.");
   Serial.flush();
   delay(800);
 }
@@ -217,6 +221,7 @@ ISR(PCINT1_vect){
         DEBUG = false;
       }
       DEBUG = !DEBUG;
+      if(DEBUG) debug_start_millis = millis();
       digitalWrite(LED_BUILTIN, DEBUG&&is_smartlight_on);
     }
   }else{
@@ -233,6 +238,7 @@ ISR(PCINT1_vect){
         Serial.println("RESET button reset function restored");
       }
       DEBUG = !DEBUG;
+      if(DEBUG) debug_start_millis = millis();
       digitalWrite(LED_BUILTIN, DEBUG&&is_smartlight_on);
     }
   }
@@ -251,6 +257,11 @@ float parse_output_value(String s){
   return s.substring(posi+1).toFloat();
 }
 
+void auto_disable_debug(){
+  if(millis()-debug_start_millis>DEBUG_DURATION)
+    DEBUG = false;
+}
+
 void loop() {
   // check light sensor
   all_off();
@@ -264,8 +275,10 @@ void loop() {
     }
     do{
       delay(4000);
-      if(DEBUG)
+      if(DEBUG){
         digitalWrite(LED_BUILTIN, (++sleep_cnter)&1);
+        auto_disable_debug();
+      }
     }while(readAvgVolt(A0)<LIGHT_TH_HIGH);
     if(DEBUG){
       Serial.println("Exited sleep ...");
@@ -289,15 +302,17 @@ void loop() {
 
   unsigned long elapse = millis(), ul=0;
   while(1){
+    if(DEBUG)auto_disable_debug();
     if(is_smartlight_on){  // when light is on
       if(Serial.available()){
         String s = Serial.readStringUntil('\n');
         if(DEBUG) Serial.println(s);
         if(s.startsWith("mov") && parse_output_value(s)>=MOV_CONT_TH){
           ul = millis()+DELAY_ON_MOV;
-          // led_flash();
+          if(DEBUG)led_flash(1);
         }else if(s.startsWith("occ") && parse_output_value(s)>=OCC_CONT_TH){
           ul = millis()+DELAY_ON_OCC;
+          if(DEBUG)led_flash(0);
         }
         if(ul>elapse)
           elapse = ul;
