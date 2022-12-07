@@ -16,16 +16,19 @@
 #define OCC_CONT_TH  500
 #define MOV_TRIG_TH  500
 #define MOV_CONT_TH  250
-#define CHECK_INTERVAL  125   // N*0.032 sec
+
+// debug mode duration after RESET is pressed
+#define DEBUG_DURATION 1800000
 
 #define PIN_CONTROL D8
 #define PIN_SENSOR D5
 
 uint16_t adc_value;
 bool is_light_on = false;
-bool DEBUG = false;
+char DEBUG = 0;
 extern volatile unsigned long timer0_millis;
 int sleep_cnter=0;
+unsigned long debug_start_millis = 0;
 
 void tx_to_pd6(char *str){
   char old = PMX0;
@@ -39,18 +42,20 @@ void tx_to_pd6(char *str){
 }
 
 void sensor_on(){
-  pinMode(D5, INPUT);
-  // pinMode(D6, INPUT);
   HDR = 1;
-  PORTD |= 0b01100000;
   digitalWrite(D5, 1);
-  // digitalWrite(D6, 1);
 }
 
 void sensor_off(){
   digitalWrite(D5, 0);
-  // PORTD &= 0b10011111;
   HDR = 0;
+}
+
+void led_flash(int mode=0){
+  digitalWrite(LED_BUILTIN, 1);
+  delay(mode?100:200);
+  digitalWrite(LED_BUILTIN, 0);
+  delay(mode?100:200);
 }
 
 inline void light_on(){
@@ -112,7 +117,7 @@ void setup() {
   Serial.setTimeout(1000);  
   Serial.print("\nSystem initialized, light sensor = ");
   Serial.println(readAvgVolt(A0));
-  Serial.println("Press RESET button to toggle DEBUG/verbose mode; long-press RESET to restore reset functionality.");
+  Serial.println("Press RESET button to activate DEBUG mode for 30 minutes (press again to DEBUG dark mode); long-press RESET to restore reset functionality.");
   Serial.flush();
   delay(800);
 }
@@ -121,36 +126,20 @@ char pc_int_cnt = 0;
 unsigned long last_press = 0;
 ISR(PCINT1_vect){
   cli();
-  if(TIMSK2&0b00000010){
-    if((++pc_int_cnt)&1)
-      last_press = sleep_cnter;
-    else{
-      if(sleep_cnter!=last_press){  // long-click restore RESET button
-        PCICR &= ~(1<<PCIE1);
-        PCMSK1 &= ~(1<<PCINT14);
-        PMX2 |= 0b10000000;
-        PMX2 &= ~1;
-        pinMode(PC6, OUTPUT);
-        DEBUG = false;
-      }
-      DEBUG = !DEBUG;
-      digitalWrite(LED_BUILTIN, DEBUG&&is_light_on);
+  if((++pc_int_cnt)&1)
+    last_press = millis();
+  else{
+    if(millis()-last_press>1000){  // long-click restore RESET button
+      PCICR &= ~(1<<PCIE1);
+      PCMSK1 &= ~(1<<PCINT14);
+      PMX2 |= 0b10000000;
+      PMX2 &= ~1;
+      pinMode(PC6, OUTPUT);
+      DEBUG = 0;
     }
-  }else{
-    if((++pc_int_cnt)&1)
-      last_press = millis();
-    else{
-      if(millis()-last_press>1000){  // long-click restore RESET button
-        PCICR &= ~(1<<PCIE1);
-        PCMSK1 &= ~(1<<PCINT14);
-        PMX2 |= 0b10000000;
-        PMX2 &= ~1;
-        pinMode(PC6, OUTPUT);
-        DEBUG = false;
-      }
-      DEBUG = !DEBUG;
-      digitalWrite(LED_BUILTIN, DEBUG&&is_light_on);
-    }
+    DEBUG = (DEBUG+1)%3;
+    if(DEBUG) debug_start_millis = millis();
+    digitalWrite(LED_BUILTIN, DEBUG&&is_light_on);
   }
   sei();
 }
@@ -167,74 +156,13 @@ int parse_output_value(String s){
   return s.substring(posi+1).toInt();
 }
 
+void auto_disable_debug(){
+  if(millis()-debug_start_millis>DEBUG_DURATION)
+    DEBUG = 0;
+}
+
 void loop() {
-  // // A. check light sensor
-  // if(readAvgVolt(A0)<LIGHT_TH_HIGH){
-  //   if(DEBUG){
-  //       Serial.println("Entering sleep ...");
-  //       Serial.flush();
-  //   }
-  //   // enter slow clock
-  //   char old_PMCR = PMCR;
-
-  //   PMCR = 0b10000000;
-  //   PMCR = 0b01010010;
-
-  //   NOP;
-  //   NOP;
-  //   NOP;
-  //   NOP;
-  //   NOP;
-  //   NOP;
-  //   NOP;
-  //   NOP;
-
-  //   PRR = 0b10101110;
-  //   PRR1 = 0b00101100;
-
-  //   // setup Timer2 interrupt every 4 sec
-  //   cli();
-  //   OCR2A = CHECK_INTERVAL;
-  //   TCNT2 = 0;
-  //   TCCR2A = 0b00000010;
-  //   TCCR2B = 0b00000111;
-  //   TIMSK2 = 0b00000010;
-  //   ASSR = 0b10100000;
-  //   while(ASSR&0b00011111);
-  //   sei();
-
-  //   // sleep check
-  //   do{
-  //     SMCR = 0b00000111;
-  //     sleep_cpu();
-  //     if(DEBUG)
-  //       digitalWrite(LED_BUILTIN, (++sleep_cnter)&1);
-  //   }while(readAvgVolt(A0)<LIGHT_TH_HIGH);
-
-  //   if(DEBUG)
-  //     digitalWrite(LED_BUILTIN, 0);
-
-  //   // return to fast clock
-  //   TIMSK2 = 0;
-  //   PMCR = 0b10000000;
-  //   PMCR = old_PMCR;
-
-  //   NOP;
-  //   NOP;
-  //   NOP;
-  //   NOP;
-  //   NOP;
-  //   NOP;
-  //   NOP;
-  //   NOP;
-
-  //   PRR=PRR1=0;
-  //   if(DEBUG){
-  //     Serial.println("Exited sleep ...");
-  //     Serial.flush();
-  //   }
-  // }
-
+  // check light sensor
   light_off();
   sensor_off();
   if(readAvgVolt(A0)<LIGHT_TH_HIGH){
@@ -245,9 +173,11 @@ void loop() {
     }
     do{
       delay(4000);
-      if(DEBUG)
+      if(DEBUG){
         digitalWrite(LED_BUILTIN, (++sleep_cnter)&1);
-    }while(readAvgVolt(A0)<LIGHT_TH_HIGH);
+        auto_disable_debug();
+      }
+    }while(readAvgVolt(A0)<LIGHT_TH_HIGH && DEBUG!=2);
     if(DEBUG){
       Serial.println("Exited sleep ...");
       Serial.flush();
@@ -268,14 +198,17 @@ void loop() {
 
   unsigned long elapse = millis(), ul=0;
   while(1){
+    if(DEBUG)auto_disable_debug();
     if(is_light_on){  // when light is on
       if(Serial.available()){
         String s = Serial.readStringUntil('\n');
         if(DEBUG) Serial.println(s);
         if(s.startsWith("mov") && parse_output_value(s)>=MOV_CONT_TH){
           ul = millis()+DELAY_ON_MOV;
+          if(DEBUG)led_flash(1);
         }else if(s.startsWith("occ") && parse_output_value(s)>=OCC_CONT_TH){
           ul = millis()+DELAY_ON_OCC;
+          if(DEBUG)led_flash(0);
         }
         if(ul>elapse)
           elapse = ul;
@@ -292,9 +225,9 @@ void loop() {
          || (s.startsWith("occ") && parse_output_value(s)>=OCC_TRIG_TH)){
           light_on();
           is_light_on=true;
-          elapse = millis()+DELAY_ON_MOV;          
+          elapse = millis()+DELAY_ON_MOV;
         }
-      }else if(readAvgVolt(A0)<LIGHT_TH_LOW){
+      }else if(readAvgVolt(A0)<LIGHT_TH_LOW && DEBUG!=2){ // return to day mode
         sensor_off();
         delay(1000);
         break;
