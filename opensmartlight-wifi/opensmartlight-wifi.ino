@@ -8,15 +8,61 @@
 #include "./secret.h"
 
 #define tzOffsetInSeconds 3600*8
-#define PIN_CONTROL D2
+#define PIN_CONTROL_OUTPUT D2
 #define PIN_MOTION_SENSOR D3
 #define PIN_LED_MASTER D1
 #define PIN_LED_ADJ D4
 #define PIN_AMBIENT_PULLUP D7
 #define PIN_AMBIENT_INPUT A0
 
+ESP8266WebServer server(80);
 int ambient_level;
-bool dbg_led = false;
+int onboard_led_level = 0;
+bool onboard_led = false;
+bool motion_sensor = false;
+bool control_output = false;
+bool DEBUG = true;
+unsigned long tm_last_ambient = 0;
+unsigned long tm_last_timesync = 0;
+unsigned long tm_last_debugon = millis();
+
+
+void set_output(bool state, ESP8266WebServer *svr){
+  digitalWrite(PIN_CONTROL_OUTPUT, state?1:0);
+  control_output = state;
+  if(DEBUG) Serial.printf("Output = %s\n", state?"On":"Off");
+  if(svr) svr->send(200, "text/html", "");
+}
+
+void set_sensor(bool state, ESP8266WebServer *svr){
+  digitalWrite(PIN_MOTION_SENSOR, state?1:0);
+  motion_sensor = state;
+  if(DEBUG) Serial.printf("Sensor = %s\n", state?"On":"Off");
+  if(svr) svr->send(200, "text/html", "");
+}
+
+void set_onboard_led(bool state, ESP8266WebServer *svr){
+  digitalWrite(PIN_LED_MASTER, state?1:0);
+  onboard_led = state;
+  if(DEBUG) Serial.printf("Onboard LED = %s\n", state?"On":"Off");
+  if(svr) svr->send(200, "text/html", "");
+}
+
+void set_onboard_led_level(int level, ESP8266WebServer *svr){
+  analogWrite(PIN_LED_ADJ, level);
+  onboard_led_level = level;
+  if(DEBUG) Serial.printf("Onboard LED level = %d\n", level);
+  if(svr) svr->send(200, "text/html", "");
+}
+
+void set_debug_led(bool state, ESP8266WebServer *svr){
+  digitalWrite(LED_BUILTIN_AUX, !state);
+  DEBUG = state;
+  Serial.printf("DEBUG LED state = %d\n", DEBUG);
+  if(state) tm_last_debugon = millis();
+  if(svr) svr->send(200, "text/html", "");
+}
+
 
 /* Set these to your desired credentials. */
 const char *ssid = WIFI_SSID;                 //Enter your WIFI ssid
@@ -50,25 +96,49 @@ String getDateString(){
   return String(buf);
 }
 
-ESP8266WebServer server(80);
 void handleRoot() {
   server.send(200, "text/html", R"(<h2>OpenSmartLight</h2>
-<p>Date Time: <input type='text' id='datetime' size=24 readonly></p>
-<p>Debug LED: <input type='text' id='dbg_led' readonly> <button onclick='GET("LED_DEBUG_on")'>On</button>&nbsp;
-  <button onclick='GET("LED_DEBUG_off")'>Off</button>&nbsp;<button onclick='GET("LED_DEBUG_toggle")'>Toggle</button></p>
-<p>Ambient Level: <input type='text' id='ambient' size=24 readonly></p>
+<p>Date Time: <input type='text' id='datetime' size=24 readonly>&nbsp;<button onclick='update_time()'>Update</button><span id='ntp_reply'></span></p>
+<p>Ambient Level: <input type='text' id='ambient' size=16 readonly></p>
+<p>Debug LED: <input type='text' id='dbg_led' readonly>&nbsp;
+  <button onclick='GET("LED_DEBUG_on")'>On</button>&nbsp;
+  <button onclick='GET("LED_DEBUG_off")'>Off</button>&nbsp;
+  <button onclick='GET("LED_DEBUG_toggle")'>Toggle</button></p>
+<p>Control Output: <input type='text' id='control_output' readonly>&nbsp;
+  <button onclick='GET("control_output_on")'>On</button>&nbsp;
+  <button onclick='GET("control_output_off")'>Off</button>&nbsp;
+  <button onclick='GET("control_output_toggle")'>Toggle</button></p>
+<p>Motion Sensor: <input type='text' id='motion_sensor' size=16 readonly>&nbsp;
+  <button onclick='GET("motion_sensor_on")'>On</button>&nbsp;
+  <button onclick='GET("motion_sensor_off")'>Off</button>&nbsp;
+  <button onclick='GET("motion_sensor_toggle")'>Toggle</button></p>
+<p>Onboard LED: <input type='text' id='onboard_led' size=16 readonly>&nbsp;
+  <button onclick='GET("onboard_led_on")'>On</button>&nbsp;
+  <button onclick='GET("onboard_led_off")'>Off</button>&nbsp;
+  <button onclick='GET("onboard_led_toggle")'>Toggle</button></p>
+<p>Onboard LED Level: <input type='text' id='onboard_led_level' size=16 readonly>&nbsp;
+  <span style="background-color:#cccccc; display:inline-flex; align-items: center;">
+    <span id='led_level_min'></span>
+    <input id='led_level' type="range" min="0" max="200" value="0" onchange='GET("onboard_led_level?brightness="+this.value)'>
+    <span id='led_level_max'></span>
+  </span></p>
 <script>
-function GET(url)
-{
+function getById(id_str){return document.getElementById(id_str);}
+function GET(url){
     var xmlHttp = new XMLHttpRequest();
     xmlHttp.open( 'GET', window.location+url, false ); // false for synchronous request
     xmlHttp.send( null );
     return xmlHttp.responseText;
 }
+function update_time(){
+  getById("ntp_reply").innerHTML = GET("update_time");
+}
 window.onload = () => {
   obj = JSON.parse(GET('status'));
-  for(const s of ['datetime', 'dbg_led', 'ambient'])
-    document.getElementById(s).value = obj[s];
+  for(const s of ['datetime', 'dbg_led', 'ambient', 'motion_sensor', 'onboard_led', 'onboard_led_level', 'control_output'])
+    getById(s).value = obj[s];
+  getById('led_level_min').innerHTML = getById('led_level').min;
+  getById('led_level_max').innerHTML = getById('led_level').max;
 }
 setInterval(window.onload, 1000);
 </script>)"
@@ -78,8 +148,12 @@ setInterval(window.onload, 1000);
 void handleStatus(){
   DynamicJsonDocument doc(2048);
   doc["datetime"] = getDateString()+" "+getTimeString();
-  doc["dbg_led"] = dbg_led?"ON":"OFF";
+  doc["dbg_led"] = DEBUG?"ON":"OFF";
   doc["ambient"] = ambient_level;
+  doc["motion_sensor"] = motion_sensor?"ON":"OFF";
+  doc["onboard_led"] = onboard_led?"ON":"OFF";
+  doc["onboard_led_level"] = onboard_led_level;
+  doc["control_output"] = control_output?"ON":"OFF";
   String output;
   serializeJson(doc, output);
   server.send(200, "text/html", output);
@@ -89,12 +163,6 @@ void handleSave() {
   if (server.arg("pass") != "") {
     Serial.println(server.arg("pass"));
   }
-}
-
-void handle_dbg_led(){
-  Serial.printf("DEBUG LED state = %d\n", dbg_led);
-  digitalWrite(LED_BUILTIN_AUX, !dbg_led);
-  server.send(200, "text/html", "");
 }
 
 void initWifi(){
@@ -111,7 +179,6 @@ void initWifi(){
     delay(2000);
     Serial.print(".");
   }
-  digitalWrite(LED_BUILTIN_AUX, true);
   Serial.println("\nWiFi connected");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
@@ -121,18 +188,22 @@ void initServer(){
   server.on("/", handleRoot);
   server.on("/status", handleStatus);
   server.on("/save", handleSave);
-  server.on("/LED_DEBUG_on", []() {
-    dbg_led = true;
-    handle_dbg_led();
-  });
-  server.on("/LED_DEBUG_off", []() {
-    dbg_led = false;
-    handle_dbg_led();
-  });
-  server.on("/LED_DEBUG_toggle", []() {
-    dbg_led = !dbg_led;
-    handle_dbg_led();
-  });
+  server.on("/update_time", []() {server.send(200, "text/html", timeClient.forceUpdate()?"Success":"Failed");});
+  server.on("/LED_DEBUG_on", []() {set_debug_led(true, &server);});
+  server.on("/LED_DEBUG_off", []() {set_debug_led(false, &server);});
+  server.on("/LED_DEBUG_toggle", []() {set_debug_led(!DEBUG, &server);});
+  server.on("/control_output_on", []() {set_output(true, &server);});
+  server.on("/control_output_off", []() {set_output(false, &server);});
+  server.on("/control_output_toggle", []() {set_output(!control_output, &server);});
+  server.on("/motion_sensor_on", []() {set_sensor(true, &server);});
+  server.on("/motion_sensor_off", []() {set_sensor(false, &server);});
+  server.on("/motion_sensor_toggle", []() {set_sensor(!motion_sensor, &server);});
+  server.on("/onboard_led_on", []() {set_onboard_led(true, &server);});
+  server.on("/onboard_led_off", []() {set_onboard_led(false, &server);});
+  server.on("/onboard_led_toggle", []() {set_onboard_led(!onboard_led, &server);});
+  server.on("/onboard_led_level", []() {
+    server.hasArg("brightness")?set_onboard_led_level(server.arg("brightness").toInt(), &server):server.send(400, "text/html", "");
+    });
   server.begin();
   Serial.println("HTTP server started");
 }
@@ -144,10 +215,17 @@ int readAmbient(){
   return sum/16;
 }
 
+float parse_output_value(String s){
+  char posi = s.lastIndexOf(' ');
+  if(posi<0)return 0;
+  return s.substring(posi+1).toFloat();
+}
+
+
 void setup() {
   delay(1000);
 
-  pinMode(PIN_CONTROL, OUTPUT);
+  pinMode(PIN_CONTROL_OUTPUT, OUTPUT);
   pinMode(PIN_MOTION_SENSOR, OUTPUT);
   pinMode(PIN_LED_MASTER, OUTPUT);
   pinMode(PIN_LED_ADJ, OUTPUT);
@@ -155,11 +233,10 @@ void setup() {
   pinMode(PIN_AMBIENT_INPUT, INPUT);
   pinMode(LED_BUILTIN_AUX, OUTPUT);
 
-  digitalWrite(LED_BUILTIN_AUX, false);
-  
   Serial.begin(115200);
   Serial.println("\nSystem initialized:");
-  handle_dbg_led();
+  set_debug_led(true, NULL);
+  digitalWrite(LED_BUILTIN, 1);
 
   initWifi();
 
@@ -169,15 +246,34 @@ void setup() {
   Serial.printf("Current datetime = %s %s\n", getDateString(), getTimeString());
 
   initServer();
+  digitalWrite(LED_BUILTIN, 0);
 }
 
-unsigned long tm_last = millis();
 void loop() {
   unsigned long tm_curr = millis();
-  if(tm_curr-tm_last>1000){
+
+  // Update ambient level
+  if(tm_curr-tm_last_ambient>1000){
     ambient_level = readAmbient();
-    tm_last = tm_curr;
+    tm_last_ambient = tm_curr;
   }
+
+  // Synchronize Internet time
+  if(tm_curr-tm_last_timesync>3600000*24){
+    timeClient.update();
+    tm_last_timesync = tm_curr;
+  }
+
+  // Auto disable debug
+  if(DEBUG && tm_curr-tm_last_debugon>1800000){
+    set_debug_led(false, NULL);
+  }
+
+  if(Serial.available()){
+    String s = Serial.readStringUntil('\n');
+    if(DEBUG) Serial.println(s);
+  }
+ 
   server.handleClient();
   delay(1);
 }
