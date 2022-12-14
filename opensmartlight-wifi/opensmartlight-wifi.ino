@@ -19,8 +19,8 @@
 #define PIN_AMBIENT_INPUT A0
 
 // Saved parameters
-unsigned int LIGHT_TH_LOW = 3400;
-unsigned int LIGHT_TH_HIGH = 3500;
+unsigned int DARK_TH_LOW = 900;
+unsigned int DARK_TH_HIGH = 950;
 unsigned int DELAY_ON_MOV = 30000;
 unsigned int DELAY_ON_OCC = 20000;
 unsigned int OCC_TRIG_TH = 65530;
@@ -35,6 +35,7 @@ DNSServer *dnsServer = NULL;
 const byte DNS_PORT = 53; 
 int ambient_level;
 int onboard_led_level = 0;
+bool is_dark_mode = false;
 bool onboard_led = false;
 bool motion_sensor = false;
 bool control_output = false;
@@ -320,6 +321,16 @@ void loop() {
   // Hotspot captive portal
   if(dnsServer)
     dnsServer->processNextRequest();
+
+  // Main detection loop
+  if(is_dark_mode){ // in night
+    
+  }else{ // in day
+    if(ambient_level>DARK_TH_HIGH){
+      set_sensor(true, NULL);
+      is_dark_mode = true;
+    }
+  }
  
   delay(1);
 }
