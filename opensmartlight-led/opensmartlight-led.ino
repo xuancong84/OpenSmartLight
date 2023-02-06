@@ -251,6 +251,7 @@ void auto_disable_debug(){
     DEBUG = 0;
 }
 
+bool justStarted = true;
 void loop() {
   // check light sensor
   all_off();
@@ -273,6 +274,7 @@ void loop() {
       Serial.println("Exited sleep ...");
       Serial.flush();
     }
+    if(justStarted) justStarted = false;
   }
 
 
@@ -281,7 +283,14 @@ void loop() {
     night_start_time_millis = millis();
   if(millis()-day_start_time_millis>DAY_BACK_LENGTH_MILLIS)
     day_back_time_millis = millis();
-  smartlight_off();
+  
+  // powering on the controller in the dark should turn on the light
+  if(justStarted){
+    smartlight_on();
+    justStarted = false;
+  }else
+    smartlight_off();
+
   sensor_on();
   // reset timer0 counter
   // noInterrupts ();
