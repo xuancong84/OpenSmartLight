@@ -92,7 +92,7 @@ input {font-size:15px;}
 </head>
 <body>
 <h2>OpenSmartLight (Open-source Smart Light Controller)</h2>
-<p>Date Time: <input type='text' id='datetime' size=24 style="width:auto" readonly>&nbsp;<button onclick='GET("update_time")'>Synchronize Time</button>
+<p>Date Time: <input type='text' id='datetime' size=32 style="width:auto" readonly>&nbsp;<button onclick='GET("update_time")'>Synchronize Time</button>
   &nbsp; Updating: <label class="toggle"><input id='isActive' type="checkbox" onchange='isActive=this.checked' checked>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label>
   &nbsp; <span id='ntp_reply'></span>
