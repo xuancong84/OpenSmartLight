@@ -163,8 +163,8 @@ input {font-size:15px;}
 </table>
 <hr>
 <p><button onclick="location.href='/update'" style='font-weight: bold'>OTA Firmware Update</button>&nbsp;
-  <button onclick='alert(GET("save_eeprom"))' title='Save settings to EEPROM' style='font-weight: bold'>Save to EEPROM</button>&nbsp;
-  <button onclick='alert(GET("load_eeprom"));update_status("static", true)' title='Load settings from EEPROM' style='font-weight: bold'>Load EEPROM</button>&nbsp;
+  <button onclick='alert(GET("save_eeprom"))' title='Save settings to EEPROM to persist across restarts' style='font-weight: bold'>Save Settings</button>&nbsp;
+  <button onclick='alert(GET("load_eeprom"));update_status("static", true)' title='Load settings from EEPROM' style='font-weight: bold'>Load Settings</button>&nbsp;
   <button onclick='GET("reboot")' style='font-weight: bold'>Reboot</button></p>
 <script>
 var isActive = true;

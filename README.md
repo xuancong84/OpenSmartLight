@@ -2,6 +2,7 @@
 Open-source smart-light sensor module for ceiling lighting control
 
 ![PCB layout PNG](/PCB/PCB.png)
+![PCB soldered PNG](/PCB/PCB-soldered.jpg)
 
 This module uses the latest 24GHz microwave micro-motion sensor (HLK-LD1115H) to sense human presence and uses LGT8F328P (mini or LED version) or NodeMCU (Wifi version) as microcontroller.
 When in the dark, whenever human is present, it turns on the ceiling light. That is the standard mini version.
@@ -11,5 +12,7 @@ LED version:
 
 Wifi version:
 - on top of the LED version, it can connect to Wifi and adjust settings (or control lighting) from the web browser.
+
+![Web-UI PNG](/web-ui.png)
 
 All source codes and PCB layout files (EasyEDA/Gerber) are available. You can send for PCB fabrication.
