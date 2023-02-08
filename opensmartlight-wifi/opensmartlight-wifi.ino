@@ -51,6 +51,7 @@ String sensor_log;
 String midnight_starts[7] = { "23:00", "23:00", "23:00", "23:00", "00:00", "00:00", "23:00" };
 String midnight_stops[7] = { "07:00", "07:00", "07:00", "07:00", "07:00", "07:00", "07:00" };
 
+int do_glide = 0;
 bool reboot = false;
 unsigned long tm_last_ambient = 0;
 unsigned long tm_last_timesync = 0;
@@ -180,6 +181,12 @@ void set_onboard_led(bool state){
 }
 
 void glide_onboard_led(bool state){
+  if(GLIDE_TIME==0){
+    set_onboard_led(state);
+    onboard_led_level = state?LED_END:LED_BEGIN;
+    analogWrite(PIN_LED_ADJ, onboard_led_level);
+    return;
+  }
   int level;
   float spd = ((float)GLIDE_TIME)/((LED_BEGIN+LED_END+1)*(abs(int(LED_END-LED_BEGIN))+1)/2);
   if(state){  // turn on gradually
@@ -363,8 +370,8 @@ void initServer(){
   server.on("/control_output_off", [](AsyncWebServerRequest *request) {set_output(false);request->send(200, "text/html", "");});
   server.on("/motion_sensor_on", [](AsyncWebServerRequest *request) {set_sensor(true);request->send(200, "text/html", "");});
   server.on("/motion_sensor_off", [](AsyncWebServerRequest *request) {set_sensor(false);request->send(200, "text/html", "");});
-  server.on("/glide_led_on", [](AsyncWebServerRequest *request) {glide_onboard_led(true);request->send(200, "text/html", "");});
-  server.on("/glide_led_off", [](AsyncWebServerRequest *request) {glide_onboard_led(false);request->send(200, "text/html", "");});
+  server.on("/glide_led_on", [](AsyncWebServerRequest *request) {do_glide=1;request->send(200, "text/html", "");});
+  server.on("/glide_led_off", [](AsyncWebServerRequest *request) {do_glide=-1;request->send(200, "text/html", "");});
   server.on("/save_eeprom", [](AsyncWebServerRequest *request) {request->send(200, "text/html", save_to_EEPROM()?"Success":"Failed");});
   server.on("/load_eeprom", [](AsyncWebServerRequest *request) {request->send(200, "text/html", load_EEPROM()?"Success":"Failed");});
   server.on("/onboard_led_on", [](AsyncWebServerRequest *request) {set_onboard_led(true);request->send(200, "text/html", "");});
@@ -460,6 +467,12 @@ void loop() {
   if(reboot){
     delay(200);
     ESP.restart();
+  }
+
+  // Handle glide
+  if(do_glide!=0){
+    glide_onboard_led(do_glide>0);
+    do_glide = 0;
   }
 
   // Auto disable debug
