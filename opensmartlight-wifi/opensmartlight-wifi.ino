@@ -60,6 +60,7 @@ unsigned long tm_last_debugon = millis();
 #define N_params 11
 String g_params[N_params] = {"DARK_TH_LOW", "DARK_TH_HIGH", "DELAY_ON_MOV", "DELAY_ON_OCC", "OCC_TRIG_TH", "OCC_CONT_TH", "MOV_TRIG_TH", "MOV_CONT_TH", "LED_BEGIN", "LED_END", "GLIDE_TIME"};
 unsigned int *g_pointer[N_params] = {&DARK_TH_LOW, &DARK_TH_HIGH, &DELAY_ON_MOV, &DELAY_ON_OCC, &OCC_TRIG_TH, &OCC_CONT_TH, &MOV_TRIG_TH, &MOV_CONT_TH, &LED_BEGIN, &LED_END, &GLIDE_TIME};
+const int EEPROM_MAXSIZE = sizeof(int)*N_params+14*16+18;
 bool set_value(String varname, unsigned int value){
   for(int x=0; x<N_params; x++)
     if(varname==g_params[x]){
@@ -69,25 +70,33 @@ bool set_value(String varname, unsigned int value){
   return false;
 }
 
-String md5(char *buf, int len) {
-  char out[20];
+void md5(char *out, char *buf, int len) {
   md5_context_t ctx;
   MD5Init(&ctx);
   MD5Update(&ctx, (const uint8_t*)buf, len);
   MD5Final((uint8_t*)out, &ctx);
-  return String(out);
 }
 
-int calc_checksum(char *buf, int len){
-  return 0;
+bool parse_midnight(String s){
+  for(int x=0; x<7; x++){
+    int posi = s.indexOf(' ');
+    if(posi<0) return false;
+    midnight_starts[x] = s.substring(0, posi);
+    s = s.substring(posi+1);
+    posi = s.indexOf(' ');
+    if(posi<0) return false;
+    midnight_stops[x] = s.substring(0, posi);
+    s = s.substring(posi+1);
+  }
+  return true;
 }
 
-void save_to_EEPROM(){
+bool save_to_EEPROM(){
   String midnight_str="";
   for(int x=0; x<7; x++)
-    midnight_str += (midnight_starts[x]+" "+midnight_stops[x]);
+    midnight_str += (midnight_starts[x]+" "+midnight_stops[x]+" ");
 
-  char buf[sizeof(int)*N_params+midnight_str.length()+1+8];
+  char buf[EEPROM_MAXSIZE];
   int posi = 0;
   for(int x=0; x<N_params; x++){
     *(unsigned int*)(&buf[posi]) = *g_pointer[x];
@@ -95,9 +104,41 @@ void save_to_EEPROM(){
   }
   strcpy(&buf[posi], midnight_str.c_str());
   posi += midnight_str.length()+1;
+  md5(&buf[posi], buf, posi);
+  posi += 16;
+
+  // write EEPROM
+  for(int x=0; x<posi; x++)
+    EEPROM.write(x, buf[x]);
+
+  return true;
 }
 
 bool load_EEPROM(){
+  char md5_comp[16];
+  char buf[EEPROM_MAXSIZE];
+
+  // read EEPROM
+  for(int x=0; x<EEPROM_MAXSIZE; x++)
+    buf[x] = EEPROM.read(x);
+
+  int posi = N_params*sizeof(int);
+  if(strlen(&buf[posi])>14*6)
+    return false;
+
+  String midnight_str = String(&buf[posi]);
+  posi += midnight_str.length()+1;
+  md5(md5_comp, buf, posi);
+  if(memcmp(md5_comp, &buf[posi], 16)!=0)
+    return false;
+
+  posi = 0;
+  for(int x=0; x<N_params; x++){
+    *g_pointer[x] = *(unsigned int*)(&buf[posi]);
+    posi += sizeof(unsigned int);
+  }
+  parse_midnight(midnight_str);
+
   return true;
 }
 
@@ -323,7 +364,9 @@ void initServer(){
   server.on("/motion_sensor_on", [](AsyncWebServerRequest *request) {set_sensor(true);request->send(200, "text/html", "");});
   server.on("/motion_sensor_off", [](AsyncWebServerRequest *request) {set_sensor(false);request->send(200, "text/html", "");});
   server.on("/glide_led_on", [](AsyncWebServerRequest *request) {glide_onboard_led(true);request->send(200, "text/html", "");});
-  server.on("/glide_led_off", [](AsyncWebServerRequest *request) {glide_onboard_led(false);request->send(200, "text/html", "");});  
+  server.on("/glide_led_off", [](AsyncWebServerRequest *request) {glide_onboard_led(false);request->send(200, "text/html", "");});
+  server.on("/save_eeprom", [](AsyncWebServerRequest *request) {request->send(200, "text/html", save_to_EEPROM()?"Success":"Failed");});
+  server.on("/load_eeprom", [](AsyncWebServerRequest *request) {request->send(200, "text/html", load_EEPROM()?"Success":"Failed");});
   server.on("/onboard_led_on", [](AsyncWebServerRequest *request) {set_onboard_led(true);request->send(200, "text/html", "");});
   server.on("/onboard_led_off", [](AsyncWebServerRequest *request) {set_onboard_led(false);request->send(200, "text/html", "");});
   server.on("/onboard_led_level", [](AsyncWebServerRequest *request) {
@@ -336,22 +379,14 @@ void initServer(){
   server.on("/set_value", [](AsyncWebServerRequest *request) {
     String varname = request->argName(0);
     unsigned int value = request->arg((size_t)0).toInt();
-    request->send(set_value(varname, value)?200:400, "text/html", "");
+    request->send(200, "text/html", set_value(varname, value)?"Success":"Failed");
     });
   server.on("/set_midnight_times", [](AsyncWebServerRequest *request){
     if(request->hasArg("midnight_times")){
       String s = request->arg("midnight_times");
-      for(int x=0; x<7; x++){
-        int posi = s.indexOf(' ');
-        midnight_starts[x] = (posi>=0?s.substring(0, posi):s);
-        s = s.substring(posi+1);
-        posi = s.indexOf(' ');
-        midnight_stops[x] = (posi>=0?s.substring(0, posi):s);
-        s = s.substring(posi+1);
-      }
-      request->send(200, "text/html", "");
+      request->send(200, "text/html", parse_midnight(s)?"Success":"Failed");
     }else
-      request->send(400, "text/html", "");
+      request->send(400, "text/html", "Invalid data");
   });
   server.onNotFound([](AsyncWebServerRequest *request){request->send(404, "text/plain", "Content not found.");});
   AsyncElegantOTA.begin(&server);
@@ -396,6 +431,10 @@ void setup() {
   timeClient.begin();
   timeClient.update();
   Serial.printf("Current datetime = %s %s\n", getDateString(), getTimeString());
+
+  // Load EEPROM settings if exists
+  EEPROM.begin(EEPROM_MAXSIZE);
+  load_EEPROM();
 
   initServer();
   digitalWrite(LED_BUILTIN_AUX, 1);

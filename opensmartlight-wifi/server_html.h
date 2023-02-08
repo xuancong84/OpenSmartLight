@@ -92,9 +92,10 @@ input {font-size:15px;}
 </head>
 <body>
 <h2>OpenSmartLight (Open-source Smart Light Controller)</h2>
-<p>Date Time: <input type='text' id='datetime' size=24 style="width:auto" readonly>&nbsp;<button onclick='GET("update_time")'>Synchronize Time</button><span id='ntp_reply'></span>
-  &nbsp;&nbsp; Updating: <label class="toggle"><input id='isActive' type="checkbox" onchange='isActive=this.checked' checked>
+<p>Date Time: <input type='text' id='datetime' size=24 style="width:auto" readonly>&nbsp;<button onclick='GET("update_time")'>Synchronize Time</button>
+  &nbsp; Updating: <label class="toggle"><input id='isActive' type="checkbox" onchange='isActive=this.checked' checked>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label>
+  &nbsp; <span id='ntp_reply'></span>
   </p>
 <p><table><tr>
 <td>System LED: <label class="toggle"><input id='sys_led' type="checkbox" onchange='set_ckbox(this)'>
@@ -162,6 +163,8 @@ input {font-size:15px;}
 </table>
 <hr>
 <p><button onclick="location.href='/update'" style='font-weight: bold'>OTA Firmware Update</button>&nbsp;
+  <button onclick='alert(GET("save_eeprom"))' title='Save settings to EEPROM' style='font-weight: bold'>Save to EEPROM</button>&nbsp;
+  <button onclick='alert(GET("load_eeprom"));update_status("static", true)' title='Load settings from EEPROM' style='font-weight: bold'>Load EEPROM</button>&nbsp;
   <button onclick='GET("reboot")' style='font-weight: bold'>Reboot</button></p>
 <script>
 var isActive = true;
@@ -184,7 +187,7 @@ function changeALL(i, obj){
     getById((i?"midnight_stop":"midnight_start")+x).value = obj.value;
 }
 function set_value(obj){
-  GET('set_value?'+obj.id+'='+obj.value);
+  getById("ntp_reply").innerHTML = GET('set_value?'+obj.id+'='+obj.value);
 }
 function set_ckbox(obj){
   GET(obj.id+'_'+(obj.checked?'on':'off'));
@@ -212,7 +215,7 @@ function update_status(cmd='status', force=false){
       else elem.value = obj[s];
     }
   if('onboard_led_level' in obj) getById('led_level').value = obj['onboard_led_level'];
-  if('onboard_led' in obj) getById('glide_led').innerHTML = "Glide LED "+obj['onboard_led']?'OFF':'ON';
+  if('onboard_led' in obj) getById('glide_led').innerHTML = "Glide LED "+(obj['onboard_led']?'OFF':'ON');
   for(var x=0; x<7; ++x) for(const name of ['midnight_start', 'midnight_stop']) {
     var s = name+x;
     if(s in obj) getById(s).value = obj[s];
