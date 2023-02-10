@@ -5,7 +5,7 @@ char server_html[] = R"(<!DOCTYPE html>
 <head>
 <style>
 table, th, td {border: 1px solid;}
-input {width: 80px;}
+input[type=number] {width: 80px;}
 h3 {margin-bottom:10px;}
 td {padding-left:5px; padding-right:5px;}
 input {font-size:15px;}
@@ -91,12 +91,12 @@ input {font-size:15px;}
 </style>
 </head>
 <body>
-<h2>OpenSmartLight (Open-source Smart Light Controller)</h2>
-<p>Date Time: <input type='text' id='datetime' size=32 style="width:auto" readonly>&nbsp;<button onclick='GET("update_time")'>Synchronize Time</button>
-  &nbsp; Updating: <label class="toggle"><input id='isActive' type="checkbox" onchange='isActive=this.checked' checked>
-  <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label>
-  &nbsp; <span id='ntp_reply'></span>
-  </p>
+<h2>OpenSmartLight (Open-source Smart Light Controller) &nbsp; <span id='svr_reply' style='color:red'></span></h2>
+<p>Date Time: <input type='text' id='datetime' size=32 style="width:auto" readonly>&nbsp;
+  <button onclick='GET("update_time")'>Synchronize Time</button>&nbsp;
+  <button onclick='update_status("static", true)'>Reload Parameters</button> &nbsp;
+  Updating: <label class="toggle"><input id='isActive' type="checkbox" onchange='isActive=this.checked' checked>
+  <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></p>
 <p><table><tr>
 <td>System LED: <label class="toggle"><input id='sys_led' type="checkbox" onchange='set_ckbox(this)'>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></td>
@@ -114,7 +114,7 @@ input {font-size:15px;}
 <hr>
 <h3>Onboard LED Adjustment &nbsp;&nbsp; Status: <label class="toggle"><input id='onboard_led' type="checkbox" onchange='set_ckbox(this)'>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></h3>
-<p>Onboard LED Level: <input type='number' id='onboard_led_level' onchange='set_value(this)'>&nbsp;
+<p>Onboard LED Level: <input type='number' id='onboard_led_level' onchange='GET("onboard_led_level?brightness="+this.value)'>&nbsp;
   <span style="background-color:#cccccc; display:inline-flex; align-items: center;">
     <span id='led_level_min'></span>
     <input id='led_level' type="range" min="0" max="200" value="0" style="width:400px" onchange='GET("onboard_led_level?brightness="+this.value)'>
@@ -127,34 +127,34 @@ input {font-size:15px;}
   <button id='glide_led' onclick='GET("glide_led_"+(getById("onboard_led").checked?"off":"on"))'>Glide LED ON</button></td></tr>
 <table>
 <hr>
-<p><h3>Mid-night Start/Stop Times</h3>
-<table><tbody>
+<p><h3>Mid-night Start/Stop Times &nbsp;&nbsp;&nbsp; Is now mid-night? <input type='text' id='is_midnight' readonly></h3>
+<table>
   <tr><th>Day of Week</th><th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th><th>Saturday</th><th>Sunday</th><th><b>Everyday</b></th></tr>
-  <tr><td>Start Time</td><td><input type="time" id="midnight_start0"></td>
-    <td><input type="time" id="midnight_start1"></td>
-    <td><input type="time" id="midnight_start2"></td>
-    <td><input type="time" id="midnight_start3"></td>
-    <td><input type="time" id="midnight_start4"></td>
-    <td><input type="time" id="midnight_start5"></td>
-    <td><input type="time" id="midnight_start6"></td>
-    <td><input type="time" id="midnight_start" onchange="changeALL(0,this);"></td></tr>
-  <tr><td>End Time</td><td><input type="time" id="midnight_stop0"></td>
-    <td><input type="time" id="midnight_stop1"></td>
-    <td><input type="time" id="midnight_stop2"></td>
-    <td><input type="time" id="midnight_stop3"></td>
-    <td><input type="time" id="midnight_stop4"></td>
-    <td><input type="time" id="midnight_stop5"></td>
-    <td><input type="time" id="midnight_stop6"></td>
-    <td><input type="time" id="midnight_stop" onchange="changeALL(1,this);"></td></tr>
-</tbody></table>
-<p>Is in mid-night: <input type='text' id='is_midnight' readonly>&nbsp;
-  <button onclick='set_midnight_times()'>Set Midnight Times</button> <button onclick='update_status("static", true)'>Load Midnight Times</button></p>
+  <tr><td>Start Time</td>
+    <td><input type="time" id="midnight_start0" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_start1" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_start2" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_start3" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_start4" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_start5" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_start6" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_start" onchange='changeALL(this)' onblur='set_times(this)'></td></tr>
+  <tr><td>End Time</td>
+    <td><input type="time" id="midnight_stop0" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_stop1" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_stop2" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_stop3" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_stop4" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_stop5" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_stop6" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_stop"  onchange='changeALL(this)' onblur='set_times(this)'></td></tr>
+</table>
 <hr>
 <h3>Motion Sensor &nbsp;&nbsp; Status: <label class="toggle"><input id='motion_sensor' type="checkbox" onchange='set_ckbox(this)'>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></h3>
 <table>
 <tr><td>MOV_TRIG_TH</td> <td><input type='number' id='MOV_TRIG_TH' onchange='set_value(this)'></td> <td>The MOV threshold level to trigger light-on. </td>
-  <td rowspan=6>Motion Sensor Log:<br><textarea id='sensor_output' rows=10 cols=20 style='resize:both;'></textarea></td></tr>
+  <td rowspan=6>Motion Sensor Log:<br><textarea id='sensor_output' rows=10 cols=20 style='resize:both;' readonly></textarea></td></tr>
 <tr><td>MOV_CONT_TH</td> <td><input type='number' id='MOV_CONT_TH' onchange='set_value(this)'></td> <td>The MOV threshold level to maintain light-on. </td></tr>
 <tr><td>OCC_TRIG_TH</td> <td><input type='number' id='OCC_TRIG_TH' onchange='set_value(this)'></td> <td>The OCC threshold level to trigger light-on. </td></tr>
 <tr><td>OCC_CONT_TH</td> <td><input type='number' id='OCC_CONT_TH' onchange='set_value(this)'></td> <td>The OCC threshold level to maintain light-on. </td></tr>
@@ -162,12 +162,25 @@ input {font-size:15px;}
 <tr><td>DELAY_ON_OCC</td> <td><input type='number' id='DELAY_ON_OCC' onchange='set_value(this)'></td> <td>The duration to extend light-on time upon OCC. </td></tr>
 </table>
 <hr>
+<h3>WIFI Settings &nbsp;&nbsp;SSID: <input id='wifi_ssid' type='text' onblur='set_string(this)'> &nbsp; Password: <input id='wifi_password' type='password' onblur='set_string(this)'></h3>
+<table>
+<tr><th>IP Address</th><th>Gateway</th><th>Subnet</th><th>DNS primary</th><th>DNS secondary</th></tr>
+<tr>
+  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_IP'></td>
+  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_gateway'></td>
+  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_subnet'></td>
+  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_DNS1'></td>
+  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_DNS2'></td>
+</tr>
+</table>
 <p><button onclick="location.href='/update'" style='font-weight: bold'>OTA Firmware Update</button>&nbsp;
   <button onclick='alert(GET("save_eeprom"))' title='Save settings to EEPROM to persist across restarts' style='font-weight: bold'>Save Settings</button>&nbsp;
   <button onclick='alert(GET("load_eeprom"));update_status("static", true)' title='Load settings from EEPROM' style='font-weight: bold'>Load Settings</button>&nbsp;
   <button onclick='GET("reboot")' style='font-weight: bold'>Reboot</button></p>
 <script>
 var isActive = true;
+var countDown = 0;
+var svr_reply = '';
 function getById(id_str){return document.getElementById(id_str);}
 function GET(url){
   while(true){
@@ -182,44 +195,41 @@ function GET(url){
     }
   }
 }
-function changeALL(i, obj){
+function changeALL(obj){
   for(var x=0; x<7; x++)
-    getById((i?"midnight_stop":"midnight_start")+x).value = obj.value;
+    getById(obj.id+x).value = obj.value;
 }
 function set_value(obj){
-  getById("ntp_reply").innerHTML = GET('set_value?'+obj.id+'='+obj.value);
+  svr_reply = GET('set_value?'+obj.id+'='+obj.value);
+  countDown = 4;
+}
+function set_string(obj){
+  svr_reply = GET('set_string?'+obj.id+'='+obj.value);
+  countDown = 4;
 }
 function set_ckbox(obj){
   GET(obj.id+'_'+(obj.checked?'on':'off'));
 }
-function set_midnight_times(){
-  var ret = "set_midnight_times?midnight_times=";
-  for(var x=0; x<7; ++x) for(const name of ['midnight_start', 'midnight_stop']) {
-    var s = name+x;
-    ret += getById(s).value+' ';
-  }
-  GET(ret);
-  location.reload();
-}
-function update_time(){
-  getById("ntp_reply").innerHTML = GET("update_time");
+function set_times(obj){
+  var ret = "set_times?"+obj.id+"=";
+  for(var x=0; x<7; ++x)
+    ret += getById(obj.id+x).value+' ';
+  svr_reply = GET(ret);
+  countDown = 4;
 }
 function update_status(cmd='status', force=false){
+  if(countDown>0)
+    getById('svr_reply').innerHTML = (--countDown==0)?'':(svr_reply+'<sup>'+countDown+'</sup>');
   if(!isActive && !force) return;
   obj = JSON.parse(GET(cmd));
-  for(const s of ['datetime', 'dbg_led', 'sys_led', 'ambient', 'motion_sensor', 'onboard_led', 'onboard_led_level', 'control_output', 'sensor_output', 'is_midnight',
-      'DARK_TH_LOW', 'DARK_TH_HIGH', 'MOV_TRIG_TH', 'MOV_CONT_TH', 'OCC_TRIG_TH', 'OCC_CONT_TH', 'DELAY_ON_MOV', 'DELAY_ON_OCC', 'LED_BEGIN', 'LED_END', 'GLIDE_TIME'])
-    if(s in obj) {
-      var elem = getById(s);
-      if(elem.type=='checkbox')elem.checked=obj[s];
-      else elem.value = obj[s];
-    }
+  for(const s in obj){
+    var elem = getById(s);
+    if(elem==null) continue;
+    if(elem.type=='checkbox')elem.checked=obj[s];
+    else elem.value = obj[s];
+  }
   if('onboard_led_level' in obj) getById('led_level').value = obj['onboard_led_level'];
   if('onboard_led' in obj) getById('glide_led').innerHTML = "Glide LED "+(obj['onboard_led']?'OFF':'ON');
-  for(var x=0; x<7; ++x) for(const name of ['midnight_start', 'midnight_stop']) {
-    var s = name+x;
-    if(s in obj) getById(s).value = obj[s];
-  }
 }
 window.onload = () => {
   getById('led_level_min').innerHTML = getById('led_level').min;
