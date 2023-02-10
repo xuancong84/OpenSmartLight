@@ -1,6 +1,7 @@
 #include <Esp.h>
 #include <EEPROM.h>
 #include <ArduinoJson.h>
+#include <IPAddress.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClient.h>
 #include <ESPAsyncTCP.h>
@@ -10,7 +11,7 @@
 #include <DNSServer.h>
 #include <WiFiUdp.h>
 #include <md5.h>
-#include "./secret.h"
+#include "./secret.h" // put your WIFI credentials in this file, or comment this line out
 #include "./server_html.h"
 
 #define tzOffsetInSeconds 3600*8
@@ -21,6 +22,7 @@
 #define PIN_AMBIENT_PULLUP D7
 #define PIN_AMBIENT_INPUT A0
 #define SENSOR_LOG_MAX  120
+#define WIFI_NAME "OpenSmartLight"
 
 // Saved parameters
 unsigned int DARK_TH_LOW = 950;
@@ -34,6 +36,44 @@ unsigned int MOV_CONT_TH = 250;
 unsigned int LED_BEGIN = 100;
 unsigned int LED_END = 125;
 unsigned int GLIDE_TIME = 800;
+
+// WIFI parameters
+#ifndef WIFI_SSID
+#define WIFI_SSID ""
+#endif
+
+#ifndef WIFI_PASSWORD
+#define WIFI_PASSWORD ""
+#endif
+
+#ifndef WIFI_IP
+#define WIFI_IP IPAddress()
+#endif
+
+#ifndef WIFI_GATEWAY
+#define WIFI_GATEWAY IPAddress()
+#endif
+
+#ifndef WIFI_SUBNET
+#define WIFI_SUBNET IPAddress()
+#endif
+
+#ifndef WIFI_DNS1
+#define WIFI_DNS1 IPAddress()
+#endif
+
+#ifndef WIFI_DNS2
+#define WIFI_DNS2 IPAddress()
+#endif
+
+
+String wifi_ssid = WIFI_SSID;             //Enter your WIFI ssid
+String wifi_password = WIFI_PASSWORD;         //Enter your WIFI password
+IPAddress wifi_IP = WIFI_IP;
+IPAddress wifi_gateway = WIFI_GATEWAY;
+IPAddress wifi_subnet = WIFI_SUBNET;
+IPAddress wifi_DNS1 = WIFI_DNS1;          //optional
+IPAddress wifi_DNS2 = WIFI_DNS2;          //optional
 
 AsyncWebServer server(80);
 DNSServer *dnsServer = NULL;
@@ -51,6 +91,7 @@ String sensor_log;
 String midnight_starts[7] = { "23:00", "23:00", "23:00", "23:00", "00:00", "00:00", "23:00" };
 String midnight_stops[7] = { "07:00", "07:00", "07:00", "07:00", "07:00", "07:00", "07:00" };
 
+
 int do_glide = 0;
 bool reboot = false;
 unsigned long tm_last_ambient = 0;
@@ -58,17 +99,49 @@ unsigned long tm_last_timesync = 0;
 unsigned long tm_last_debugon = millis();
 
 // Saveable parameters
-#define N_params 11
-String g_params[N_params] = {"DARK_TH_LOW", "DARK_TH_HIGH", "DELAY_ON_MOV", "DELAY_ON_OCC", "OCC_TRIG_TH", "OCC_CONT_TH", "MOV_TRIG_TH", "MOV_CONT_TH", "LED_BEGIN", "LED_END", "GLIDE_TIME"};
-unsigned int *g_pointer[N_params] = {&DARK_TH_LOW, &DARK_TH_HIGH, &DELAY_ON_MOV, &DELAY_ON_OCC, &OCC_TRIG_TH, &OCC_CONT_TH, &MOV_TRIG_TH, &MOV_CONT_TH, &LED_BEGIN, &LED_END, &GLIDE_TIME};
-const int EEPROM_MAXSIZE = sizeof(int)*N_params+14*16+18;
+#define N_params 16
+String g_params[N_params] = {"DARK_TH_LOW", "DARK_TH_HIGH", "DELAY_ON_MOV", "DELAY_ON_OCC", "OCC_TRIG_TH", "OCC_CONT_TH", "MOV_TRIG_TH", "MOV_CONT_TH", "LED_BEGIN", "LED_END", "GLIDE_TIME",
+  "wifi_IP", "wifi_gateway", "wifi_subnet", "wifi_DNS1", "wifi_DNS2"};
+u32_t *g_pointer[N_params] = {&DARK_TH_LOW, &DARK_TH_HIGH, &DELAY_ON_MOV, &DELAY_ON_OCC, &OCC_TRIG_TH, &OCC_CONT_TH, &MOV_TRIG_TH, &MOV_CONT_TH, &LED_BEGIN, &LED_END, &GLIDE_TIME,
+  (u32_t*)(ip_addr_t*)wifi_IP, (u32_t*)(ip_addr_t*)wifi_gateway, (u32_t*)(ip_addr_t*)wifi_subnet, (u32_t*)(ip_addr_t*)wifi_DNS1, (u32_t*)(ip_addr_t*)wifi_DNS2};
+const int EEPROM_MAXSIZE = sizeof(int)*N_params+(14*6+1)+(32+1)+64+18;
 bool set_value(String varname, unsigned int value){
+  if(DEBUG)
+    Serial.println("Setting "+varname+" to "+value);
   for(int x=0; x<N_params; x++)
     if(varname==g_params[x]){
       *g_pointer[x] = value;
       return true;
     }
   return false;
+}
+bool set_string(String varname, String value){
+  if(DEBUG)
+    Serial.println("Setting "+varname+" to "+value);
+  if(varname=="wifi_ssid")
+    wifi_ssid = value;
+  else if(varname=="wifi_password")
+    wifi_password = value;
+  else if(varname.startsWith("wifi_")){
+    int x;
+    for(x=0; (x<N_params)&&(varname!=g_params[x]); x++);
+    if(varname!=g_params[x]) return false;
+    IPAddress ipa;
+    if(!ipa.fromString(value)) return false;
+    *g_pointer[x] = (uint32_t)ipa;
+  }else if(varname.startsWith("midnight_")){
+    for(int x=0; x<7; x++){
+      if(varname==String("midnight_start")+x){
+        midnight_starts[x] = value;
+        return true;
+      }else if(varname==String("midnight_stop")+x){
+        midnight_stops[x] = value;
+        return true;
+      }
+    }
+    return false;
+  }else return false;
+  return true;
 }
 
 void md5(char *out, char *buf, int len) {
@@ -78,13 +151,23 @@ void md5(char *out, char *buf, int len) {
   MD5Final((uint8_t*)out, &ctx);
 }
 
-bool parse_midnight(String s){
+bool parse_combined_str(String s){
+  int posi = s.indexOf('+');
+  if(posi<0) return false;
+  wifi_ssid = s.substring(0, posi);
+  s = s.substring(posi+1);
+
+  posi = s.indexOf('+');
+  if(posi<0) return false;
+  wifi_password = s.substring(0, posi);
+  s = s.substring(posi+1);
+  
   for(int x=0; x<7; x++){
-    int posi = s.indexOf(' ');
+    posi = s.indexOf('+');
     if(posi<0) return false;
     midnight_starts[x] = s.substring(0, posi);
     s = s.substring(posi+1);
-    posi = s.indexOf(' ');
+    posi = s.indexOf('+');
     if(posi<0) return false;
     midnight_stops[x] = s.substring(0, posi);
     s = s.substring(posi+1);
@@ -92,10 +175,26 @@ bool parse_midnight(String s){
   return true;
 }
 
-bool save_to_EEPROM(){
-  String midnight_str="";
+bool set_times(String prefix, String s){
+  if(DEBUG)
+    Serial.println("Setting "+prefix+" to "+s);
+  String tms[7];
+  for(int x=0; x<7; x++){
+    int posi = s.indexOf(' ');
+    if(posi<0) return false;
+    tms[x] = s.substring(0, posi);
+    s = s.substring(posi+1);
+  }
   for(int x=0; x<7; x++)
-    midnight_str += (midnight_starts[x]+" "+midnight_stops[x]+" ");
+    if(!set_string(prefix+x, tms[x]))
+      return false;
+  return true;
+}
+
+bool save_to_EEPROM(){
+  String combined_str = wifi_ssid+"+"+wifi_password;
+  for(int x=0; x<7; x++)
+    combined_str += ("+"+midnight_starts[x]+"+"+midnight_stops[x]);
 
   char buf[EEPROM_MAXSIZE];
   int posi = 0;
@@ -103,8 +202,8 @@ bool save_to_EEPROM(){
     *(unsigned int*)(&buf[posi]) = *g_pointer[x];
     posi += sizeof(unsigned int);
   }
-  strcpy(&buf[posi], midnight_str.c_str());
-  posi += midnight_str.length()+1;
+  strcpy(&buf[posi], combined_str.c_str());
+  posi += combined_str.length()+1;
   md5(&buf[posi], buf, posi);
   posi += 16;
 
@@ -127,8 +226,8 @@ bool load_EEPROM(){
   if(strlen(&buf[posi])>14*6)
     return false;
 
-  String midnight_str = String(&buf[posi]);
-  posi += midnight_str.length()+1;
+  String combined_str = String(&buf[posi]);
+  posi += combined_str.length()+1;
   md5(md5_comp, buf, posi);
   if(memcmp(md5_comp, &buf[posi], 16)!=0)
     return false;
@@ -138,29 +237,10 @@ bool load_EEPROM(){
     *g_pointer[x] = *(unsigned int*)(&buf[posi]);
     posi += sizeof(unsigned int);
   }
-  parse_midnight(midnight_str);
+  parse_combined_str(combined_str);
 
   return true;
 }
-
-/* Set these to your desired credentials. */
-#if defined(WIFI_SSID) && defined(WIFI_PASSWORD)
-const char *ssid = WIFI_SSID;                 //Enter your WIFI ssid
-const char *password = WIFI_PASSWORD;         //Enter your WIFI password
-#define WIFI_STATICIP
-#else
-const char *ssid = "";                 //Enter your WIFI ssid
-const char *password = "";         //Enter your WIFI password
-#endif
-
-#ifdef WIFI_STATICIP
-// Set your Static IP address
-IPAddress local_IP(192, 168, 50, 5);
-IPAddress gateway(192, 168, 50, 1);
-IPAddress subnet(255, 255, 255, 0);
-IPAddress primaryDNS(8, 8, 8, 8);   //optional
-IPAddress secondaryDNS(1, 1, 1, 1); //optional
-#endif
 
 void set_output(bool state){
   digitalWrite(PIN_CONTROL_OUTPUT, state?1:0);
@@ -314,8 +394,14 @@ void handleStatus(AsyncWebServerRequest *request){
 
 void handleStatic(AsyncWebServerRequest *request){
   DynamicJsonDocument doc(2048);
-  for(int x=0; x<N_params; x++)
-    doc[g_params[x]] = *g_pointer[x];
+  for(int x=0; x<N_params; x++){
+    if(g_params[x].startsWith("wifi_"))
+      doc[g_params[x]] = IPAddress(*g_pointer[x]).toString();
+    else
+      doc[g_params[x]] = *g_pointer[x];
+  }
+  doc["wifi_ssid"] = wifi_ssid;
+  doc["wifi_password"] = wifi_password;
   for(int x=0; x<7; x++){
     doc["midnight_start"+String(x)] = midnight_starts[x];
     doc["midnight_stop"+String(x)] = midnight_stops[x];
@@ -325,16 +411,29 @@ void handleStatic(AsyncWebServerRequest *request){
   request->send(200, "text/html", output);
 }
 
-void initWifi(){
+bool hotspot(){
+  Serial.println("Creating hotspot 'OpenSmartLight' ...");
+  WiFi.softAP(WIFI_NAME);
+  IPAddress apIP = WiFi.softAPIP();
+  Serial.print("Hotspot IP address: ");
+  Serial.println(apIP);
+  dnsServer = new DNSServer();
+  dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
+  dnsServer->start(DNS_PORT, "*", apIP);
+  return false;
+}
+
+bool initWifi(){
+  if(wifi_ssid.isEmpty())
+    return hotspot();
+
   Serial.print("Connecting to WiFi ...");
 
-#ifdef WIFI_STATICIP
   // Configures static IP address
-  if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
-    Serial.println("Static IP settings incorrect: failed to configure!");
-#endif
+  if (!WiFi.config(wifi_IP, wifi_gateway, wifi_subnet, wifi_DNS1, wifi_DNS2))
+    Serial.println("Static IP settings not set or incorrect: DHCP will be used");
 
-  WiFi.begin(ssid, password);
+  WiFi.begin(wifi_ssid, wifi_password);
   for(int x=0; x<=60; ++x){
     if(WiFi.status() == WL_CONNECTED) break;
     delay(1000);
@@ -345,15 +444,10 @@ void initWifi(){
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
   }else{
-    Serial.println("\nUnable to connect to WiFi, creating hotspot 'OpenSmartLight' ...");
-    WiFi.softAP("OpenSmartLight");
-    IPAddress apIP = WiFi.softAPIP();
-    Serial.print("Hotspot IP address: ");
-    Serial.println(apIP);
-    dnsServer = new DNSServer();
-    dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
-    dnsServer->start(DNS_PORT, "*", apIP);
+    Serial.println("\nUnable to connect to WiFi");
+    return hotspot();
   }
+  return true;
 }
 
 void initServer(){
@@ -384,16 +478,13 @@ void initServer(){
       request->send(400, "text/html", "");
     });
   server.on("/set_value", [](AsyncWebServerRequest *request) {
-    String varname = request->argName(0);
-    unsigned int value = request->arg((size_t)0).toInt();
-    request->send(200, "text/html", set_value(varname, value)?"Success":"Failed");
+    request->send(200, "text/html", set_value(request->argName(0), request->arg((size_t)0).toInt())?"Success":"Failed");
     });
-  server.on("/set_midnight_times", [](AsyncWebServerRequest *request){
-    if(request->hasArg("midnight_times")){
-      String s = request->arg("midnight_times");
-      request->send(200, "text/html", parse_midnight(s)?"Success":"Failed");
-    }else
-      request->send(400, "text/html", "Invalid data");
+  server.on("/set_string", [](AsyncWebServerRequest *request) {
+    request->send(200, "text/html", set_string(request->argName(0), request->arg((size_t)0))?"Success":"Failed");
+    });
+  server.on("/set_times", [](AsyncWebServerRequest *request){
+    request->send(200, "text/html", set_times(request->argName(0), request->arg((int)0))?"Success":"Failed");
   });
   server.onNotFound([](AsyncWebServerRequest *request){request->send(404, "text/plain", "Content not found.");});
   AsyncElegantOTA.begin(&server);
