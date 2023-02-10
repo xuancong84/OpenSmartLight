@@ -68,7 +68,7 @@ unsigned int GLIDE_TIME = 800;
 
 
 String wifi_ssid = WIFI_SSID;             //Enter your WIFI ssid
-String wifi_password = WIFI_PASSWORD;         //Enter your WIFI password
+String wifi_password = WIFI_PASSWORD;     //Enter your WIFI password
 IPAddress wifi_IP = WIFI_IP;
 IPAddress wifi_gateway = WIFI_GATEWAY;
 IPAddress wifi_subnet = WIFI_SUBNET;
@@ -93,7 +93,7 @@ String midnight_stops[7] = { "07:00", "07:00", "07:00", "07:00", "07:00", "07:00
 
 
 int do_glide = 0;
-bool reboot = false;
+bool reboot = false, restart_wifi = false;
 unsigned long tm_last_ambient = 0;
 unsigned long tm_last_timesync = 0;
 unsigned long tm_last_debugon = millis();
@@ -104,10 +104,10 @@ String g_params[N_params] = {"DARK_TH_LOW", "DARK_TH_HIGH", "DELAY_ON_MOV", "DEL
   "wifi_IP", "wifi_gateway", "wifi_subnet", "wifi_DNS1", "wifi_DNS2"};
 u32_t *g_pointer[N_params] = {&DARK_TH_LOW, &DARK_TH_HIGH, &DELAY_ON_MOV, &DELAY_ON_OCC, &OCC_TRIG_TH, &OCC_CONT_TH, &MOV_TRIG_TH, &MOV_CONT_TH, &LED_BEGIN, &LED_END, &GLIDE_TIME,
   (u32_t*)(ip_addr_t*)wifi_IP, (u32_t*)(ip_addr_t*)wifi_gateway, (u32_t*)(ip_addr_t*)wifi_subnet, (u32_t*)(ip_addr_t*)wifi_DNS1, (u32_t*)(ip_addr_t*)wifi_DNS2};
-const int EEPROM_MAXSIZE = sizeof(int)*N_params+(14*6+1)+(32+1)+64+18;
+const int EEPROM_MAXSIZE = sizeof(int)*N_params/*g_params*/+(14*6+1)/*midnight start/stop times*/+(32+1)/*WIFI SSID*/+64/*WIFI password*/+16/*MD5 checksum*/+2/*end-of-string NULL byte*/;
 bool set_value(String varname, unsigned int value){
   if(DEBUG)
-    Serial.println("Setting "+varname+" to "+value);
+    Serial.println("Setting '"+varname+"' to '"+value+"'");
   for(int x=0; x<N_params; x++)
     if(varname==g_params[x]){
       *g_pointer[x] = value;
@@ -117,7 +117,7 @@ bool set_value(String varname, unsigned int value){
 }
 bool set_string(String varname, String value){
   if(DEBUG)
-    Serial.println("Setting "+varname+" to "+value);
+    Serial.println("Setting '"+varname+"' to '"+value+"'");
   if(varname=="wifi_ssid")
     wifi_ssid = value;
   else if(varname=="wifi_password")
@@ -127,7 +127,7 @@ bool set_string(String varname, String value){
     for(x=0; (x<N_params)&&(varname!=g_params[x]); x++);
     if(varname!=g_params[x]) return false;
     IPAddress ipa;
-    if(!ipa.fromString(value)) return false;
+    if(!ipa.fromString(value)) ipa=IPAddress();
     *g_pointer[x] = (uint32_t)ipa;
   }else if(varname.startsWith("midnight_")){
     for(int x=0; x<7; x++){
@@ -168,8 +168,8 @@ bool parse_combined_str(String s){
     midnight_starts[x] = s.substring(0, posi);
     s = s.substring(posi+1);
     posi = s.indexOf('+');
-    if(posi<0) return false;
-    midnight_stops[x] = s.substring(0, posi);
+    if(posi<0 && x<6) return false;
+    midnight_stops[x] = posi<0?s:s.substring(0, posi);
     s = s.substring(posi+1);
   }
   return true;
@@ -181,8 +181,8 @@ bool set_times(String prefix, String s){
   String tms[7];
   for(int x=0; x<7; x++){
     int posi = s.indexOf(' ');
-    if(posi<0) return false;
-    tms[x] = s.substring(0, posi);
+    if(posi<0 && x<6) return false;
+    tms[x] = posi<0?s:s.substring(0, posi);
     s = s.substring(posi+1);
   }
   for(int x=0; x<7; x++)
@@ -223,7 +223,7 @@ bool load_EEPROM(){
     buf[x] = EEPROM.read(x);
 
   int posi = N_params*sizeof(int);
-  if(strlen(&buf[posi])>14*6)
+  if(strlen(&buf[posi])>14*6+32+64)
     return false;
 
   String combined_str = String(&buf[posi]);
@@ -312,14 +312,14 @@ void set_system_led(bool state){
 
 // Define NTP Client to get time
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", tzOffsetInSeconds, 7200);
+NTPClient *timeClient = NULL;
 String getTimeString(){
   char buf[16];
-  sprintf(buf, "%02d:%02d:%02d", timeClient.getHours(), timeClient.getMinutes(), timeClient.getSeconds());
+  sprintf(buf, "%02d:%02d:%02d", timeClient->getHours(), timeClient->getMinutes(), timeClient->getSeconds());
   return String(buf);
 }
 String getDateString(){
-  time_t epochTime = timeClient.getEpochTime();
+  time_t epochTime = timeClient->getEpochTime();
   struct tm *ptm = gmtime ((time_t *)&epochTime);
   int monthDay = ptm->tm_mday;
   int currentMonth = ptm->tm_mon+1;
@@ -330,7 +330,7 @@ String getDateString(){
 }
 String weekDays[7]={"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 String getWeekdayString(){
-  return weekDays[timeClient.getDay()];
+  return weekDays[timeClient->getDay()];
 }
 
 boolean isIp(String str) {
@@ -349,9 +349,9 @@ void smartlight_off(){
 }
 
 bool is_midnight(){
-  int weekday = (timeClient.getDay()+6)%7;
+  int weekday = (timeClient->getDay()+6)%7;
   String midnight_start = midnight_starts[weekday], midnight_stop = midnight_stops[weekday];
-  int hours = timeClient.getHours(), minutes = timeClient.getMinutes();
+  int hours = timeClient->getHours(), minutes = timeClient->getMinutes();
   String midnight_time = getTimeString().substring(0, 5);
   if(midnight_start.isEmpty() || midnight_stop.isEmpty()) return false;
   if(midnight_stop > midnight_start) // midnight starts after 0am
@@ -412,25 +412,46 @@ void handleStatic(AsyncWebServerRequest *request){
 }
 
 bool hotspot(){
+  IPAddress apIP(172, 0, 0, 1);
   Serial.println("Creating hotspot 'OpenSmartLight' ...");
+  WiFi.mode(WIFI_AP);
+  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
   WiFi.softAP(WIFI_NAME);
-  IPAddress apIP = WiFi.softAPIP();
   Serial.print("Hotspot IP address: ");
   Serial.println(apIP);
   dnsServer = new DNSServer();
   dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
   dnsServer->start(DNS_PORT, "*", apIP);
+  initNTP();
   return false;
 }
 
+void initNTP(){
+  if(timeClient){
+    timeClient->end();
+    delete timeClient;
+  }
+  timeClient = new NTPClient(ntpUDP, "pool.ntp.org", tzOffsetInSeconds, 7200);
+  timeClient->begin();
+  timeClient->update();
+  Serial.printf("Current datetime = %s %s\n", getDateString(), getTimeString());
+}
+
 bool initWifi(){
+  if(dnsServer){
+    dnsServer->stop();
+    delete dnsServer;
+    dnsServer = NULL;
+  }
+
   if(wifi_ssid.isEmpty())
     return hotspot();
 
   Serial.print("Connecting to WiFi ...");
 
   // Configures static IP address
-  if (!WiFi.config(wifi_IP, wifi_gateway, wifi_subnet, wifi_DNS1, wifi_DNS2))
+  WiFi.mode(WIFI_STA);
+  if (!WiFi.config(wifi_IP, wifi_gateway, wifi_subnet, wifi_DNS1.isSet()?wifi_DNS1:IPAddress(0), wifi_DNS2.isSet()?wifi_DNS2:IPAddress(0)))
     Serial.println("Static IP settings not set or incorrect: DHCP will be used");
 
   WiFi.begin(wifi_ssid, wifi_password);
@@ -447,6 +468,9 @@ bool initWifi(){
     Serial.println("\nUnable to connect to WiFi");
     return hotspot();
   }
+
+  // Update time from Internet
+  initNTP();
   return true;
 }
 
@@ -455,6 +479,7 @@ void initServer(){
   server.on("/status", handleStatus);
   server.on("/static", handleStatic);
   server.on("/reboot", [](AsyncWebServerRequest *request) {reboot = true; request->send(200, "text/html", "");});
+  server.on("/restart_wifi", [](AsyncWebServerRequest *request) {restart_wifi = true; request->send(200, "text/html", "");});
   server.on("/update_time", [](AsyncWebServerRequest *request) {tm_last_timesync=0; request->send(200, "text/html", "");});
   server.on("/dbg_led_on", [](AsyncWebServerRequest *request) {set_debug_led(true);request->send(200, "text/html", "");});
   server.on("/dbg_led_off", [](AsyncWebServerRequest *request) {set_debug_led(false);request->send(200, "text/html", "");});
@@ -525,11 +550,6 @@ void setup() {
   initWifi();
   digitalWrite(LED_BUILTIN, 1);
 
-  // Update time from Internet
-  timeClient.begin();
-  timeClient.update();
-  Serial.printf("Current datetime = %s %s\n", getDateString(), getTimeString());
-
   // Load EEPROM settings if exists
   EEPROM.begin(EEPROM_MAXSIZE);
   load_EEPROM();
@@ -550,7 +570,7 @@ void loop() {
 
   // Synchronize Internet time
   if(tm_curr-tm_last_timesync>3600000*24){
-    timeClient.update();
+    timeClient->forceUpdate();
     tm_last_timesync = tm_curr;
   }
 
@@ -558,6 +578,14 @@ void loop() {
   if(reboot){
     delay(200);
     ESP.restart();
+  }
+
+  // Handle restart WIFI
+  if(restart_wifi){
+    restart_wifi = false;
+    delay(200);
+    WiFi.disconnect(false, true);
+    initWifi();
   }
 
   // Handle glide

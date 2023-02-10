@@ -10,6 +10,7 @@ h3 {margin-bottom:10px;}
 td {padding-left:5px; padding-right:5px;}
 input {font-size:15px;}
 
+.bb { font-weight: bold; }
 .toggle {
   --width: 80px;
   --height: calc(var(--width) / 3);
@@ -162,7 +163,8 @@ input {font-size:15px;}
 <tr><td>DELAY_ON_OCC</td> <td><input type='number' id='DELAY_ON_OCC' onchange='set_value(this)'></td> <td>The duration to extend light-on time upon OCC. </td></tr>
 </table>
 <hr>
-<h3>WIFI Settings &nbsp;&nbsp;SSID: <input id='wifi_ssid' type='text' onblur='set_string(this)'> &nbsp; Password: <input id='wifi_password' type='password' onblur='set_string(this)'></h3>
+<h3>WIFI Settings &nbsp;&nbsp;SSID: <input id='wifi_ssid' type='text' onblur='set_string(this)'> &nbsp; Password: <input id='wifi_password' type='password' onblur='set_string(this)'>
+  &nbsp; <button onclick='GET("restart_wifi")' class='bb'>Restart WIFI</button></p></h3>
 <table>
 <tr><th>IP Address</th><th>Gateway</th><th>Subnet</th><th>DNS primary</th><th>DNS secondary</th></tr>
 <tr>
@@ -173,10 +175,10 @@ input {font-size:15px;}
   <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_DNS2'></td>
 </tr>
 </table>
-<p><button onclick="location.href='/update'" style='font-weight: bold'>OTA Firmware Update</button>&nbsp;
-  <button onclick='alert(GET("save_eeprom"))' title='Save settings to EEPROM to persist across restarts' style='font-weight: bold'>Save Settings</button>&nbsp;
-  <button onclick='alert(GET("load_eeprom"));update_status("static", true)' title='Load settings from EEPROM' style='font-weight: bold'>Load Settings</button>&nbsp;
-  <button onclick='GET("reboot")' style='font-weight: bold'>Reboot</button></p>
+<p><button onclick="location.href='/update'" class='bb'>OTA Firmware Update</button>&nbsp;
+  <button onclick='alert(GET("save_eeprom"))' title='Save settings to EEPROM to persist across restarts' class='bb'>Save Settings</button>&nbsp;
+  <button onclick='alert(GET("load_eeprom"));update_status("static", true)' title='Load settings from EEPROM' class='bb'>Load Settings</button>&nbsp;
+  <button onclick='GET("reboot")' class='bb'>Reboot</button></p>
 <script>
 var isActive = true;
 var countDown = 0;
