@@ -99,12 +99,15 @@ input {font-size:15px;}
   Updating: <label class="toggle"><input id='isActive' type="checkbox" onchange='isActive=this.checked' checked>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></p>
 <p><table><tr>
-<td>System LED: <label class="toggle"><input id='sys_led' type="checkbox" onchange='set_ckbox(this)'>
-  <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></td>
 <td>Debug LED: <label class="toggle"><input id='dbg_led' type="checkbox" onchange='set_ckbox(this)'>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></td>
 <td>Control Output: <label class="toggle"><input id='control_output' type="checkbox" onchange='set_ckbox(this)'>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></td>
+<td>System LED: <label class="toggle"><input id='sys_led' type="checkbox" onchange='set_ckbox(this)'>
+  <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label>
+  <span style="display:inline-flex; vertical-align: middle;">
+    <input type="range" min="0" max="255" value="0" style="width:200px" oninput='GET("sys_led_level?level="+this.value)'>
+  </span></td>
 </tr></table></p>
 <hr>
 <h3>Ambient Light Threshold Adjustment &nbsp;&nbsp; Current Level: <input type='text' id='ambient' readonly></h3>
@@ -115,10 +118,10 @@ input {font-size:15px;}
 <hr>
 <h3>Onboard LED Adjustment &nbsp;&nbsp; Status: <label class="toggle"><input id='onboard_led' type="checkbox" onchange='set_ckbox(this)'>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></h3>
-<p>Onboard LED Level: <input type='number' id='onboard_led_level' onchange='GET("onboard_led_level?brightness="+this.value)'>&nbsp;
-  <span style="background-color:#cccccc; display:inline-flex; align-items: center;">
+<p>Onboard LED Level: <input type='number' id='onboard_led_level' onchange='GET("onboard_led_level?level="+this.value)'>&nbsp;
+  <span style="background-color:#dddddd; display:inline-flex; align-items: center;">
     <span id='led_level_min'></span>
-    <input id='led_level' type="range" min="0" max="200" value="0" style="width:400px" onchange='GET("onboard_led_level?brightness="+this.value)'>
+    <input id='led_level' type="range" min="0" max="200" value="0" style="width:400px" onchange='GET("onboard_led_level?level="+this.value)'>
     <span id='led_level_max'></span>
   </span></p>
 <table>
