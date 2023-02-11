@@ -211,7 +211,7 @@ bool save_to_EEPROM(){
   for(int x=0; x<posi; x++)
     EEPROM.write(x, buf[x]);
 
-  return true;
+  return EEPROM.commit();
 }
 
 bool load_EEPROM(){
@@ -308,6 +308,14 @@ void set_system_led(bool state){
   digitalWrite(LED_BUILTIN, !state);
   SYSLED = state;
   if(DEBUG) Serial.printf("System LED state = %d\n", SYSLED);
+}
+
+void set_system_led_level(int value){
+  int level = 255-value;
+  level = min(255, max(0, level));
+  analogWrite(LED_BUILTIN, level);
+  SYSLED = value>0;
+  if(DEBUG) Serial.printf("System LED level = %d\n", value);
 }
 
 // Define NTP Client to get time
@@ -485,6 +493,14 @@ void initServer(){
   server.on("/dbg_led_off", [](AsyncWebServerRequest *request) {set_debug_led(false);request->send(200, "text/html", "");});
   server.on("/sys_led_on", [](AsyncWebServerRequest *request) {set_system_led(true);request->send(200, "text/html", "");});
   server.on("/sys_led_off", [](AsyncWebServerRequest *request) {set_system_led(false);request->send(200, "text/html", "");});
+  server.on("/sys_led_level", [](AsyncWebServerRequest *request) {
+    if(request->hasArg("level")){
+      set_system_led_level(request->arg("level").toInt());
+      request->send(200, "text/html", "");
+    }else
+      request->send(400, "text/html", "");
+    });
+
   server.on("/control_output_on", [](AsyncWebServerRequest *request) {set_output(true);request->send(200, "text/html", "");});
   server.on("/control_output_off", [](AsyncWebServerRequest *request) {set_output(false);request->send(200, "text/html", "");});
   server.on("/motion_sensor_on", [](AsyncWebServerRequest *request) {set_sensor(true);request->send(200, "text/html", "");});
@@ -496,8 +512,8 @@ void initServer(){
   server.on("/onboard_led_on", [](AsyncWebServerRequest *request) {set_onboard_led(true);request->send(200, "text/html", "");});
   server.on("/onboard_led_off", [](AsyncWebServerRequest *request) {set_onboard_led(false);request->send(200, "text/html", "");});
   server.on("/onboard_led_level", [](AsyncWebServerRequest *request) {
-    if(request->hasArg("brightness")){
-      set_onboard_led_level(request->arg("brightness").toInt());
+    if(request->hasArg("level")){
+      set_onboard_led_level(request->arg("level").toInt());
       request->send(200, "text/html", "");
     }else
       request->send(400, "text/html", "");
@@ -543,18 +559,19 @@ void setup() {
   digitalWrite(LED_BUILTIN, 0);
   digitalWrite(LED_BUILTIN_AUX, 0);
 
+  // Load EEPROM settings if exists
+  EEPROM.begin(EEPROM_MAXSIZE);
+  bool is_from_eeprom = load_EEPROM();
+  digitalWrite(LED_BUILTIN_AUX, is_from_eeprom);
+
   Serial.begin(115200);
   Serial.setTimeout(100L);
   Serial.println("\nSystem initialized:");
+  Serial.println(is_from_eeprom?"Loaded settings from EEPROM.":"Not loading settings from EEPROM.");
 
   initWifi();
-  digitalWrite(LED_BUILTIN, 1);
-
-  // Load EEPROM settings if exists
-  EEPROM.begin(EEPROM_MAXSIZE);
-  load_EEPROM();
-
   initServer();
+  digitalWrite(LED_BUILTIN, 1);
   digitalWrite(LED_BUILTIN_AUX, 1);
 }
 
