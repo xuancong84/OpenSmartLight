@@ -3,9 +3,51 @@
 char server_html[] = R"(<!DOCTYPE html>
 <html>
 <head>
+<meta charset="utf-8">
 <style>
+button {
+  align-items: center;
+  appearance: none;
+  background-color: #3EB2FD;
+  background-image: linear-gradient(1deg, #4F58FD, #149BF3 99%);
+  background-size: calc(100% + 20px) calc(100% + 20px);
+  border-radius: 100px;
+  border-width: 0;
+  box-shadow: none;
+  box-sizing: border-box;
+  color: #FFFFFF;
+  cursor: pointer;
+  display: inline-flex;
+  font-family: CircularStd,sans-serif;
+  font-size: 1rem;
+  height: auto;
+  justify-content: center;
+  line-height: 1;
+  padding: 6px 20px;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color .2s,background-position .2s;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+button:active,
+button:focus {
+  outline: none;
+}
+button:hover {
+  background-position: -20px -20px;
+}
+button:focus:not(:active) {
+  box-shadow: rgba(40, 170, 255, 0.25) 0 0 0 .125em;
+}
+
 table, th, td {border: 1px solid;}
 input[type=number] {width: 80px;}
+input[type=text],input[type=password] {width: 120px;}
 h3 {margin-bottom:10px;}
 td {padding-left:5px; padding-right:5px;}
 input {font-size:15px;}
@@ -92,12 +134,16 @@ input {font-size:15px;}
 </style>
 </head>
 <body>
-<h2>OpenSmartLight (Open-source Smart Light Controller) &nbsp; <span id='svr_reply' style='color:red'></span></h2>
-<p>Date Time: <input type='text' id='datetime' size=32 style="width:auto" readonly>&nbsp;
-  <button onclick='GET("update_time")'>Synchronize Time</button>&nbsp;
-  <button onclick='update_status("static", true)'>Reload Parameters</button> &nbsp;
+<h2>OpenSmartLight (Open-source Smart Light Controller) &nbsp;
   Updating: <label class="toggle"><input id='isActive' type="checkbox" onchange='isActive=this.checked' checked>
-  <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></p>
+  <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label>
+  <span id='svr_reply' style='color:red'></span></h2>
+<p>Date Time: <input type='text' id='datetime' size=32 style="width:auto" readonly>&nbsp;
+  Timezone: <input type='number' id='timezone' style="width:auto">&nbsp;
+  <button onclick='GET2("update_time")'>Synchronize Time</button>&nbsp;
+  <button onclick='update_status("static", true)'>Reload Parameters</button>
+  </p>
+<p>Board Info: <input type='text' id='board_info' size=88 style="width:auto" readonly></p>
 <p><table><tr>
 <td>Debug LED: <label class="toggle"><input id='dbg_led' type="checkbox" onchange='set_ckbox(this)'>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></td>
@@ -106,7 +152,7 @@ input {font-size:15px;}
 <td>System LED: <label class="toggle"><input id='sys_led' type="checkbox" onchange='set_ckbox(this)'>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label>
   <span style="display:inline-flex; vertical-align: middle;">
-    <input type="range" min="0" max="255" value="0" style="width:200px" oninput='GET("sys_led_level?level="+this.value)'>
+    <input type="range" min="0" max="255" value="0" style="width:200px" oninput='GET2("sys_led_level?level="+this.value)'>
   </span></td>
 </tr></table></p>
 <hr>
@@ -118,17 +164,17 @@ input {font-size:15px;}
 <hr>
 <h3>Onboard LED Adjustment &nbsp;&nbsp; Status: <label class="toggle"><input id='onboard_led' type="checkbox" onchange='set_ckbox(this)'>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></h3>
-<p>Onboard LED Level: <input type='number' id='onboard_led_level' onchange='GET("onboard_led_level?level="+this.value)'>&nbsp;
+<p>Onboard LED Level: <input type='number' id='onboard_led_level' onchange='GET2("onboard_led_level?level="+this.value)'>&nbsp;
   <span style="background-color:#dddddd; display:inline-flex; align-items: center;">
     <span id='led_level_min'></span>
-    <input id='led_level' type="range" min="0" max="200" value="0" style="width:400px" onchange='GET("onboard_led_level?level="+this.value)'>
+    <input id='led_level' type="range" min="0" max="200" value="0" style="width:400px" onchange='GET2("onboard_led_level?level="+this.value)'>
     <span id='led_level_max'></span>
   </span></p>
 <table>
   <tr><td>LED_BEGIN </td><td> <input type='number' id='LED_BEGIN' onchange='set_value(this)'> </td><td> The initial LED level when lighting up (or the final LED level when shutting down). </td></tr>
   <tr><td>LED_END </td><td> <input type='number' id='LED_END' onchange='set_value(this)'> </td><td> The final LED level when lighting up (or the initial LED level when shutting down). </td></tr>
   <tr><td>GLIDE_TIME </td><td> <input type='number' id='GLIDE_TIME' onchange='set_value(this)'> </td><td> The duration (in milliseconds) of turning on the LED gradually.
-  <button id='glide_led' onclick='GET("glide_led_"+(getById("onboard_led").checked?"off":"on"))'>Glide LED ON</button></td></tr>
+  <button id='glide_led' onclick='GET2("glide_led_"+(getById("onboard_led").checked?"off":"on"))'>Glide LED ON</button></td></tr>
 <table>
 <hr>
 <p><h3>Mid-night Start/Stop Times &nbsp;&nbsp;&nbsp; Is now mid-night? <input type='text' id='is_midnight' readonly></h3>
@@ -155,7 +201,8 @@ input {font-size:15px;}
 </table>
 <hr>
 <h3>Motion Sensor &nbsp;&nbsp; Status: <label class="toggle"><input id='motion_sensor' type="checkbox" onchange='set_ckbox(this)'>
-  <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></h3>
+  <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;&nbsp;
+  <button onclick='show_list()' class='bb'>View History</button></h3>
 <table>
 <tr><td>MOV_TRIG_TH</td> <td><input type='number' id='MOV_TRIG_TH' onchange='set_value(this)'></td> <td>The MOV threshold level to trigger light-on. </td>
   <td rowspan=6>Motion Sensor Log:<br><textarea id='sensor_output' rows=10 cols=20 style='resize:both;' readonly></textarea></td></tr>
@@ -167,7 +214,7 @@ input {font-size:15px;}
 </table>
 <hr>
 <h3>WIFI Settings &nbsp;&nbsp;SSID: <input id='wifi_ssid' type='text' onblur='set_string(this)'> &nbsp; Password: <input id='wifi_password' type='password' onblur='set_string(this)'>
-  &nbsp; <button onclick='GET("restart_wifi")' class='bb'>Restart WIFI</button></p></h3>
+  &nbsp; <button onclick='GET2("restart_wifi")' class='bb'>Restart WIFI</button></h3>
 <table>
 <tr><th>IP Address</th><th>Gateway</th><th>Subnet</th><th>DNS primary</th><th>DNS secondary</th></tr>
 <tr>
@@ -179,22 +226,43 @@ input {font-size:15px;}
 </tr>
 </table>
 <p><button onclick="location.href='/update'" class='bb'>OTA Firmware Update</button>&nbsp;
-  <button onclick='alert(GET("save_eeprom"))' title='Save settings to EEPROM to persist across restarts' class='bb'>Save Settings</button>&nbsp;
-  <button onclick='alert(GET("load_eeprom"));update_status("static", true)' title='Load settings from EEPROM' class='bb'>Load Settings</button>&nbsp;
-  <button onclick='GET("reboot")' class='bb'>Reboot</button></p>
+  <button onclick='alert(GET1("save_config"))' title='Save config file to persist across restarts' class='bb'>Save Settings</button>&nbsp;
+  <button onclick='alert(GET1("load_config"));update_status("static", true)' title='Load settings from config file' class='bb'>Load Settings</button>&nbsp;
+  <button onclick='GET2("reboot")' class='bb'>Reboot</button></p>
+<div id="popup" style="display:block; visibility:hidden; position: absolute; z-index: 9; background-color: #f1f1f1; border: 1px solid #d3d3d3; text-align: center;">
+  <div id="popup_header" style="padding: 10px; cursor: move; z-index: 10; background-color: #219633; color: #fff;">
+    <b>Log History</b>&nbsp;
+    <button style="background:#c00" onclick='show_list(GET1("log_history?delete="+current_logfile))'>Delete Current</button>&nbsp;
+    <button style="background:#c00" onclick='show_list(GET1("log_history?delete=ALL"))'>Delete ALL</button>
+    <a style="cursor:pointer; color:red; float:right; font-size:xx-large; margin-top:-4px" onclick='hide_details()'>☒</a>
+  </div>
+  <div style="width:800px; height:600px; display:flex; resize:both; overflow:auto">
+    <div style="height: 100%; width: 25%;"><select id="popup_list" size=10 style="width:100%; height:100%;"></select></div>&nbsp;
+    <div style="height: 100%; width: 75%"><textarea id="popup_log" style="width:100%; height:100%; box-sizing:border-box" readonly></textarea></div>
+  </div>
+</div>
+
 <script>
 var isActive = true;
 var countDown = 0;
-var svr_reply = '';
+var svr_reply = getById('svr_reply');
+var current_logfile = "";
+var xmlHttp = new XMLHttpRequest();
 function getById(id_str){return document.getElementById(id_str);}
+function GET1(url){
+  xmlHttp.open('GET', window.location+url, false);
+  xmlHttp.send(null);
+  return xmlHttp.responseText;
+}
+function GET2(url, cb=null){
+  xmlHttp.open('GET', window.location+url);
+  if(cb!=null) xmlHttp.onload = cb;
+  xmlHttp.send(null);
+  return xmlHttp.responseText;
+}
 function GET(url){
   while(true){
-    try{
-      var xmlHttp = new XMLHttpRequest();
-      xmlHttp.open( 'GET', window.location+url, false ); // false for synchronous request
-      xmlHttp.send( null );
-      return xmlHttp.responseText;
-    }catch(err){
+    try{ return GET1(url); }catch(err){
       isActive = false;
       getById('isActive').checked = false;
     }
@@ -205,11 +273,11 @@ function changeALL(obj){
     getById(obj.id+x).value = obj.value;
 }
 function set_value(obj){
-  svr_reply = GET('set_value?'+obj.id+'='+obj.value);
+  svr_reply.innerHTML = GET('set_value?'+obj.id+'='+obj.value);
   countDown = 4;
 }
 function set_string(obj){
-  svr_reply = GET('set_string?'+obj.id+'='+obj.value);
+  svr_reply.innerHTML = GET('set_string?'+obj.id+'='+obj.value);
   countDown = 4;
 }
 function set_ckbox(obj){
@@ -219,22 +287,80 @@ function set_times(obj){
   var ret = "set_times?"+obj.id+"=";
   for(var x=0; x<7; ++x)
     ret += getById(obj.id+x).value+' ';
-  svr_reply = GET(ret);
+  svr_reply.innerHTML = GET(ret);
   countDown = 4;
 }
+var statusRC = 0;
 function update_status(cmd='status', force=false){
-  if(countDown>0)
-    getById('svr_reply').innerHTML = (--countDown==0)?'':(svr_reply+'<sup>'+countDown+'</sup>');
+  if(--countDown>0) svr_reply.innerText += '.';
+  else svr_reply.innerText = "";
+
   if(!isActive && !force) return;
-  obj = JSON.parse(GET(cmd));
-  for(const s in obj){
-    var elem = getById(s);
-    if(elem==null) continue;
-    if(elem.type=='checkbox')elem.checked=obj[s];
-    else elem.value = obj[s];
+  if(statusRC>0) return;
+  statusRC++;
+  GET2(cmd, (e)=>{
+    statusRC--;
+    try{obj = JSON.parse(e.target.responseText)} catch(e){return}
+    for(const s in obj){
+      var elem = getById(s);
+      if(elem==null) continue;
+      if(elem.type=='checkbox')elem.checked=obj[s];
+      else elem.value = obj[s];
+    }
+    if('onboard_led_level' in obj) getById('led_level').value = obj['onboard_led_level'];
+    if('onboard_led' in obj) getById('glide_led').innerHTML = "Glide LED "+(obj['onboard_led']?'OFF':'ON');
+    if('svr_reply' in obj){svr_reply.innerText=svr_reply.value; countDown = 4;}
+  });
+}
+var popup = getById("popup");
+function hide_details(){ popup.style.visibility = "hidden" }
+function dragElement(elmnt) {
+  var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+  getById('popup_header').onmousedown = dragMouseDown;
+
+  function dragMouseDown(e) {
+    e = e || window.event;
+    e.preventDefault();
+    // get the mouse cursor position at startup:
+    pos3 = e.clientX;
+    pos4 = e.clientY;
+    document.onmouseup = closeDragElement;
+    document.onmousemove = elementDrag;
   }
-  if('onboard_led_level' in obj) getById('led_level').value = obj['onboard_led_level'];
-  if('onboard_led' in obj) getById('glide_led').innerHTML = "Glide LED "+(obj['onboard_led']?'OFF':'ON');
+
+  function elementDrag(e) {
+    e = e || window.event;
+    e.preventDefault();
+    pos1 = pos3 - e.clientX;
+    pos2 = pos4 - e.clientY;
+    pos3 = e.clientX;
+    pos4 = e.clientY;
+    elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+    elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+  }
+
+  function closeDragElement() {
+    document.onmouseup = null;
+    document.onmousemove = null;
+  }
+}
+function show_log(fn){
+  getById('popup_log').value = GET1('logs/'+fn);
+  current_logfile = fn;
+}
+function show_list(filelist=0){
+  try{
+    filelist = filelist==0?GET1("log_history"):filelist;
+    if(popup.style.visibility!="visible"){
+      popup.style.visibility = "visible";
+      popup.style.top = (document.scrollingElement.scrollTop+50)+"px";
+    }
+    var popup_list = getById('popup_list');
+    popup_list.innerHTML = "";
+    for(var fn of filelist.split(' ')) if(fn)
+      popup_list.innerHTML += "<option onclick='show_log(\"" + fn + "\");'>"+fn+"</option>";
+    if(filelist) show_log(filelist.split(' ')[0]);
+  }catch(err){alert('Failed to get sensor history!');}
 }
 window.onload = () => {
   getById('led_level_min').innerHTML = getById('led_level').min;
@@ -242,6 +368,7 @@ window.onload = () => {
   update_status('static');
   update_status();
 }
+dragElement(popup);
 setInterval(update_status, 1000);
 </script>
 </body></html>

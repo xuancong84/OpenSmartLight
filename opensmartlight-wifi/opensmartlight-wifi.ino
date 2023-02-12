@@ -1,5 +1,5 @@
 #include <Esp.h>
-#include <EEPROM.h>
+#include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <IPAddress.h>
 #include <ESP8266WiFi.h>
@@ -10,11 +10,12 @@
 #include <NTPClient.h>
 #include <DNSServer.h>
 #include <WiFiUdp.h>
+#include <unistd.h>
 #include <md5.h>
+#include <stdio.h>
 #include "./secret.h" // put your WIFI credentials in this file, or comment this line out
 #include "./server_html.h"
 
-#define tzOffsetInSeconds 3600*8
 #define PIN_CONTROL_OUTPUT D2
 #define PIN_MOTION_SENSOR D3
 #define PIN_LED_MASTER D1
@@ -22,9 +23,23 @@
 #define PIN_AMBIENT_PULLUP D7
 #define PIN_AMBIENT_INPUT A0
 #define SENSOR_LOG_MAX  120
+#define LOGFILE_MAX_SIZE  200000
+#define LOGFILE_MAX_NUM  8
 #define WIFI_NAME "OpenSmartLight"
 
+void blink_halt(){
+  while(1){
+    digitalWrite(LED_BUILTIN, 1);
+    delay(1000);
+    digitalWrite(LED_BUILTIN, 0);
+    delay(1000);
+  }
+}
+
+ADC_MODE(ADC_VCC);
+
 // Saved parameters
+float timezone = 8;
 unsigned int DARK_TH_LOW = 950;
 unsigned int DARK_TH_HIGH = 990;
 unsigned int DELAY_ON_MOV = 30000;
@@ -85,26 +100,66 @@ bool is_smartlight_on = false;
 bool onboard_led = false;
 bool motion_sensor = false;
 bool control_output = false;
-bool DEBUG = false;
+bool DEBUG = true;
 bool SYSLED = false;
-String sensor_log;
+String sensor_log, svr_reply;
 String midnight_starts[7] = { "23:00", "23:00", "23:00", "23:00", "00:00", "00:00", "23:00" };
 String midnight_stops[7] = { "07:00", "07:00", "07:00", "07:00", "07:00", "07:00", "07:00" };
 
-
+File fp_hist;
 int do_glide = 0;
 bool reboot = false, restart_wifi = false, update_ntp = false;
 unsigned long tm_last_ambient = 0;
 unsigned long tm_last_timesync = 0;
-unsigned long tm_last_debugon = millis();
+unsigned long tm_last_debugon = 0;
+unsigned long tm_last_savehist = 0;
+
+// Define NTP Client to get time
+WiFiUDP *ntpUDP = NULL;
+NTPClient *timeClient = NULL;
+String getTimeString(){
+  char buf[16];
+  if(!timeClient) return "00:00:00";
+  sprintf(buf, "%02d:%02d:%02d", timeClient->getHours(), timeClient->getMinutes(), timeClient->getSeconds());
+  return String(buf);
+}
+String getDateString(bool showDay=true){
+  if(!timeClient)
+    return showDay?"0000-00-00":"0000-00";
+  time_t epochTime = timeClient->getEpochTime();
+  struct tm *ptm = gmtime ((time_t *)&epochTime);
+  int monthDay = ptm->tm_mday;
+  int currentMonth = ptm->tm_mon+1;
+  int currentYear = ptm->tm_year+1900;
+  char buf[16];
+  showDay?sprintf(buf, "%04d-%02d-%02d", currentYear, currentMonth, monthDay):sprintf(buf, "%04d-%02d", currentYear, currentMonth);
+  return String(buf);
+}
+String weekDays[7]={"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
+String getWeekdayString(){
+  if(!timeClient) return "";
+  return weekDays[timeClient->getDay()];
+}
+String getFullDateTime(){
+  if(!timeClient) return "";
+  return getDateString()+" ("+getWeekdayString()+") "+getTimeString();
+}
+
+String getBoardInfo(){
+  FSInfo info;
+  LittleFS.info(info);
+  return String("VCC: ") + ESP.getVcc() + "; FreeHeap: " + ESP.getFreeHeap() + "; FlashSize: "+ESP.getFlashChipRealSize()+"; Speed: "+ESP.getFlashChipSpeed()
+    +"; File system size (bytes): "+info.usedBytes+"/"+info.totalBytes;
+}
+
 
 // Saveable parameters
-#define N_params 16
+#define N_params 17
 String g_params[N_params] = {"DARK_TH_LOW", "DARK_TH_HIGH", "DELAY_ON_MOV", "DELAY_ON_OCC", "OCC_TRIG_TH", "OCC_CONT_TH", "MOV_TRIG_TH", "MOV_CONT_TH", "LED_BEGIN", "LED_END", "GLIDE_TIME",
-  "wifi_IP", "wifi_gateway", "wifi_subnet", "wifi_DNS1", "wifi_DNS2"};
+  "wifi_IP", "wifi_gateway", "wifi_subnet", "wifi_DNS1", "wifi_DNS2", "timezone"};
 u32_t *g_pointer[N_params] = {&DARK_TH_LOW, &DARK_TH_HIGH, &DELAY_ON_MOV, &DELAY_ON_OCC, &OCC_TRIG_TH, &OCC_CONT_TH, &MOV_TRIG_TH, &MOV_CONT_TH, &LED_BEGIN, &LED_END, &GLIDE_TIME,
-  (u32_t*)(ip_addr_t*)wifi_IP, (u32_t*)(ip_addr_t*)wifi_gateway, (u32_t*)(ip_addr_t*)wifi_subnet, (u32_t*)(ip_addr_t*)wifi_DNS1, (u32_t*)(ip_addr_t*)wifi_DNS2};
-const int EEPROM_MAXSIZE = sizeof(int)*N_params/*g_params*/+(14*6+1)/*midnight start/stop times*/+(32+1)/*WIFI SSID*/+64/*WIFI password*/+16/*MD5 checksum*/+2/*end-of-string NULL byte*/;
+  (u32_t*)(ip_addr_t*)wifi_IP, (u32_t*)(ip_addr_t*)wifi_gateway, (u32_t*)(ip_addr_t*)wifi_subnet, (u32_t*)(ip_addr_t*)wifi_DNS1, (u32_t*)(ip_addr_t*)wifi_DNS2, (u32_t*)&timezone};
+const int CONFIG_MAXSIZE = sizeof(int)*N_params/*g_params*/+(14*6+1)/*midnight start/stop times*/+(32+1)/*WIFI SSID*/+64/*WIFI password*/+16/*MD5 checksum*/+2/*end-of-string NULL byte*/;
 bool set_value(String varname, unsigned int value){
   if(DEBUG)
     Serial.println("Setting '"+varname+"' to '"+value+"'");
@@ -142,6 +197,35 @@ bool set_string(String varname, String value){
     return false;
   }else return false;
   return true;
+}
+
+void append_prune(String &buf, const String &s, int max_size){
+  if(s.isEmpty()) return;
+  while(buf.length() + s.length() > max_size){
+    int posi = buf.indexOf('\n');
+    if(posi<0) buf.clear();
+    else buf.remove(0, posi+1);
+  }
+  buf.concat(s+"\n");
+}
+
+void open_logfile_auto_rotate(){
+  if(!fp_hist.isFile())
+    fp_hist = LittleFS.open("/0.log", "a");
+  if(fp_hist.size()>LOGFILE_MAX_SIZE){  // rotate log
+    fp_hist.close();
+    for(int x=LOGFILE_MAX_NUM-1; x>=0; x--)
+      LittleFS.rename(String(x)+".log", String(x+1)+".log");
+    LittleFS.remove(String(LOGFILE_MAX_NUM)+".log");
+    fp_hist = LittleFS.open("/0.log", "a");
+  }
+}
+
+void log_event(const char *event){
+  open_logfile_auto_rotate();
+  String fullDateTime = getFullDateTime();
+  fp_hist.printf("%s : %s\n", fullDateTime.c_str(), event);
+  fp_hist.flush();
 }
 
 void md5(char *out, char *buf, int len) {
@@ -191,12 +275,22 @@ bool set_times(String prefix, String s){
   return true;
 }
 
-bool save_to_EEPROM(){
+bool save_file(const char *filename, const char *buf, size_t length){
+  File fp = LittleFS.open(filename, "w");
+  if(fp.isFile()){
+    size_t n_written = fp.write((uint8_t*)buf, length);
+    fp.close();
+    return n_written==length;
+  }
+  return false;
+}
+
+bool save_config(){
   String combined_str = wifi_ssid+"+"+wifi_password;
   for(int x=0; x<7; x++)
     combined_str += ("+"+midnight_starts[x]+"+"+midnight_stops[x]);
 
-  char buf[EEPROM_MAXSIZE];
+  char buf[CONFIG_MAXSIZE];
   int posi = 0;
   for(int x=0; x<N_params; x++){
     *(unsigned int*)(&buf[posi]) = *g_pointer[x];
@@ -207,22 +301,21 @@ bool save_to_EEPROM(){
   md5(&buf[posi], buf, posi);
   posi += 16;
 
-  // write EEPROM
-  for(int x=0; x<posi; x++)
-    EEPROM.write(x, buf[x]);
-
-  return EEPROM.commit();
+  return save_file("/config.bin", buf, posi);
 }
 
-bool load_EEPROM(){
+bool load_config(){
   char md5_comp[16];
-  char buf[EEPROM_MAXSIZE];
+  char buf[CONFIG_MAXSIZE];
 
-  // read EEPROM
-  for(int x=0; x<EEPROM_MAXSIZE; x++)
-    buf[x] = EEPROM.read(x);
+  // read config file
+  File fp = LittleFS.open("/config.bin", "r");
+  if(!fp.isFile()) return false;
+  int posi = fp.read((uint8_t*)buf, CONFIG_MAXSIZE);
+  fp.close();
+  if(!posi) return false;
 
-  int posi = N_params*sizeof(int);
+  posi = N_params*sizeof(int);
   if(strlen(&buf[posi])>14*6+32+64)
     return false;
 
@@ -237,20 +330,20 @@ bool load_EEPROM(){
     *g_pointer[x] = *(unsigned int*)(&buf[posi]);
     posi += sizeof(unsigned int);
   }
-  parse_combined_str(combined_str);
-
-  return true;
+  return parse_combined_str(combined_str);
 }
 
 void set_output(bool state){
   digitalWrite(PIN_CONTROL_OUTPUT, state?1:0);
   control_output = state;
+  log_event(state?"light on":"light off");
   if(DEBUG) Serial.printf("Output = %s\n", state?"On":"Off");
 }
 
 void set_sensor(bool state){
   digitalWrite(PIN_MOTION_SENSOR, state?1:0);
   motion_sensor = state;
+  log_event(state?"sensor on":"sensor off");
   if(DEBUG) Serial.printf("Sensor = %s\n", state?"On":"Off");
 }
 
@@ -261,6 +354,7 @@ void set_onboard_led(bool state){
 }
 
 void glide_onboard_led(bool state){
+  log_event(state?"glide LED on":"glide LED off");
   if(GLIDE_TIME==0){
     set_onboard_led(state);
     onboard_led_level = state?LED_END:LED_BEGIN;
@@ -318,29 +412,6 @@ void set_system_led_level(int value){
   if(DEBUG) Serial.printf("System LED level = %d\n", value);
 }
 
-// Define NTP Client to get time
-WiFiUDP *ntpUDP = NULL;
-NTPClient *timeClient = NULL;
-String getTimeString(){
-  char buf[16];
-  sprintf(buf, "%02d:%02d:%02d", timeClient->getHours(), timeClient->getMinutes(), timeClient->getSeconds());
-  return String(buf);
-}
-String getDateString(){
-  time_t epochTime = timeClient->getEpochTime();
-  struct tm *ptm = gmtime ((time_t *)&epochTime);
-  int monthDay = ptm->tm_mday;
-  int currentMonth = ptm->tm_mon+1;
-  int currentYear = ptm->tm_year+1900;
-  char buf[16];
-  sprintf(buf, "%04d-%02d-%02d", currentYear, currentMonth, monthDay);
-  return String(buf);
-}
-String weekDays[7]={"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-String getWeekdayString(){
-  return weekDays[timeClient->getDay()];
-}
-
 boolean isIp(String str) {
   for (size_t i = 0; i < str.length(); i++) {
     int c = str.charAt(i);
@@ -351,6 +422,7 @@ boolean isIp(String str) {
 }
 
 void smartlight_off(){
+  log_event("smartlight off");
   if(control_output) set_output(false);
   if(onboard_led) glide_onboard_led(false);
   is_smartlight_on = false;
@@ -368,6 +440,7 @@ bool is_midnight(){
 }
 
 void smartlight_on(){
+  log_event("smartlight on");
   is_midnight() ? glide_onboard_led(true) : set_output(true);
   is_smartlight_on = true;
 }
@@ -383,10 +456,6 @@ void handleRoot(AsyncWebServerRequest *request) {
   request->send_P(200, "text/html", server_html);
 }
 
-String getFullDateTime(){
-  return getDateString()+" ("+getWeekdayString()+") "+getTimeString();
-}
-
 void handleStatus(AsyncWebServerRequest *request){
   DynamicJsonDocument doc(2048);
   doc["datetime"] = getFullDateTime();
@@ -399,6 +468,11 @@ void handleStatus(AsyncWebServerRequest *request){
   doc["control_output"] = control_output;
   doc["sensor_output"] = sensor_log;
   doc["is_midnight"] = is_midnight();
+  doc["board_info"] = getBoardInfo();
+  if(!svr_reply.isEmpty()){
+    doc["svr_reply"] = svr_reply;
+    svr_reply = "";
+  }
   String output;
   serializeJson(doc, output);
   request->send(200, "text/html", output);
@@ -425,6 +499,7 @@ void handleStatic(AsyncWebServerRequest *request){
 
 bool hotspot(){
   IPAddress apIP(172, 0, 0, 1);
+  log_event("Creating hotspot with captive portal ...");
   Serial.println("Creating hotspot 'OpenSmartLight' ...");
   WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
@@ -448,9 +523,10 @@ void initNTP(){
     delete ntpUDP;
   }
   ntpUDP = new WiFiUDP();
-  timeClient = new NTPClient(*ntpUDP, "pool.ntp.org", tzOffsetInSeconds, 7200);
+  timeClient = new NTPClient(*ntpUDP, "pool.ntp.org", timezone*3600, 7200);
   timeClient->begin();
   timeClient->update();
+  log_event((String("Synchronize time ")+(timeClient->isTimeSet()?"successfully":"failed")).c_str());
   Serial.printf("Current datetime = %s\n", getFullDateTime().c_str());
 }
 
@@ -478,10 +554,12 @@ bool initWifi(){
     Serial.print(".");
   }
   if(WiFi.status() == WL_CONNECTED){
+    log_event((String("Connected to WIFI, SSID=")+wifi_ssid).c_str());
     Serial.println("\nWiFi connected");
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
   }else{
+    log_event((String("Failed to connect to WIFI, SSID=")+wifi_ssid).c_str());
     Serial.println("\nUnable to connect to WiFi");
     return hotspot();
   }
@@ -489,6 +567,25 @@ bool initWifi(){
   // Update time from Internet
   initNTP();
   return true;
+}
+
+String getFileList(){
+  String ret;
+  Dir dir = LittleFS.openDir("/");
+  while (dir.next()){
+    if(dir.fileName().endsWith(".log"))
+      ret += dir.fileName()+" ";
+  }
+  ret.trim();
+  return ret;
+}
+
+void deleteALL(){
+  Dir dir = LittleFS.openDir("/");
+  while (dir.next()){
+    if(dir.fileName().endsWith(".log"))
+      LittleFS.remove(dir.fileName());
+  }
 }
 
 void initServer(){
@@ -508,7 +605,15 @@ void initServer(){
       request->send(200, "text/html", "");
     }else
       request->send(400, "text/html", "");
-    });
+  });
+  server.on("/log_history", [](AsyncWebServerRequest *request) {
+    if(request->hasArg("delete")){
+      String fn = request->arg("delete");
+      if(fn=="ALL") deleteALL();
+      else LittleFS.remove(fn);
+    }
+    request->send(200, "text/html", getFileList());
+  });
 
   server.on("/control_output_on", [](AsyncWebServerRequest *request) {set_output(true);request->send(200, "text/html", "");});
   server.on("/control_output_off", [](AsyncWebServerRequest *request) {set_output(false);request->send(200, "text/html", "");});
@@ -516,8 +621,8 @@ void initServer(){
   server.on("/motion_sensor_off", [](AsyncWebServerRequest *request) {set_sensor(false);request->send(200, "text/html", "");});
   server.on("/glide_led_on", [](AsyncWebServerRequest *request) {do_glide=1;request->send(200, "text/html", "");});
   server.on("/glide_led_off", [](AsyncWebServerRequest *request) {do_glide=-1;request->send(200, "text/html", "");});
-  server.on("/save_eeprom", [](AsyncWebServerRequest *request) {request->send(200, "text/html", save_to_EEPROM()?"Success":"Failed");});
-  server.on("/load_eeprom", [](AsyncWebServerRequest *request) {request->send(200, "text/html", load_EEPROM()?"Success":"Failed");});
+  server.on("/save_config", [](AsyncWebServerRequest *request) {request->send(200, "text/html", save_config()?"Success":"Failed");});
+  server.on("/load_config", [](AsyncWebServerRequest *request) {request->send(200, "text/html", load_config()?"Success":"Failed");});
   server.on("/onboard_led_on", [](AsyncWebServerRequest *request) {set_onboard_led(true);request->send(200, "text/html", "");});
   server.on("/onboard_led_off", [](AsyncWebServerRequest *request) {set_onboard_led(false);request->send(200, "text/html", "");});
   server.on("/onboard_led_level", [](AsyncWebServerRequest *request) {
@@ -526,17 +631,18 @@ void initServer(){
       request->send(200, "text/html", "");
     }else
       request->send(400, "text/html", "");
-    });
+  });
   server.on("/set_value", [](AsyncWebServerRequest *request) {
     request->send(200, "text/html", set_value(request->argName(0), request->arg((size_t)0).toInt())?"Success":"Failed");
-    });
+  });
   server.on("/set_string", [](AsyncWebServerRequest *request) {
     request->send(200, "text/html", set_string(request->argName(0), request->arg((size_t)0))?"Success":"Failed");
-    });
+  });
   server.on("/set_times", [](AsyncWebServerRequest *request){
     request->send(200, "text/html", set_times(request->argName(0), request->arg((int)0))?"Success":"Failed");
   });
   server.onNotFound([](AsyncWebServerRequest *request){request->send(404, "text/plain", "Content not found.");});
+  server.serveStatic("/logs/", LittleFS, "/");
   AsyncElegantOTA.begin(&server);
   server.begin();
   Serial.println("HTTP server started");
@@ -555,6 +661,7 @@ float parse_output_value(String s){
   return s.substring(posi+1).toFloat();
 }
 
+
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(LED_BUILTIN_AUX, OUTPUT);
@@ -568,17 +675,24 @@ void setup() {
   digitalWrite(LED_BUILTIN, 0);
   digitalWrite(LED_BUILTIN_AUX, 0);
 
-  // Load EEPROM settings if exists
-  EEPROM.begin(EEPROM_MAXSIZE);
-  bool is_from_eeprom = load_EEPROM();
-  digitalWrite(LED_BUILTIN_AUX, is_from_eeprom);
+  // Initialize the file-system and create logfile
+  LittleFS.begin();
+  open_logfile_auto_rotate();
 
+  // Initialize serial
   Serial.begin(115200);
   Serial.setTimeout(100L);
   Serial.println("\nSystem initialized:");
-  Serial.println(is_from_eeprom?"Loaded settings from EEPROM.":"Not loading settings from EEPROM.");
+
+  // Load config file and history file if exist
+  bool config_loaded = load_config();
+  Serial.println(config_loaded?"Config file is valid and loaded!":"Config file NOT loaded!");
+  log_event(config_loaded?"Config file loaded":"Config file NOT loaded");
+  digitalWrite(LED_BUILTIN_AUX, config_loaded);
+
 
   initWifi();
+  log_event("System started");
   initServer();
   digitalWrite(LED_BUILTIN, 1);
   digitalWrite(LED_BUILTIN_AUX, 1);
@@ -597,6 +711,8 @@ void loop() {
   // Synchronize Internet time
   if(tm_curr-tm_last_timesync>3600000*24 || update_ntp){
     bool res = timeClient->forceUpdate();
+    svr_reply = res?"Success":"Failed";
+    log_event((String("Force synchronize time ")+(res?"successfully":"failed")).c_str());
     if(DEBUG){
       Serial.printf("Update NTP %s\n", res?"successfully":"failed");
       Serial.printf("Current datetime = %s\n", getFullDateTime().c_str());
@@ -607,6 +723,7 @@ void loop() {
 
   // Handle reboot
   if(reboot){
+    log_event("System reboot");
     delay(200);
     ESP.restart();
   }
@@ -635,13 +752,7 @@ void loop() {
   while(Serial.available()){
     String s = Serial.readStringUntil('\n');
     s.trim();
-    if(s.isEmpty()) break;
-    while(sensor_log.length()+s.length()>SENSOR_LOG_MAX){
-      int posi = sensor_log.indexOf('\n');
-      if(posi<0) sensor_log.clear();
-      else sensor_log.remove(0, posi+1);
-    }
-    sensor_log.concat(s+"\n");
+    append_prune(sensor_log, s, SENSOR_LOG_MAX);
     if(s.startsWith("mov") && parse_output_value(s)>=MOV_CONT_TH) s_mask |= 1;
     if(s.startsWith("occ") && parse_output_value(s)>=OCC_CONT_TH) s_mask |= 2;
     if((s.startsWith("mov") && parse_output_value(s)>=MOV_TRIG_TH) || (s.startsWith("occ") && parse_output_value(s)>=OCC_TRIG_TH)) s_mask |= 4;
