@@ -93,7 +93,7 @@ String midnight_stops[7] = { "07:00", "07:00", "07:00", "07:00", "07:00", "07:00
 
 
 int do_glide = 0;
-bool reboot = false, restart_wifi = false;
+bool reboot = false, restart_wifi = false, update_ntp = false;
 unsigned long tm_last_ambient = 0;
 unsigned long tm_last_timesync = 0;
 unsigned long tm_last_debugon = millis();
@@ -319,7 +319,7 @@ void set_system_led_level(int value){
 }
 
 // Define NTP Client to get time
-WiFiUDP ntpUDP;
+WiFiUDP *ntpUDP = NULL;
 NTPClient *timeClient = NULL;
 String getTimeString(){
   char buf[16];
@@ -383,9 +383,13 @@ void handleRoot(AsyncWebServerRequest *request) {
   request->send_P(200, "text/html", server_html);
 }
 
+String getFullDateTime(){
+  return getDateString()+" ("+getWeekdayString()+") "+getTimeString();
+}
+
 void handleStatus(AsyncWebServerRequest *request){
   DynamicJsonDocument doc(2048);
-  doc["datetime"] = getDateString()+" ("+getWeekdayString()+") "+getTimeString();
+  doc["datetime"] = getFullDateTime();
   doc["dbg_led"] = DEBUG;
   doc["sys_led"] = SYSLED;
   doc["ambient"] = ambient_level;
@@ -439,10 +443,15 @@ void initNTP(){
     timeClient->end();
     delete timeClient;
   }
-  timeClient = new NTPClient(ntpUDP, "pool.ntp.org", tzOffsetInSeconds, 7200);
+  if(ntpUDP){
+    ntpUDP->stop();
+    delete ntpUDP;
+  }
+  ntpUDP = new WiFiUDP();
+  timeClient = new NTPClient(*ntpUDP, "pool.ntp.org", tzOffsetInSeconds, 7200);
   timeClient->begin();
   timeClient->update();
-  Serial.printf("Current datetime = %s %s\n", getDateString(), getTimeString());
+  Serial.printf("Current datetime = %s\n", getFullDateTime().c_str());
 }
 
 bool initWifi(){
@@ -488,7 +497,7 @@ void initServer(){
   server.on("/static", handleStatic);
   server.on("/reboot", [](AsyncWebServerRequest *request) {reboot = true; request->send(200, "text/html", "");});
   server.on("/restart_wifi", [](AsyncWebServerRequest *request) {restart_wifi = true; request->send(200, "text/html", "");});
-  server.on("/update_time", [](AsyncWebServerRequest *request) {tm_last_timesync=0; request->send(200, "text/html", "");});
+  server.on("/update_time", [](AsyncWebServerRequest *request) {update_ntp=true; request->send(200, "text/html", "");});
   server.on("/dbg_led_on", [](AsyncWebServerRequest *request) {set_debug_led(true);request->send(200, "text/html", "");});
   server.on("/dbg_led_off", [](AsyncWebServerRequest *request) {set_debug_led(false);request->send(200, "text/html", "");});
   server.on("/sys_led_on", [](AsyncWebServerRequest *request) {set_system_led(true);request->send(200, "text/html", "");});
@@ -586,9 +595,14 @@ void loop() {
   }
 
   // Synchronize Internet time
-  if(tm_curr-tm_last_timesync>3600000*24){
-    timeClient->forceUpdate();
+  if(tm_curr-tm_last_timesync>3600000*24 || update_ntp){
+    bool res = timeClient->forceUpdate();
+    if(DEBUG){
+      Serial.printf("Update NTP %s\n", res?"successfully":"failed");
+      Serial.printf("Current datetime = %s\n", getFullDateTime().c_str());
+    }
     tm_last_timesync = tm_curr;
+    update_ntp = false;
   }
 
   // Handle reboot
