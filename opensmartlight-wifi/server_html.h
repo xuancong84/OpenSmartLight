@@ -139,11 +139,11 @@ input {font-size:15px;}
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label>
   <span id='svr_reply' style='color:red'></span></h2>
 <p>Date Time: <input type='text' id='datetime' size=32 style="width:auto" readonly>&nbsp;
-  Timezone: <input type='number' id='timezone' style="width:auto">&nbsp;
+  Timezone: <input type='number' id='timezone' onchange='set_value(this)'>&nbsp;
   <button onclick='GET2("update_time")'>Synchronize Time</button>&nbsp;
   <button onclick='update_status("static", true)'>Reload Parameters</button>
   </p>
-<p>Board Info: <input type='text' id='board_info' size=88 style="width:auto" readonly></p>
+<p>Board Info: <input type='text' id='board_info' size=100 style="width:auto" readonly></p>
 <p><table><tr>
 <td>Debug LED: <label class="toggle"><input id='dbg_led' type="checkbox" onchange='set_ckbox(this)'>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></td>
