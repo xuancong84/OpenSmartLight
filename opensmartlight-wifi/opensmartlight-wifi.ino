@@ -36,11 +36,9 @@ void blink_halt(){
   }
 }
 
-ADC_MODE(ADC_VCC);
-
 // Saved parameters
 float timezone = 8;
-unsigned int DARK_TH_LOW = 950;
+unsigned int DARK_TH_LOW = 960;
 unsigned int DARK_TH_HIGH = 990;
 unsigned int DELAY_ON_MOV = 30000;
 unsigned int DELAY_ON_OCC = 20000;
@@ -51,6 +49,8 @@ unsigned int MOV_CONT_TH = 250;
 unsigned int LED_BEGIN = 100;
 unsigned int LED_END = 125;
 unsigned int GLIDE_TIME = 800;
+String midnight_starts[7] = { "23:00", "23:00", "23:00", "23:00", "00:00", "00:00", "23:00" };
+String midnight_stops[7] = { "07:00", "07:00", "07:00", "07:00", "07:00", "07:00", "07:00" };
 
 // WIFI parameters
 #ifndef WIFI_SSID
@@ -81,7 +81,6 @@ unsigned int GLIDE_TIME = 800;
 #define WIFI_DNS2 IPAddress()
 #endif
 
-
 String wifi_ssid = WIFI_SSID;             //Enter your WIFI ssid
 String wifi_password = WIFI_PASSWORD;     //Enter your WIFI password
 IPAddress wifi_IP = WIFI_IP;
@@ -89,6 +88,7 @@ IPAddress wifi_gateway = WIFI_GATEWAY;
 IPAddress wifi_subnet = WIFI_SUBNET;
 IPAddress wifi_DNS1 = WIFI_DNS1;          //optional
 IPAddress wifi_DNS2 = WIFI_DNS2;          //optional
+
 
 AsyncWebServer server(80);
 DNSServer *dnsServer = NULL;
@@ -100,11 +100,9 @@ bool is_smartlight_on = false;
 bool onboard_led = false;
 bool motion_sensor = false;
 bool control_output = false;
-bool DEBUG = true;
+bool DEBUG = false;
 bool SYSLED = false;
 String sensor_log, svr_reply;
-String midnight_starts[7] = { "23:00", "23:00", "23:00", "23:00", "00:00", "00:00", "23:00" };
-String midnight_stops[7] = { "07:00", "07:00", "07:00", "07:00", "07:00", "07:00", "07:00" };
 
 File fp_hist;
 int do_glide = 0;
@@ -148,8 +146,8 @@ String getFullDateTime(){
 String getBoardInfo(){
   FSInfo info;
   LittleFS.info(info);
-  return String("VCC: ") + ESP.getVcc() + "; FreeHeap: " + ESP.getFreeHeap() + "; FlashSize: "+ESP.getFlashChipRealSize()+"; Speed: "+ESP.getFlashChipSpeed()
-    +"; File system size (bytes): "+info.usedBytes+"/"+info.totalBytes;
+  return String("FreeHeap: ") + ESP.getFreeHeap() + "; FlashSize: "+ESP.getFlashChipRealSize() + "; FreeSketchSpace: " + ESP.getFreeSketchSpace()
+    +"; Speed: "+ESP.getFlashChipSpeed()+"; File system size (bytes): "+info.usedBytes+"/"+info.totalBytes;
 }
 
 
@@ -160,12 +158,17 @@ String g_params[N_params] = {"DARK_TH_LOW", "DARK_TH_HIGH", "DELAY_ON_MOV", "DEL
 u32_t *g_pointer[N_params] = {&DARK_TH_LOW, &DARK_TH_HIGH, &DELAY_ON_MOV, &DELAY_ON_OCC, &OCC_TRIG_TH, &OCC_CONT_TH, &MOV_TRIG_TH, &MOV_CONT_TH, &LED_BEGIN, &LED_END, &GLIDE_TIME,
   (u32_t*)(ip_addr_t*)wifi_IP, (u32_t*)(ip_addr_t*)wifi_gateway, (u32_t*)(ip_addr_t*)wifi_subnet, (u32_t*)(ip_addr_t*)wifi_DNS1, (u32_t*)(ip_addr_t*)wifi_DNS2, (u32_t*)&timezone};
 const int CONFIG_MAXSIZE = sizeof(int)*N_params/*g_params*/+(14*6+1)/*midnight start/stop times*/+(32+1)/*WIFI SSID*/+64/*WIFI password*/+16/*MD5 checksum*/+2/*end-of-string NULL byte*/;
-bool set_value(String varname, unsigned int value){
+bool set_value(String varname, String val_str){
   if(DEBUG)
-    Serial.println("Setting '"+varname+"' to '"+value+"'");
+    Serial.println("Setting '"+varname+"' to '"+val_str+"'");
+  if(varname=="timezone"){
+    timezone = val_str.toFloat();
+    timeClient->setTimeOffset(timezone*3600);
+    return true;
+  }
   for(int x=0; x<N_params; x++)
     if(varname==g_params[x]){
-      *g_pointer[x] = value;
+      *g_pointer[x] = val_str.toInt();
       return true;
     }
   return false;
@@ -236,6 +239,11 @@ void md5(char *out, char *buf, int len) {
 }
 
 bool parse_combined_str(String s){
+  int total=0;
+  for(int x=0; x<s.length(); x++)
+    if(s[x]=='+') total++;
+  if(total!=15) return false;
+
   int posi = s.indexOf('+');
   if(posi<0) return false;
   wifi_ssid = s.substring(0, posi);
@@ -320,6 +328,9 @@ bool load_config(){
     return false;
 
   String combined_str = String(&buf[posi]);
+  if(!parse_combined_str(combined_str))
+    return false;
+
   posi += combined_str.length()+1;
   md5(md5_comp, buf, posi);
   if(memcmp(md5_comp, &buf[posi], 16)!=0)
@@ -330,7 +341,7 @@ bool load_config(){
     *g_pointer[x] = *(unsigned int*)(&buf[posi]);
     posi += sizeof(unsigned int);
   }
-  return parse_combined_str(combined_str);
+  return true;
 }
 
 void set_output(bool state){
@@ -481,7 +492,9 @@ void handleStatus(AsyncWebServerRequest *request){
 void handleStatic(AsyncWebServerRequest *request){
   DynamicJsonDocument doc(2048);
   for(int x=0; x<N_params; x++){
-    if(g_params[x].startsWith("wifi_"))
+    if(g_params[x]=="timezone")
+      doc[g_params[x]] = timezone;
+    else if(g_params[x].startsWith("wifi_"))
       doc[g_params[x]] = IPAddress(*g_pointer[x]).toString();
     else
       doc[g_params[x]] = *g_pointer[x];
@@ -633,7 +646,7 @@ void initServer(){
       request->send(400, "text/html", "");
   });
   server.on("/set_value", [](AsyncWebServerRequest *request) {
-    request->send(200, "text/html", set_value(request->argName(0), request->arg((size_t)0).toInt())?"Success":"Failed");
+    request->send(200, "text/html", set_value(request->argName(0), request->arg((size_t)0))?"Success":"Failed");
   });
   server.on("/set_string", [](AsyncWebServerRequest *request) {
     request->send(200, "text/html", set_string(request->argName(0), request->arg((size_t)0))?"Success":"Failed");
@@ -684,12 +697,12 @@ void setup() {
   Serial.setTimeout(100L);
   Serial.println("\nSystem initialized:");
 
+
   // Load config file and history file if exist
   bool config_loaded = load_config();
   Serial.println(config_loaded?"Config file is valid and loaded!":"Config file NOT loaded!");
   log_event(config_loaded?"Config file loaded":"Config file NOT loaded");
   digitalWrite(LED_BUILTIN_AUX, config_loaded);
-
 
   initWifi();
   log_event("System started");
