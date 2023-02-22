@@ -25,6 +25,7 @@
 #define SENSOR_LOG_MAX  120
 #define LOGFILE_MAX_SIZE  200000
 #define LOGFILE_MAX_NUM  8
+#define FlashButtonPIN 0
 #define WIFI_NAME "OpenSmartLight"
 
 void blink_halt(){
@@ -106,7 +107,7 @@ String sensor_log, svr_reply;
 
 File fp_hist;
 int do_glide = 0;
-bool reboot = false, restart_wifi = false, update_ntp = false;
+bool reboot = false, restart_wifi = false, update_ntp = false, reset_wifi = false;
 unsigned long tm_last_ambient = 0;
 unsigned long tm_last_timesync = 0;
 unsigned long tm_last_debugon = 0;
@@ -674,6 +675,9 @@ float parse_output_value(String s){
   return s.substring(posi+1).toFloat();
 }
 
+void IRAM_ATTR handleInterrupt() {
+  reset_wifi = true;
+}
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
@@ -709,6 +713,9 @@ void setup() {
   initServer();
   digitalWrite(LED_BUILTIN, 1);
   digitalWrite(LED_BUILTIN_AUX, 1);
+
+  pinMode(FlashButtonPIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(FlashButtonPIN), handleInterrupt, FALLING);
 }
 
 unsigned long elapse = millis();
@@ -745,6 +752,13 @@ void loop() {
   if(restart_wifi){
     restart_wifi = false;
     delay(200);
+    WiFi.disconnect(false, true);
+    initWifi();
+  }
+
+  if(reset_wifi){
+    reset_wifi = false;
+    wifi_ssid = "";
     WiFi.disconnect(false, true);
     initWifi();
   }
