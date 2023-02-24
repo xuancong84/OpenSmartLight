@@ -2,24 +2,23 @@
 #include <LittleFS.h>
 #include <ArduinoJson.h>
 #include <IPAddress.h>
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
 #include <WiFiClient.h>
-#include <ESPAsyncTCP.h>
+#include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
 #include <NTPClient.h>
 #include <DNSServer.h>
 #include <WiFiUdp.h>
-#include <md5.h>
-#include <stdio.h>
+#include <mbedtls/md5.h>
 #include "./secret.h" // put your WIFI credentials in this file, or comment this line out
 #include "./server_html.h"
 
-#define PIN_CONTROL_OUTPUT D2
-#define PIN_MOTION_SENSOR D3
-#define PIN_LED_MASTER D1
-#define PIN_LED_ADJ D5
-#define PIN_AMBIENT_PULLUP D7
+#define PIN_CONTROL_OUTPUT A2
+#define PIN_MOTION_SENSOR A3
+#define PIN_LED_MASTER A1
+#define PIN_LED_ADJ A5
+#define PIN_AMBIENT_PULLUP A7
 #define PIN_AMBIENT_INPUT A0
 #define SENSOR_LOG_MAX  120
 #define LOGFILE_MAX_SIZE  200000
@@ -144,10 +143,8 @@ String getFullDateTime(){
 }
 
 String getBoardInfo(){
-  FSInfo info;
-  LittleFS.info(info);
-  return String("FreeHeap: ") + ESP.getFreeHeap() + "; FlashSize: "+ESP.getFlashChipRealSize() + "; FreeSketchSpace: " + ESP.getFreeSketchSpace()
-    +"; Speed: "+ESP.getFlashChipSpeed()+"; File system size (bytes): "+info.usedBytes+"/"+info.totalBytes;
+  return String("FreeHeap: ") + ESP.getFreeHeap() + "; FlashSize: "+ESP.getFlashChipSize() + "; FreeSketchSpace: " + ESP.getFreeSketchSpace()
+    +"; Speed: "+ESP.getFlashChipSpeed()+"; File system size (bytes): "+LittleFS.usedBytes()+"/"+LittleFS.totalBytes();
 }
 
 
@@ -156,7 +153,7 @@ String getBoardInfo(){
 String g_params[N_params] = {"DARK_TH_LOW", "DARK_TH_HIGH", "DELAY_ON_MOV", "DELAY_ON_OCC", "OCC_TRIG_TH", "OCC_CONT_TH", "MOV_TRIG_TH", "MOV_CONT_TH", "LED_BEGIN", "LED_END", "GLIDE_TIME",
   "wifi_IP", "wifi_gateway", "wifi_subnet", "wifi_DNS1", "wifi_DNS2", "timezone"};
 u32_t *g_pointer[N_params] = {&DARK_TH_LOW, &DARK_TH_HIGH, &DELAY_ON_MOV, &DELAY_ON_OCC, &OCC_TRIG_TH, &OCC_CONT_TH, &MOV_TRIG_TH, &MOV_CONT_TH, &LED_BEGIN, &LED_END, &GLIDE_TIME,
-  (u32_t*)(ip_addr_t*)wifi_IP, (u32_t*)(ip_addr_t*)wifi_gateway, (u32_t*)(ip_addr_t*)wifi_subnet, (u32_t*)(ip_addr_t*)wifi_DNS1, (u32_t*)(ip_addr_t*)wifi_DNS2, (u32_t*)&timezone};
+  (u32_t*)&wifi_IP, (u32_t*)&wifi_gateway, (u32_t*)&wifi_subnet, (u32_t*)&wifi_DNS1, (u32_t*)&wifi_DNS2, (u32_t*)&timezone};
 const int CONFIG_MAXSIZE = sizeof(int)*N_params/*g_params*/+(14*6+1)/*midnight start/stop times*/+(32+1)/*WIFI SSID*/+64/*WIFI password*/+16/*MD5 checksum*/+2/*end-of-string NULL byte*/;
 bool set_value(String varname, String val_str){
   if(DEBUG)
@@ -213,7 +210,7 @@ void append_prune(String &buf, const String &s, int max_size){
 }
 
 void open_logfile_auto_rotate(){
-  if(!fp_hist.isFile())
+  if(!fp_hist.available())
     fp_hist = LittleFS.open("/0.log", "a");
   if(fp_hist.size()>LOGFILE_MAX_SIZE){  // rotate log
     fp_hist.close();
@@ -229,13 +226,6 @@ void log_event(const char *event){
   String fullDateTime = getFullDateTime();
   fp_hist.printf("%s : %s\n", fullDateTime.c_str(), event);
   fp_hist.flush();
-}
-
-void md5(char *out, char *buf, int len) {
-  md5_context_t ctx;
-  MD5Init(&ctx);
-  MD5Update(&ctx, (const uint8_t*)buf, len);
-  MD5Final((uint8_t*)out, &ctx);
 }
 
 bool parse_combined_str(String s){
@@ -283,9 +273,17 @@ bool set_times(String prefix, String s){
   return true;
 }
 
+void md5(char *buf, int len, char *out) {
+  mbedtls_md5_context ctx;
+  mbedtls_md5_init(&ctx);
+  mbedtls_md5_update(&ctx, (const unsigned char*)buf, len);
+  mbedtls_md5_finish(&ctx, (unsigned char*)out);
+  mbedtls_md5_free(&ctx);
+}
+
 bool save_file(const char *filename, const char *buf, size_t length){
   File fp = LittleFS.open(filename, "w");
-  if(fp.isFile()){
+  if(fp.available()){
     size_t n_written = fp.write((uint8_t*)buf, length);
     fp.close();
     return n_written==length;
@@ -306,19 +304,19 @@ bool save_config(){
   }
   strcpy(&buf[posi], combined_str.c_str());
   posi += combined_str.length()+1;
-  md5(&buf[posi], buf, posi);
+  md5(buf, posi, &buf[posi]);
   posi += 16;
 
   return save_file("/config.bin", buf, posi);
 }
 
 bool load_config(){
-  char md5_comp[16];
+  char hash_comp[16];
   char buf[CONFIG_MAXSIZE];
 
   // read config file
   File fp = LittleFS.open("/config.bin", "r");
-  if(!fp.isFile()) return false;
+  if(!fp.available()) return false;
   int posi = fp.read((uint8_t*)buf, CONFIG_MAXSIZE);
   fp.close();
   if(!posi) return false;
@@ -332,8 +330,8 @@ bool load_config(){
     return false;
 
   posi += combined_str.length()+1;
-  md5(md5_comp, buf, posi);
-  if(memcmp(md5_comp, &buf[posi], 16)!=0)
+  md5(buf, posi, &hash_comp[0]);
+  if(memcmp(hash_comp, &buf[posi], 16)!=0)
     return false;
 
   posi = 0;
@@ -403,7 +401,7 @@ void set_onboard_led_level(int level){
 }
 
 void set_debug_led(bool state){
-  digitalWrite(LED_BUILTIN_AUX, !state);
+  digitalWrite(LED_BUILTIN, !state);
   DEBUG = state;
   Serial.printf("DEBUG LED state = %d\n", DEBUG);
   if(state) tm_last_debugon = millis();
@@ -557,10 +555,10 @@ bool initWifi(){
 
   // Configures static IP address
   WiFi.mode(WIFI_STA);
-  if (!WiFi.config(wifi_IP, wifi_gateway, wifi_subnet, wifi_DNS1.isSet()?wifi_DNS1:IPAddress(0), wifi_DNS2.isSet()?wifi_DNS2:IPAddress(0)))
+  if (!WiFi.config(wifi_IP, wifi_gateway, wifi_subnet, wifi_DNS1, wifi_DNS2))
     Serial.println("Static IP settings not set or incorrect: DHCP will be used");
 
-  WiFi.begin(wifi_ssid, wifi_password);
+  WiFi.begin(wifi_ssid.c_str(), wifi_password.c_str());
   for(int x=0; x<=60; ++x){
     if(WiFi.status() == WL_CONNECTED) break;
     delay(1000);
@@ -583,21 +581,22 @@ bool initWifi(){
 }
 
 String getFileList(){
-  String ret;
-  Dir dir = LittleFS.openDir("/");
-  while (dir.next()){
-    if(dir.fileName().endsWith(".log"))
-      ret += dir.fileName()+" ";
+  String fn1, ret;
+  File dir = LittleFS.open("/");
+  while (!(fn1=dir.getNextFileName().isEmpty())){
+    if(fn1.endsWith(".log"))
+      ret += fn1+" ";
   }
   ret.trim();
   return ret;
 }
 
 void deleteALL(){
-  Dir dir = LittleFS.openDir("/");
-  while (dir.next()){
-    if(dir.fileName().endsWith(".log"))
-      LittleFS.remove(dir.fileName());
+  String fn1;
+  File dir = LittleFS.open("/");
+  while (!(fn1=dir.getNextFileName()).isEmpty()){
+    if(fn1.endsWith(".log"))
+      LittleFS.remove(fn1);
   }
 }
 
@@ -680,7 +679,6 @@ void IRAM_ATTR handleInterrupt() {
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(LED_BUILTIN_AUX, OUTPUT);
   pinMode(PIN_CONTROL_OUTPUT, OUTPUT);
   pinMode(PIN_MOTION_SENSOR, OUTPUT);
   pinMode(PIN_LED_MASTER, OUTPUT);
@@ -689,7 +687,6 @@ void setup() {
   pinMode(PIN_AMBIENT_INPUT, INPUT);
 
   digitalWrite(LED_BUILTIN, 0);
-  digitalWrite(LED_BUILTIN_AUX, 0);
 
   // Initialize the file-system and create logfile
   LittleFS.begin();
@@ -705,13 +702,12 @@ void setup() {
   bool config_loaded = load_config();
   Serial.println(config_loaded?"Config file is valid and loaded!":"Config file NOT loaded!");
   log_event(config_loaded?"Config file loaded":"Config file NOT loaded");
-  digitalWrite(LED_BUILTIN_AUX, config_loaded);
+  digitalWrite(LED_BUILTIN, config_loaded);
 
   initWifi();
   log_event("System started");
   initServer();
   digitalWrite(LED_BUILTIN, 1);
-  digitalWrite(LED_BUILTIN_AUX, 1);
 
   if(DEBUG){
     delay(1000);
