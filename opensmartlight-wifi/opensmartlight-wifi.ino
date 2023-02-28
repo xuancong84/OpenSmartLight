@@ -1,3 +1,5 @@
+// This code is for NodeMCU-v2 ESP8266
+
 #include <Esp.h>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
