@@ -402,10 +402,9 @@ void set_onboard_led_level(int level){
   if(DEBUG) Serial.printf("Onboard LED level = %d\n", level);
 }
 
-void set_debug_led(bool state){
-  digitalWrite(LED_BUILTIN, !state);
+void set_debug(bool state){
   DEBUG = state;
-  Serial.printf("DEBUG LED state = %d\n", DEBUG);
+  Serial.printf("DEBUG = %d\n", DEBUG);
   if(state) tm_last_debugon = millis();
 }
 
@@ -608,8 +607,8 @@ void initServer(){
   server.on("/reboot", [](AsyncWebServerRequest *request) {reboot = true; request->send(200, "text/html", "");});
   server.on("/restart_wifi", [](AsyncWebServerRequest *request) {restart_wifi = true; request->send(200, "text/html", "");});
   server.on("/update_time", [](AsyncWebServerRequest *request) {update_ntp=true; request->send(200, "text/html", "");});
-  server.on("/dbg_led_on", [](AsyncWebServerRequest *request) {set_debug_led(true);request->send(200, "text/html", "");});
-  server.on("/dbg_led_off", [](AsyncWebServerRequest *request) {set_debug_led(false);request->send(200, "text/html", "");});
+  server.on("/dbg_led_on", [](AsyncWebServerRequest *request) {set_debug(true);request->send(200, "text/html", "");});
+  server.on("/dbg_led_off", [](AsyncWebServerRequest *request) {set_debug(false);request->send(200, "text/html", "");});
   server.on("/sys_led_on", [](AsyncWebServerRequest *request) {set_system_led(true);request->send(200, "text/html", "");});
   server.on("/sys_led_off", [](AsyncWebServerRequest *request) {set_system_led(false);request->send(200, "text/html", "");});
   server.on("/sys_led_level", [](AsyncWebServerRequest *request) {
@@ -709,10 +708,6 @@ void setup() {
   initServer();
   digitalWrite(LED_BUILTIN, 1);
 
-  if(DEBUG){
-    delay(1000);
-    set_debug_led(true);
-  }
   pinMode(FlashButtonPIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(FlashButtonPIN), handleInterrupt, FALLING);
 }
@@ -770,7 +765,7 @@ void loop() {
 
   // Auto disable debug
   if(DEBUG && tm_curr-tm_last_debugon>1800000){
-    set_debug_led(false);
+    set_debug(false);
   }
 
   // Receive data from motion sensor

@@ -401,21 +401,19 @@ void set_onboard_led_level(int level){
 }
 
 void set_debug_led(bool state){
-  digitalWrite(LED_BUILTIN, !state);
   DEBUG = state;
   Serial.printf("DEBUG LED state = %d\n", DEBUG);
   if(state) tm_last_debugon = millis();
 }
 
 void set_system_led(bool state){
-  digitalWrite(LED_BUILTIN, !state);
+  digitalWrite(LED_BUILTIN, state);
   SYSLED = state;
   if(DEBUG) Serial.printf("System LED state = %d\n", SYSLED);
 }
 
 void set_system_led_level(int value){
-  int level = 255-value;
-  level = min(255, max(0, level));
+  int level = min(255, max(0, value));
   analogWrite(LED_BUILTIN, level);
   SYSLED = value>0;
   if(DEBUG) Serial.printf("System LED level = %d\n", value);

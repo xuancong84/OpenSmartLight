@@ -146,7 +146,7 @@ input {font-size:15px;}
   </p>
 <p>Board Info: <input type='text' id='board_info' size=100 style="width:auto" readonly></p>
 <p><table><tr>
-<td>Debug LED: <label class="toggle"><input id='dbg_led' type="checkbox" onchange='set_ckbox(this)'>
+<td>Debug: <label class="toggle"><input id='dbg_led' type="checkbox" onchange='set_ckbox(this)'>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></td>
 <td>Control Output: <label class="toggle"><input id='control_output' type="checkbox" onchange='set_ckbox(this)'>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label></td>
