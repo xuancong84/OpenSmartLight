@@ -139,6 +139,10 @@ input {font-size:15px;}
   Updating: <label class="toggle"><input id='isActive' type="checkbox" onchange='isActive=this.checked' checked>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label>
   <span id='svr_reply' style='color:red'></span></h2>
+<div style="width:100%; height:100%; display:flex;">
+<div style="height:100%; width:20%; overflow:auto">
+  </div>
+<div style="height:100%; width:80%; overflow:auto">
 <p>Date Time: <input type='text' id='datetime' size=32 style="width:auto" readonly>&nbsp;
   Timezone: <input type='number' id='timezone' onchange='set_value(this)'>&nbsp;
   <button onclick='GET2("update_time")'>Synchronize Time</button>&nbsp;
@@ -182,22 +186,22 @@ input {font-size:15px;}
 <table>
   <tr><th>Day of Week</th><th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th><th>Saturday</th><th>Sunday</th><th><b>Everyday</b></th></tr>
   <tr><td>Start Time</td>
-    <td><input type="time" id="midnight_start0" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_start1" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_start2" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_start3" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_start4" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_start5" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_start6" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_start0" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_start1" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_start2" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_start3" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_start4" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_start5" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_start6" onblur='set_value(this)'></td>
     <td><input type="time" id="midnight_start" onchange='changeALL(this)' onblur='set_times(this)'></td></tr>
   <tr><td>End Time</td>
-    <td><input type="time" id="midnight_stop0" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_stop1" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_stop2" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_stop3" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_stop4" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_stop5" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_stop6" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_stop0" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_stop1" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_stop2" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_stop3" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_stop4" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_stop5" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_stop6" onblur='set_value(this)'></td>
     <td><input type="time" id="midnight_stop"  onchange='changeALL(this)' onblur='set_times(this)'></td></tr>
 </table>
 <hr>
@@ -214,16 +218,16 @@ input {font-size:15px;}
 <tr><td>DELAY_ON_OCC</td> <td><input type='number' id='DELAY_ON_OCC' onchange='set_value(this)'></td> <td>The duration to extend light-on time upon OCC. </td></tr>
 </table>
 <hr>
-<h3>WIFI Settings &nbsp;&nbsp;SSID: <input id='wifi_ssid' type='text' onblur='set_string(this)'> &nbsp; Password: <input id='wifi_password' type='password' onblur='set_string(this)'>
+<h3>WIFI Settings &nbsp;&nbsp;SSID: <input id='wifi_ssid' type='text' onblur='set_value(this)'> &nbsp; Password: <input id='wifi_password' type='password' onblur='set_value(this)'>
   &nbsp; <button onclick='GET2("restart_wifi")' class='bb'>Restart WIFI</button></h3>
 <table>
 <tr><th>IP Address</th><th>Gateway</th><th>Subnet</th><th>DNS primary</th><th>DNS secondary</th></tr>
 <tr>
-  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_IP'></td>
-  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_gateway'></td>
-  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_subnet'></td>
-  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_DNS1'></td>
-  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_DNS2'></td>
+  <td><input onblur='set_value(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_IP'></td>
+  <td><input onblur='set_value(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_gateway'></td>
+  <td><input onblur='set_value(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_subnet'></td>
+  <td><input onblur='set_value(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_DNS1'></td>
+  <td><input onblur='set_value(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_DNS2'></td>
 </tr>
 </table>
 <p><button onclick="location.href='/update'" class='bb'>OTA Firmware Update</button>&nbsp;
@@ -242,6 +246,7 @@ input {font-size:15px;}
     <div style="height: 100%; width: 75%"><textarea id="popup_log" style="width:100%; height:100%; box-sizing:border-box" readonly></textarea></div>
   </div>
 </div>
+</div></div>
 
 <script>
 var isActive = true;
@@ -275,10 +280,6 @@ function changeALL(obj){
 }
 function set_value(obj){
   svr_reply.innerHTML = GET('set_value?'+obj.id+'='+obj.value);
-  countDown = 4;
-}
-function set_string(obj){
-  svr_reply.innerHTML = GET('set_string?'+obj.id+'='+obj.value);
   countDown = 4;
 }
 function set_ckbox(obj){

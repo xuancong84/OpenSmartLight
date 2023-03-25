@@ -12,8 +12,13 @@
 #include <WiFiUdp.h>
 #include <md5.h>
 #include <stdio.h>
-#include "./secret.h" // put your WIFI credentials in this file, or comment this line out
-#include "./server_html.h"
+#include <map>
+#include "ESPAsyncUDP.h"
+#include "server_html.h"
+
+#if __has_include("secret.h")
+#include "secret.h" // put your WIFI credentials in this file, or comment this line out
+#endif
 
 #define PIN_CONTROL_OUTPUT D2
 #define PIN_MOTION_SENSOR D3
@@ -26,6 +31,7 @@
 #define LOGFILE_MAX_NUM  8
 #define FlashButtonPIN 0
 #define WIFI_NAME "OpenSmartLight"
+#define UDP_PORT 8888
 
 void blink_halt(){
   while(1){
@@ -113,6 +119,7 @@ unsigned long tm_last_debugon = 0;
 unsigned long tm_last_savehist = 0;
 
 // Define NTP Client to get time
+AsyncUDP asyncUDP;
 WiFiUDP *ntpUDP = NULL;
 NTPClient *timeClient = NULL;
 String getTimeString(){
@@ -152,53 +159,66 @@ String getBoardInfo(){
 
 
 // Saveable parameters
-#define N_params 17
-String g_params[N_params] = {"DARK_TH_LOW", "DARK_TH_HIGH", "DELAY_ON_MOV", "DELAY_ON_OCC", "OCC_TRIG_TH", "OCC_CONT_TH", "MOV_TRIG_TH", "MOV_CONT_TH", "LED_BEGIN", "LED_END", "GLIDE_TIME",
-  "wifi_IP", "wifi_gateway", "wifi_subnet", "wifi_DNS1", "wifi_DNS2", "timezone"};
-u32_t *g_pointer[N_params] = {&DARK_TH_LOW, &DARK_TH_HIGH, &DELAY_ON_MOV, &DELAY_ON_OCC, &OCC_TRIG_TH, &OCC_CONT_TH, &MOV_TRIG_TH, &MOV_CONT_TH, &LED_BEGIN, &LED_END, &GLIDE_TIME,
-  (u32_t*)(ip_addr_t*)wifi_IP, (u32_t*)(ip_addr_t*)wifi_gateway, (u32_t*)(ip_addr_t*)wifi_subnet, (u32_t*)(ip_addr_t*)wifi_DNS1, (u32_t*)(ip_addr_t*)wifi_DNS2, (u32_t*)&timezone};
-const int CONFIG_MAXSIZE = sizeof(int)*N_params/*g_params*/+(14*6+1)/*midnight start/stop times*/+(32+1)/*WIFI SSID*/+64/*WIFI password*/+16/*MD5 checksum*/+2/*end-of-string NULL byte*/;
+enum VAL_TYPE{
+  T_INT = 0, 
+  T_FLOAT = 1,
+  T_IP = 2,
+  T_STRING = 3
+};
+
+std::map <String, std::pair<VAL_TYPE, void*> > g_params = {
+  {"DARK_TH_LOW",   {T_INT, &DARK_TH_LOW}},
+  {"DARK_TH_HIGH",  {T_INT, &DARK_TH_HIGH}},
+  {"DELAY_ON_MOV",  {T_INT, &DELAY_ON_MOV}},
+  {"DELAY_ON_OCC",  {T_INT, &DELAY_ON_OCC}},
+  {"OCC_TRIG_TH",   {T_INT, &OCC_TRIG_TH}},
+  {"OCC_CONT_TH",   {T_INT, &OCC_CONT_TH}},
+  {"MOV_TRIG_TH",   {T_INT, &MOV_TRIG_TH}},
+  {"MOV_CONT_TH",   {T_INT, &MOV_CONT_TH}},
+  {"LED_BEGIN",     {T_INT, &LED_BEGIN}},
+  {"LED_END",       {T_INT, &LED_END}},
+  {"GLIDE_TIME",    {T_INT, &GLIDE_TIME}},
+  {"wifi_IP",       {T_IP, &wifi_IP}},
+  {"wifi_gateway",  {T_IP, &wifi_gateway}},
+  {"wifi_subnet",   {T_IP, &wifi_subnet}},
+  {"wifi_DNS1",     {T_IP, &wifi_DNS1}},
+  {"wifi_DNS2",     {T_IP, &wifi_DNS2}},
+  {"wifi_ssid",     {T_STRING, &wifi_ssid}},
+  {"wifi_password", {T_STRING, &wifi_password}},
+  {"timezone",      {T_FLOAT, &timezone}},
+  {"midnight_start0", {T_STRING, &midnight_starts[0]}},
+  {"midnight_stop0",  {T_STRING, &midnight_stops[0]}},
+  {"midnight_start1", {T_STRING, &midnight_starts[1]}},
+  {"midnight_stop1",  {T_STRING, &midnight_stops[1]}},
+  {"midnight_start2", {T_STRING, &midnight_starts[2]}},
+  {"midnight_stop2",  {T_STRING, &midnight_stops[2]}},
+  {"midnight_start3", {T_STRING, &midnight_starts[3]}},
+  {"midnight_stop3",  {T_STRING, &midnight_stops[3]}},
+  {"midnight_start4", {T_STRING, &midnight_starts[4]}},
+  {"midnight_stop4",  {T_STRING, &midnight_stops[4]}},
+  {"midnight_start5", {T_STRING, &midnight_starts[5]}},
+  {"midnight_stop5",  {T_STRING, &midnight_stops[5]}},
+  {"midnight_start6", {T_STRING, &midnight_starts[6]}},
+  {"midnight_stop6",  {T_STRING, &midnight_stops[6]}}
+};
+
 bool set_value(String varname, String val_str){
-  if(DEBUG)
-    Serial.println("Setting '"+varname+"' to '"+val_str+"'");
-  if(varname=="timezone"){
-    timezone = val_str.toFloat();
-    timeClient->setTimeOffset(timezone*3600);
-    return true;
-  }
-  for(int x=0; x<N_params; x++)
-    if(varname==g_params[x]){
-      *g_pointer[x] = val_str.toInt();
-      return true;
-    }
-  return false;
-}
-bool set_string(String varname, String value){
-  if(DEBUG)
-    Serial.println("Setting '"+varname+"' to '"+value+"'");
-  if(varname=="wifi_ssid")
-    wifi_ssid = value;
-  else if(varname=="wifi_password")
-    wifi_password = value;
-  else if(varname.startsWith("wifi_")){
-    int x;
-    for(x=0; (x<N_params)&&(varname!=g_params[x]); x++);
-    if(varname!=g_params[x]) return false;
-    IPAddress ipa;
-    if(!ipa.fromString(value)) ipa=IPAddress();
-    *g_pointer[x] = (uint32_t)ipa;
-  }else if(varname.startsWith("midnight_")){
-    for(int x=0; x<7; x++){
-      if(varname==String("midnight_start")+x){
-        midnight_starts[x] = value;
-        return true;
-      }else if(varname==String("midnight_stop")+x){
-        midnight_stops[x] = value;
-        return true;
-      }
-    }
+  if(DEBUG) Serial.println("Setting '"+varname+"' to '"+val_str+"'");
+  auto it = g_params.find(varname);
+  if(it==g_params.end()){
+    if(DEBUG) Serial.println("Cannot find variable `"+varname+"'");
     return false;
-  }else return false;
+  }
+  void *pp = it->second.second;
+  switch(it->second.first){
+    case T_INT:     *(int*)pp = val_str.toInt();    break;
+    case T_FLOAT:   *(float*)pp = val_str.toFloat();break;
+    case T_STRING:  *(String*)pp = val_str;         break;
+    case T_IP:
+      IPAddress ipa;
+      if(!ipa.fromString(val_str)) return false;
+      *(IPAddress*)pp = ipa;
+  }
   return true;
 }
 
@@ -218,8 +238,8 @@ void open_logfile_auto_rotate(){
   if(fp_hist.size()>LOGFILE_MAX_SIZE){  // rotate log
     fp_hist.close();
     for(int x=LOGFILE_MAX_NUM-1; x>=0; x--)
-      LittleFS.rename(String(x)+".log", String(x+1)+".log");
-    LittleFS.remove(String(LOGFILE_MAX_NUM)+".log");
+      LittleFS.rename("/"+String(x)+".log", "/"+String(x+1)+".log");
+    LittleFS.remove("/"+String(LOGFILE_MAX_NUM)+".log");
     fp_hist = LittleFS.open("/0.log", "a");
   }
 }
@@ -278,7 +298,7 @@ bool set_times(String prefix, String s){
     s = s.substring(posi+1);
   }
   for(int x=0; x<7; x++)
-    if(!set_string(prefix+x, tms[x]))
+    if(!set_value(prefix+x, tms[x]))
       return false;
   return true;
 }
@@ -293,54 +313,57 @@ bool save_file(const char *filename, const char *buf, size_t length){
   return false;
 }
 
-bool save_config(){
-  String combined_str = wifi_ssid+"+"+wifi_password;
-  for(int x=0; x<7; x++)
-    combined_str += ("+"+midnight_starts[x]+"+"+midnight_stops[x]);
-
-  char buf[CONFIG_MAXSIZE];
-  int posi = 0;
-  for(int x=0; x<N_params; x++){
-    *(unsigned int*)(&buf[posi]) = *g_pointer[x];
-    posi += sizeof(unsigned int);
+DynamicJsonDocument config2json(){
+  DynamicJsonDocument doc(2048);
+  for(auto it=g_params.begin(); it!=g_params.end(); ++it){
+    String name = it->first;
+    void *pp = it->second.second;
+    switch(it->second.first){
+      case T_INT:     doc[name] = *(int*)pp;    break;
+      case T_FLOAT:   doc[name] = *(float*)pp;  break;
+      case T_STRING:  doc[name] = *(String*)pp; break;
+      case T_IP:      doc[name] = ((IPAddress*)pp)->toString(); break;
+    }
   }
-  strcpy(&buf[posi], combined_str.c_str());
-  posi += combined_str.length()+1;
-  md5(&buf[posi], buf, posi);
-  posi += 16;
+  return doc;
+}
 
-  return save_file("/config.bin", buf, posi);
+bool save_config(){
+  File fp = LittleFS.open("/config.json", "w");
+  DynamicJsonDocument doc = config2json();
+  serializeJson(doc, fp);
+  fp.close();
+  return true;
 }
 
 bool load_config(){
-  char md5_comp[16];
-  char buf[CONFIG_MAXSIZE];
-
-  // read config file
-  File fp = LittleFS.open("/config.bin", "r");
+  // test whether the config file is valid
+  File fp = LittleFS.open("/config.json", "r");
   if(!fp.isFile()) return false;
-  int posi = fp.read((uint8_t*)buf, CONFIG_MAXSIZE);
+  DynamicJsonDocument doc(2048);
+  DeserializationError err = deserializeJson(doc, fp);
   fp.close();
-  if(!posi) return false;
-
-  posi = N_params*sizeof(int);
-  if(strlen(&buf[posi])>14*6+32+64)
+  if(err != DeserializationError::Ok){
+    if(DEBUG) Serial.println(String("Error: deserializeJson failed with error ")+err.f_str());
     return false;
-
-  String combined_str = String(&buf[posi]);
-  if(!parse_combined_str(combined_str))
-    return false;
-
-  posi += combined_str.length()+1;
-  md5(md5_comp, buf, posi);
-  if(memcmp(md5_comp, &buf[posi], 16)!=0)
-    return false;
-
-  posi = 0;
-  for(int x=0; x<N_params; x++){
-    *g_pointer[x] = *(unsigned int*)(&buf[posi]);
-    posi += sizeof(unsigned int);
   }
+  if(g_params.size()!=doc.size()){
+    if(DEBUG) Serial.println("Error: JSON size does not match");
+    return false;
+  }
+  for(auto it=g_params.begin(); it!=g_params.end(); ++it)
+    if(!doc.containsKey(it->first)){
+      if(DEBUG) Serial.println("Error: JSON does not contain " + it->first);
+      return false;
+    }
+
+  // load the config file
+  int n_success = 0;
+  for(auto it=g_params.begin(); it!=g_params.end(); ++it)
+    if(set_value(it->first, doc[it->first])) n_success++;
+  if(n_success!=g_params.size() && DEBUG)
+    Serial.printf("Not all parameters loaded successfully: only %d out of %d\n", n_success, g_params.size());
+  
   return true;
 }
 
@@ -489,21 +512,7 @@ void handleStatus(AsyncWebServerRequest *request){
 }
 
 void handleStatic(AsyncWebServerRequest *request){
-  DynamicJsonDocument doc(2048);
-  for(int x=0; x<N_params; x++){
-    if(g_params[x]=="timezone")
-      doc[g_params[x]] = timezone;
-    else if(g_params[x].startsWith("wifi_"))
-      doc[g_params[x]] = IPAddress(*g_pointer[x]).toString();
-    else
-      doc[g_params[x]] = *g_pointer[x];
-  }
-  doc["wifi_ssid"] = wifi_ssid;
-  doc["wifi_password"] = wifi_password;
-  for(int x=0; x<7; x++){
-    doc["midnight_start"+String(x)] = midnight_starts[x];
-    doc["midnight_stop"+String(x)] = midnight_stops[x];
-  }
+  DynamicJsonDocument doc = config2json();
   String output;
   serializeJson(doc, output);
   request->send(200, "text/html", output);
@@ -600,6 +609,10 @@ void deleteALL(){
   }
 }
 
+void udpBroadcast(){
+  int res = asyncUDP.broadcastTo("", UDP_PORT);
+}
+
 void initServer(){
   server.on("/", handleRoot);
   server.on("/status", handleStatus);
@@ -647,9 +660,6 @@ void initServer(){
   server.on("/set_value", [](AsyncWebServerRequest *request) {
     request->send(200, "text/html", set_value(request->argName(0), request->arg((size_t)0))?"Success":"Failed");
   });
-  server.on("/set_string", [](AsyncWebServerRequest *request) {
-    request->send(200, "text/html", set_string(request->argName(0), request->arg((size_t)0))?"Success":"Failed");
-  });
   server.on("/set_times", [](AsyncWebServerRequest *request){
     request->send(200, "text/html", set_times(request->argName(0), request->arg((int)0))?"Success":"Failed");
   });
@@ -657,6 +667,7 @@ void initServer(){
   server.serveStatic("/logs/", LittleFS, "/");
   AsyncElegantOTA.begin(&server);
   server.begin();
+  udpBroadcast();
   Serial.println("HTTP server started");
 }
 
