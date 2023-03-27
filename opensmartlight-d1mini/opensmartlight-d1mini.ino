@@ -11,6 +11,7 @@
 #include <DNSServer.h>
 #include <WiFiUdp.h>
 #include <md5.h>
+#include <Hash.h>
 #include <stdio.h>
 #include <map>
 #include "ESPAsyncUDP.h"
@@ -31,7 +32,8 @@
 #define LOGFILE_MAX_NUM  8
 #define FlashButtonPIN 0
 #define WIFI_NAME "OpenSmartLight"
-#define UDP_PORT 8888
+#define UDP_PORT 18888      // for LAN broadcast and inform own existence
+#define TEST_ALIVE 1000000  // interval (in ms) to contact each known node to check whether they are still alive
 
 void blink_halt(){
   while(1){
@@ -87,6 +89,7 @@ String midnight_stops[7] = { "07:00", "07:00", "07:00", "07:00", "07:00", "07:00
 #define WIFI_DNS2 IPAddress()
 #endif
 
+String node_name = "SmartNode01";
 String wifi_ssid = WIFI_SSID;             //Enter your WIFI ssid
 String wifi_password = WIFI_PASSWORD;     //Enter your WIFI password
 IPAddress wifi_IP = WIFI_IP;
@@ -94,7 +97,6 @@ IPAddress wifi_gateway = WIFI_GATEWAY;
 IPAddress wifi_subnet = WIFI_SUBNET;
 IPAddress wifi_DNS1 = WIFI_DNS1;          //optional
 IPAddress wifi_DNS2 = WIFI_DNS2;          //optional
-
 
 AsyncWebServer server(80);
 DNSServer *dnsServer = NULL;
@@ -106,9 +108,9 @@ bool is_smartlight_on = false;
 bool onboard_led = false;
 bool motion_sensor = false;
 bool control_output = false;
-bool DEBUG = false;
+bool DEBUG = true;
 bool SYSLED = false;
-String sensor_log, svr_reply;
+String sensor_log, svr_reply, params_hash;
 
 File fp_hist;
 int do_glide = 0;
@@ -185,6 +187,7 @@ std::map <String, std::pair<VAL_TYPE, void*> > g_params = {
   {"wifi_DNS2",     {T_IP, &wifi_DNS2}},
   {"wifi_ssid",     {T_STRING, &wifi_ssid}},
   {"wifi_password", {T_STRING, &wifi_password}},
+  {"node_name",     {T_STRING, &node_name}},
   {"timezone",      {T_FLOAT, &timezone}},
   {"midnight_start0", {T_STRING, &midnight_starts[0]}},
   {"midnight_stop0",  {T_STRING, &midnight_stops[0]}},
@@ -201,6 +204,16 @@ std::map <String, std::pair<VAL_TYPE, void*> > g_params = {
   {"midnight_start6", {T_STRING, &midnight_starts[6]}},
   {"midnight_stop6",  {T_STRING, &midnight_stops[6]}}
 };
+
+std::map <String, std::pair<String, unsigned long> > g_nodeList;
+std::map <String, unsigned long> g_nodeLastPing;
+
+void update_hash(){
+  String json_str;
+  DynamicJsonDocument doc = config2json();
+  serializeJson(doc, json_str);
+  params_hash = sha1(json_str);
+}
 
 bool set_value(String varname, String val_str){
   if(DEBUG) Serial.println("Setting '"+varname+"' to '"+val_str+"'");
@@ -219,6 +232,28 @@ bool set_value(String varname, String val_str){
       if(!ipa.fromString(val_str)) return false;
       *(IPAddress*)pp = ipa;
   }
+  if(varname=="node_name" && WiFi.isConnected()){
+    g_nodeList[WiFi.localIP().toString()].first = node_name;
+    udpBroadcast();
+  }
+  // update_hash();
+  return true;
+}
+
+bool set_times(String prefix, String s){
+  if(DEBUG)
+    Serial.println("Setting "+prefix+" to "+s);
+  String tms[7];
+  for(int x=0; x<7; x++){
+    int posi = s.indexOf(' ');
+    if(posi<0 && x<6) return false;
+    tms[x] = posi<0?s:s.substring(0, posi);
+    s = s.substring(posi+1);
+  }
+  for(int x=0; x<7; x++)
+    if(!set_value(prefix+x, tms[x]))
+      return false;
+  // update_hash();
   return true;
 }
 
@@ -256,51 +291,6 @@ void md5(char *out, char *buf, int len) {
   MD5Init(&ctx);
   MD5Update(&ctx, (const uint8_t*)buf, len);
   MD5Final((uint8_t*)out, &ctx);
-}
-
-bool parse_combined_str(String s){
-  int total=0;
-  for(int x=0; x<s.length(); x++)
-    if(s[x]=='+') total++;
-  if(total!=15) return false;
-
-  int posi = s.indexOf('+');
-  if(posi<0) return false;
-  wifi_ssid = s.substring(0, posi);
-  s = s.substring(posi+1);
-
-  posi = s.indexOf('+');
-  if(posi<0) return false;
-  wifi_password = s.substring(0, posi);
-  s = s.substring(posi+1);
-  
-  for(int x=0; x<7; x++){
-    posi = s.indexOf('+');
-    if(posi<0) return false;
-    midnight_starts[x] = s.substring(0, posi);
-    s = s.substring(posi+1);
-    posi = s.indexOf('+');
-    if(posi<0 && x<6) return false;
-    midnight_stops[x] = posi<0?s:s.substring(0, posi);
-    s = s.substring(posi+1);
-  }
-  return true;
-}
-
-bool set_times(String prefix, String s){
-  if(DEBUG)
-    Serial.println("Setting "+prefix+" to "+s);
-  String tms[7];
-  for(int x=0; x<7; x++){
-    int posi = s.indexOf(' ');
-    if(posi<0 && x<6) return false;
-    tms[x] = posi<0?s:s.substring(0, posi);
-    s = s.substring(posi+1);
-  }
-  for(int x=0; x<7; x++)
-    if(!set_value(prefix+x, tms[x]))
-      return false;
-  return true;
 }
 
 bool save_file(const char *filename, const char *buf, size_t length){
@@ -490,22 +480,27 @@ void handleRoot(AsyncWebServerRequest *request) {
 }
 
 void handleStatus(AsyncWebServerRequest *request){
-  DynamicJsonDocument doc(2048);
-  doc["datetime"] = getFullDateTime();
-  doc["dbg_led"] = DEBUG;
-  doc["sys_led"] = SYSLED;
-  doc["ambient"] = ambient_level;
-  doc["motion_sensor"] = motion_sensor;
-  doc["onboard_led"] = onboard_led;
-  doc["onboard_led_level"] = onboard_led_level;
-  doc["control_output"] = control_output;
-  doc["sensor_output"] = sensor_log;
-  doc["is_midnight"] = is_midnight();
-  doc["board_info"] = getBoardInfo();
+  DynamicJsonDocument doc(2048), doc1(1024);
+  JsonObject obj = doc.to<JsonObject>(), obj1 = doc1.to<JsonObject>();
+  obj["datetime"] = getFullDateTime();
+  obj["dbg_led"] = DEBUG;
+  obj["sys_led"] = SYSLED;
+  obj["ambient"] = ambient_level;
+  obj["motion_sensor"] = motion_sensor;
+  obj["onboard_led"] = onboard_led;
+  obj["onboard_led_level"] = onboard_led_level;
+  obj["control_output"] = control_output;
+  obj["sensor_output"] = sensor_log;
+  obj["is_midnight"] = is_midnight();
+  obj["board_info"] = getBoardInfo();
+  for(auto it=g_nodeList.begin(); it!=g_nodeList.end(); ++it)
+    obj1[it->first] = it->second.first;
+  obj["node_list"] = obj1;
   if(!svr_reply.isEmpty()){
-    doc["svr_reply"] = svr_reply;
+    obj["svr_reply"] = svr_reply;
     svr_reply = "";
   }
+  obj["this_ip"] = WiFi.localIP().toString();
   String output;
   serializeJson(doc, output);
   request->send(200, "text/html", output);
@@ -552,6 +547,7 @@ void initNTP(){
 }
 
 bool initWifi(){
+  g_nodeList.clear();
   if(dnsServer){
     dnsServer->stop();
     delete dnsServer;
@@ -609,8 +605,63 @@ void deleteALL(){
   }
 }
 
+String get_udp_bc_msg(){
+  DynamicJsonDocument doc(1024);
+  doc["APP"] = WIFI_NAME;
+  doc["node_name"] = node_name;
+  doc["node_ip"] = WiFi.localIP().toString();
+  String udp_bc_msg;
+  serializeJson(doc, udp_bc_msg);
+  return udp_bc_msg;
+}
+
 void udpBroadcast(){
-  int res = asyncUDP.broadcastTo("", UDP_PORT);
+  String udp_bc_msg = get_udp_bc_msg();
+  if(DEBUG) Serial.println("UDP broadcasting msg: "+udp_bc_msg);
+  asyncUDP.broadcastTo(udp_bc_msg.c_str(), UDP_PORT);
+}
+
+void inform_node_auto(const String &ip, bool force=false){
+  IPAddress ipa;
+  if(!ipa.fromString(ip)) return;
+  unsigned long tm = millis();
+  if(force || g_nodeLastPing.find(ip)==g_nodeLastPing.end() || tm-g_nodeLastPing[ip]>8000){
+    String udp_bc_msg = get_udp_bc_msg();
+    AsyncUDPMessage udp_msg;
+    udp_msg.write((const uint8_t*)udp_bc_msg.c_str(), udp_bc_msg.length());
+    asyncUDP.sendTo(udp_msg, ipa, UDP_PORT);
+    g_nodeLastPing[ip] = tm;
+  }
+}
+
+void udpListen(){
+  if(asyncUDP.listen(UDP_PORT)){
+    asyncUDP.onPacket([](AsyncUDPPacket packet) {
+      if(DEBUG)
+        Serial.printf("Received UDP from %s:%u (%u bytes)\n", packet.remoteIP().toString().c_str(), packet.localPort(), packet.length());
+      DynamicJsonDocument doc(1024);
+      if(deserializeJson(doc, packet.data())!=DeserializationError::Ok) return;
+      if(doc["APP"]!=WIFI_NAME) return;
+      if(!doc.containsKey("node_ip") || !doc.containsKey("node_name")) return;      
+      
+      // check for valid IP
+      String node_ip = doc["node_ip"];
+      String node_name = doc["node_name"];
+      IPAddress ipa;
+      if(!ipa.fromString(node_ip)) return;
+
+      if(g_nodeList.find(node_ip)==g_nodeList.end()){ // not found in nodelist
+        g_nodeList[node_ip] = std::make_pair(node_name, millis());
+        if(DEBUG)
+          Serial.println("New OpenSmart node added: "+node_ip+" "+g_nodeList[node_ip].first);
+      }else{  // existing node, update node_name and reply if not too frequent
+        if(g_nodeList[node_ip].first!=node_name) g_nodeList[node_ip].first = node_name;
+      }
+      inform_node_auto(node_ip);
+      g_nodeList[node_ip].second = millis();
+    });
+    if(DEBUG) Serial.println("UDP listening on Port "+String(UDP_PORT));
+  }
 }
 
 void initServer(){
@@ -667,6 +718,8 @@ void initServer(){
   server.serveStatic("/logs/", LittleFS, "/");
   AsyncElegantOTA.begin(&server);
   server.begin();
+  g_nodeList[WiFi.localIP().toString()] = std::make_pair(node_name, millis());
+  udpListen();
   udpBroadcast();
   Serial.println("HTTP server started");
 }
@@ -707,7 +760,6 @@ void setup() {
   Serial.begin(115200);
   Serial.setTimeout(100L);
   Serial.println("\nSystem initialized:");
-
 
   // Load config file and history file if exist
   bool config_loaded = load_config();
@@ -777,6 +829,17 @@ void loop() {
   // Auto disable debug
   if(DEBUG && tm_curr-tm_last_debugon>1800000){
     set_debug(false);
+  }
+
+  // Contact each known node to test whether still alive
+  if(g_nodeList.size()>1){
+    for(auto it=g_nodeList.begin(); it!=g_nodeList.end(); ++it)
+      if(it->first!=WiFi.localIP().toString() && tm_curr-it->second.second>=TEST_ALIVE){
+        if(tm_curr-it->second.second > TEST_ALIVE+30000){
+          g_nodeList.erase(it);
+          break;
+        }else inform_node_auto(it->first);
+      }
   }
 
   // Receive data from motion sensor
