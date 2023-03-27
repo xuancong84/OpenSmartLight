@@ -1,10 +1,11 @@
 #ifndef SERVER_HTML_H
 #define SERVER_HTML_H
-char server_html[] = R"(<!DOCTYPE html>
+char server_html[] = R"aa(<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OpenSmartLight</title>
 <style>
 button {
   align-items: center;
@@ -135,6 +136,11 @@ input {font-size:15px;}
 </style>
 </head>
 <body>
+<div style="height: 100%; width: calc(24% - 12px); resize: horizontal; overflow: auto; border: 2px; position:absolute; left:10px">
+  <h2>OpenSmart Nodes:</h2>
+  <select id="node_list" size=20 style="width:100%;"></select>
+  </div>
+<div style="height:100%; width:calc(75% - 4px); overflow:auto; position:absolute; border: 2px; right:0">
 <h2>OpenSmartLight (Open-source Smart Light Controller) &nbsp;
   Updating: <label class="toggle"><input id='isActive' type="checkbox" onchange='isActive=this.checked' checked>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label>
@@ -182,22 +188,22 @@ input {font-size:15px;}
 <table>
   <tr><th>Day of Week</th><th>Monday</th><th>Tuesday</th><th>Wednesday</th><th>Thursday</th><th>Friday</th><th>Saturday</th><th>Sunday</th><th><b>Everyday</b></th></tr>
   <tr><td>Start Time</td>
-    <td><input type="time" id="midnight_start0" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_start1" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_start2" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_start3" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_start4" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_start5" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_start6" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_start0" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_start1" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_start2" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_start3" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_start4" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_start5" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_start6" onblur='set_value(this)'></td>
     <td><input type="time" id="midnight_start" onchange='changeALL(this)' onblur='set_times(this)'></td></tr>
   <tr><td>End Time</td>
-    <td><input type="time" id="midnight_stop0" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_stop1" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_stop2" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_stop3" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_stop4" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_stop5" onblur='set_string(this)'></td>
-    <td><input type="time" id="midnight_stop6" onblur='set_string(this)'></td>
+    <td><input type="time" id="midnight_stop0" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_stop1" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_stop2" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_stop3" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_stop4" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_stop5" onblur='set_value(this)'></td>
+    <td><input type="time" id="midnight_stop6" onblur='set_value(this)'></td>
     <td><input type="time" id="midnight_stop"  onchange='changeALL(this)' onblur='set_times(this)'></td></tr>
 </table>
 <hr>
@@ -214,16 +220,16 @@ input {font-size:15px;}
 <tr><td>DELAY_ON_OCC</td> <td><input type='number' id='DELAY_ON_OCC' onchange='set_value(this)'></td> <td>The duration to extend light-on time upon OCC. </td></tr>
 </table>
 <hr>
-<h3>WIFI Settings &nbsp;&nbsp;SSID: <input id='wifi_ssid' type='text' onblur='set_string(this)'> &nbsp; Password: <input id='wifi_password' type='password' onblur='set_string(this)'>
+<h3>WIFI Settings &nbsp;&nbsp;SSID: <input id='wifi_ssid' type='text' onblur='set_value(this)'> &nbsp; Password: <input id='wifi_password' type='password' onblur='set_value(this)'>
   &nbsp; <button onclick='GET2("restart_wifi")' class='bb'>Restart WIFI</button></h3>
 <table>
 <tr><th>IP Address</th><th>Gateway</th><th>Subnet</th><th>DNS primary</th><th>DNS secondary</th></tr>
 <tr>
-  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_IP'></td>
-  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_gateway'></td>
-  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_subnet'></td>
-  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_DNS1'></td>
-  <td><input onblur='set_string(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_DNS2'></td>
+  <td><input onblur='set_value(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_IP'></td>
+  <td><input onblur='set_value(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_gateway'></td>
+  <td><input onblur='set_value(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_subnet'></td>
+  <td><input onblur='set_value(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_DNS1'></td>
+  <td><input onblur='set_value(this)' type="text" minlength="7" maxlength="15" size="15" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id='wifi_DNS2'></td>
 </tr>
 </table>
 <p><button onclick="location.href='/update'" class='bb'>OTA Firmware Update</button>&nbsp;
@@ -242,8 +248,10 @@ input {font-size:15px;}
     <div style="height: 100%; width: 75%"><textarea id="popup_log" style="width:100%; height:100%; box-sizing:border-box" readonly></textarea></div>
   </div>
 </div>
+</div>
 
 <script>
+var this_ip = null;
 var isActive = true;
 var countDown = 0;
 var svr_reply = getById('svr_reply');
@@ -251,12 +259,12 @@ var current_logfile = "";
 var xmlHttp = new XMLHttpRequest();
 function getById(id_str){return document.getElementById(id_str);}
 function GET1(url){
-  xmlHttp.open('GET', window.location+url, false);
+  xmlHttp.open('GET', "/"+url, false);
   xmlHttp.send(null);
   return xmlHttp.responseText;
 }
 function GET2(url, cb=null){
-  xmlHttp.open('GET', window.location+url);
+  xmlHttp.open('GET', "/"+url);
   if(cb!=null) xmlHttp.onload = cb;
   xmlHttp.send(null);
   return xmlHttp.responseText;
@@ -273,14 +281,11 @@ function changeALL(obj){
   for(var x=0; x<7; x++)
     getById(obj.id+x).value = obj.value;
 }
-function set_value(obj){
-  svr_reply.innerHTML = GET('set_value?'+obj.id+'='+obj.value);
+function set_value2(id, value){
+  svr_reply.innerHTML = GET('set_value?'+id+'='+value);
   countDown = 4;
 }
-function set_string(obj){
-  svr_reply.innerHTML = GET('set_string?'+obj.id+'='+obj.value);
-  countDown = 4;
-}
+function set_value(obj){ set_value2(obj.id, obj.value); }
 function set_ckbox(obj){
   GET(obj.id+'_'+(obj.checked?'on':'off'));
 }
@@ -290,6 +295,12 @@ function set_times(obj){
     ret += getById(obj.id+x).value+' ';
   svr_reply.innerHTML = GET(ret);
   countDown = 4;
+}
+function goto(e){
+  if(e.value==this_ip){
+    var new_name = prompt('Please enter the new name for this device:');
+    if(new_name!=null) set_value2('node_name', new_name);
+  }else window.location.href = "http://"+e.value;
 }
 var statusRC = 0;
 function update_status(cmd='status', force=false){
@@ -306,11 +317,21 @@ function update_status(cmd='status', force=false){
       var elem = getById(s);
       if(elem==null) continue;
       if(elem.type=='checkbox')elem.checked=obj[s];
-      else elem.value = obj[s];
+      else if(elem.type=='select-one'){
+      	elem.innerHTML = '';
+      	var node_list = obj[s];
+      	for(var ip in node_list)
+      	  elem.innerHTML += '<option value="'+ip+'" style="font-size:24px" onclick="goto(this)">'+node_list[ip]+' ('+ip+')</option>';
+      }else elem.value = obj[s];
     }
     if('onboard_led_level' in obj) getById('led_level').value = obj['onboard_led_level'];
     if('onboard_led' in obj) getById('glide_led').innerHTML = "Glide LED "+(obj['onboard_led']?'OFF':'ON');
     if('svr_reply' in obj){svr_reply.innerText=svr_reply.value; countDown = 4;}
+    if('this_ip' in obj){
+      this_ip = obj['this_ip'];
+      for(var e of getById('node_list').children)
+        if(e.value==this_ip) e.selected='selected';
+    }
   });
 }
 var popup = getById("popup");
@@ -373,6 +394,6 @@ dragElement(popup);
 setInterval(update_status, 1000);
 </script>
 </body></html>
-)";
+)aa";
 
 #endif

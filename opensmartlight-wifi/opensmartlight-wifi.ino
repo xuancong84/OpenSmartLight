@@ -13,9 +13,15 @@
 #include <DNSServer.h>
 #include <WiFiUdp.h>
 #include <md5.h>
+#include <Hash.h>
 #include <stdio.h>
-#include "./secret.h" // put your WIFI credentials in this file, or comment this line out
-#include "./server_html.h"
+#include <map>
+#include "ESPAsyncUDP.h"
+#include "server_html.h"
+
+#if __has_include("secret.h")
+#include "secret.h" // put your WIFI credentials in this file, or comment this line out
+#endif
 
 #define PIN_CONTROL_OUTPUT D2
 #define PIN_MOTION_SENSOR D3
@@ -28,6 +34,8 @@
 #define LOGFILE_MAX_NUM  8
 #define FlashButtonPIN 0
 #define WIFI_NAME "OpenSmartLight"
+#define UDP_PORT 18888      // for LAN broadcast and inform own existence
+#define TEST_ALIVE 1000000  // interval (in ms) to contact each known node to check whether they are still alive
 
 void blink_halt(){
   while(1){
@@ -83,6 +91,7 @@ String midnight_stops[7] = { "07:00", "07:00", "07:00", "07:00", "07:00", "07:00
 #define WIFI_DNS2 IPAddress()
 #endif
 
+String node_name = "SmartNode01";
 String wifi_ssid = WIFI_SSID;             //Enter your WIFI ssid
 String wifi_password = WIFI_PASSWORD;     //Enter your WIFI password
 IPAddress wifi_IP = WIFI_IP;
@@ -104,7 +113,7 @@ bool motion_sensor = false;
 bool control_output = false;
 bool DEBUG = false;
 bool SYSLED = false;
-String sensor_log, svr_reply;
+String sensor_log, svr_reply, params_hash;
 
 File fp_hist;
 int do_glide = 0;
@@ -115,6 +124,7 @@ unsigned long tm_last_debugon = 0;
 unsigned long tm_last_savehist = 0;
 
 // Define NTP Client to get time
+AsyncUDP asyncUDP;
 WiFiUDP *ntpUDP = NULL;
 NTPClient *timeClient = NULL;
 String getTimeString(){
@@ -154,53 +164,99 @@ String getBoardInfo(){
 
 
 // Saveable parameters
-#define N_params 17
-String g_params[N_params] = {"DARK_TH_LOW", "DARK_TH_HIGH", "DELAY_ON_MOV", "DELAY_ON_OCC", "OCC_TRIG_TH", "OCC_CONT_TH", "MOV_TRIG_TH", "MOV_CONT_TH", "LED_BEGIN", "LED_END", "GLIDE_TIME",
-  "wifi_IP", "wifi_gateway", "wifi_subnet", "wifi_DNS1", "wifi_DNS2", "timezone"};
-u32_t *g_pointer[N_params] = {&DARK_TH_LOW, &DARK_TH_HIGH, &DELAY_ON_MOV, &DELAY_ON_OCC, &OCC_TRIG_TH, &OCC_CONT_TH, &MOV_TRIG_TH, &MOV_CONT_TH, &LED_BEGIN, &LED_END, &GLIDE_TIME,
-  (u32_t*)(ip_addr_t*)wifi_IP, (u32_t*)(ip_addr_t*)wifi_gateway, (u32_t*)(ip_addr_t*)wifi_subnet, (u32_t*)(ip_addr_t*)wifi_DNS1, (u32_t*)(ip_addr_t*)wifi_DNS2, (u32_t*)&timezone};
-const int CONFIG_MAXSIZE = sizeof(int)*N_params/*g_params*/+(14*6+1)/*midnight start/stop times*/+(32+1)/*WIFI SSID*/+64/*WIFI password*/+16/*MD5 checksum*/+2/*end-of-string NULL byte*/;
-bool set_value(String varname, String val_str){
-  if(DEBUG)
-    Serial.println("Setting '"+varname+"' to '"+val_str+"'");
-  if(varname=="timezone"){
-    timezone = val_str.toFloat();
-    timeClient->setTimeOffset(timezone*3600);
-    return true;
-  }
-  for(int x=0; x<N_params; x++)
-    if(varname==g_params[x]){
-      *g_pointer[x] = val_str.toInt();
-      return true;
-    }
-  return false;
+enum VAL_TYPE{
+  T_INT = 0, 
+  T_FLOAT = 1,
+  T_IP = 2,
+  T_STRING = 3
+};
+
+std::map <String, std::pair<VAL_TYPE, void*> > g_params = {
+  {"DARK_TH_LOW",   {T_INT, &DARK_TH_LOW}},
+  {"DARK_TH_HIGH",  {T_INT, &DARK_TH_HIGH}},
+  {"DELAY_ON_MOV",  {T_INT, &DELAY_ON_MOV}},
+  {"DELAY_ON_OCC",  {T_INT, &DELAY_ON_OCC}},
+  {"OCC_TRIG_TH",   {T_INT, &OCC_TRIG_TH}},
+  {"OCC_CONT_TH",   {T_INT, &OCC_CONT_TH}},
+  {"MOV_TRIG_TH",   {T_INT, &MOV_TRIG_TH}},
+  {"MOV_CONT_TH",   {T_INT, &MOV_CONT_TH}},
+  {"LED_BEGIN",     {T_INT, &LED_BEGIN}},
+  {"LED_END",       {T_INT, &LED_END}},
+  {"GLIDE_TIME",    {T_INT, &GLIDE_TIME}},
+  {"wifi_IP",       {T_IP, &wifi_IP}},
+  {"wifi_gateway",  {T_IP, &wifi_gateway}},
+  {"wifi_subnet",   {T_IP, &wifi_subnet}},
+  {"wifi_DNS1",     {T_IP, &wifi_DNS1}},
+  {"wifi_DNS2",     {T_IP, &wifi_DNS2}},
+  {"wifi_ssid",     {T_STRING, &wifi_ssid}},
+  {"wifi_password", {T_STRING, &wifi_password}},
+  {"node_name",     {T_STRING, &node_name}},
+  {"timezone",      {T_FLOAT, &timezone}},
+  {"midnight_start0", {T_STRING, &midnight_starts[0]}},
+  {"midnight_stop0",  {T_STRING, &midnight_stops[0]}},
+  {"midnight_start1", {T_STRING, &midnight_starts[1]}},
+  {"midnight_stop1",  {T_STRING, &midnight_stops[1]}},
+  {"midnight_start2", {T_STRING, &midnight_starts[2]}},
+  {"midnight_stop2",  {T_STRING, &midnight_stops[2]}},
+  {"midnight_start3", {T_STRING, &midnight_starts[3]}},
+  {"midnight_stop3",  {T_STRING, &midnight_stops[3]}},
+  {"midnight_start4", {T_STRING, &midnight_starts[4]}},
+  {"midnight_stop4",  {T_STRING, &midnight_stops[4]}},
+  {"midnight_start5", {T_STRING, &midnight_starts[5]}},
+  {"midnight_stop5",  {T_STRING, &midnight_stops[5]}},
+  {"midnight_start6", {T_STRING, &midnight_starts[6]}},
+  {"midnight_stop6",  {T_STRING, &midnight_stops[6]}}
+};
+
+std::map <String, std::pair<String, unsigned long> > g_nodeList;
+std::map <String, unsigned long> g_nodeLastPing;
+
+void update_hash(){
+  String json_str;
+  DynamicJsonDocument doc = config2json();
+  serializeJson(doc, json_str);
+  params_hash = sha1(json_str);
 }
-bool set_string(String varname, String value){
-  if(DEBUG)
-    Serial.println("Setting '"+varname+"' to '"+value+"'");
-  if(varname=="wifi_ssid")
-    wifi_ssid = value;
-  else if(varname=="wifi_password")
-    wifi_password = value;
-  else if(varname.startsWith("wifi_")){
-    int x;
-    for(x=0; (x<N_params)&&(varname!=g_params[x]); x++);
-    if(varname!=g_params[x]) return false;
-    IPAddress ipa;
-    if(!ipa.fromString(value)) ipa=IPAddress();
-    *g_pointer[x] = (uint32_t)ipa;
-  }else if(varname.startsWith("midnight_")){
-    for(int x=0; x<7; x++){
-      if(varname==String("midnight_start")+x){
-        midnight_starts[x] = value;
-        return true;
-      }else if(varname==String("midnight_stop")+x){
-        midnight_stops[x] = value;
-        return true;
-      }
-    }
+
+bool set_value(String varname, String val_str){
+  if(DEBUG) Serial.println("Setting '"+varname+"' to '"+val_str+"'");
+  auto it = g_params.find(varname);
+  if(it==g_params.end()){
+    if(DEBUG) Serial.println("Cannot find variable `"+varname+"'");
     return false;
-  }else return false;
+  }
+  void *pp = it->second.second;
+  switch(it->second.first){
+    case T_INT:     *(int*)pp = val_str.toInt();    break;
+    case T_FLOAT:   *(float*)pp = val_str.toFloat();break;
+    case T_STRING:  *(String*)pp = val_str;         break;
+    case T_IP:
+      IPAddress ipa;
+      if(!ipa.fromString(val_str)) return false;
+      *(IPAddress*)pp = ipa;
+  }
+  if(varname=="node_name" && WiFi.isConnected()){
+    g_nodeList[WiFi.localIP().toString()].first = node_name;
+    udpBroadcast();
+  }
+  // update_hash();
+  return true;
+}
+
+bool set_times(String prefix, String s){
+  if(DEBUG)
+    Serial.println("Setting "+prefix+" to "+s);
+  String tms[7];
+  for(int x=0; x<7; x++){
+    int posi = s.indexOf(' ');
+    if(posi<0 && x<6) return false;
+    tms[x] = posi<0?s:s.substring(0, posi);
+    s = s.substring(posi+1);
+  }
+  for(int x=0; x<7; x++)
+    if(!set_value(prefix+x, tms[x]))
+      return false;
+  // update_hash();
   return true;
 }
 
@@ -220,8 +276,8 @@ void open_logfile_auto_rotate(){
   if(fp_hist.size()>LOGFILE_MAX_SIZE){  // rotate log
     fp_hist.close();
     for(int x=LOGFILE_MAX_NUM-1; x>=0; x--)
-      LittleFS.rename(String(x)+".log", String(x+1)+".log");
-    LittleFS.remove(String(LOGFILE_MAX_NUM)+".log");
+      LittleFS.rename("/"+String(x)+".log", "/"+String(x+1)+".log");
+    LittleFS.remove("/"+String(LOGFILE_MAX_NUM)+".log");
     fp_hist = LittleFS.open("/0.log", "a");
   }
 }
@@ -240,51 +296,6 @@ void md5(char *out, char *buf, int len) {
   MD5Final((uint8_t*)out, &ctx);
 }
 
-bool parse_combined_str(String s){
-  int total=0;
-  for(int x=0; x<s.length(); x++)
-    if(s[x]=='+') total++;
-  if(total!=15) return false;
-
-  int posi = s.indexOf('+');
-  if(posi<0) return false;
-  wifi_ssid = s.substring(0, posi);
-  s = s.substring(posi+1);
-
-  posi = s.indexOf('+');
-  if(posi<0) return false;
-  wifi_password = s.substring(0, posi);
-  s = s.substring(posi+1);
-  
-  for(int x=0; x<7; x++){
-    posi = s.indexOf('+');
-    if(posi<0) return false;
-    midnight_starts[x] = s.substring(0, posi);
-    s = s.substring(posi+1);
-    posi = s.indexOf('+');
-    if(posi<0 && x<6) return false;
-    midnight_stops[x] = posi<0?s:s.substring(0, posi);
-    s = s.substring(posi+1);
-  }
-  return true;
-}
-
-bool set_times(String prefix, String s){
-  if(DEBUG)
-    Serial.println("Setting "+prefix+" to "+s);
-  String tms[7];
-  for(int x=0; x<7; x++){
-    int posi = s.indexOf(' ');
-    if(posi<0 && x<6) return false;
-    tms[x] = posi<0?s:s.substring(0, posi);
-    s = s.substring(posi+1);
-  }
-  for(int x=0; x<7; x++)
-    if(!set_string(prefix+x, tms[x]))
-      return false;
-  return true;
-}
-
 bool save_file(const char *filename, const char *buf, size_t length){
   File fp = LittleFS.open(filename, "w");
   if(fp.isFile()){
@@ -295,54 +306,57 @@ bool save_file(const char *filename, const char *buf, size_t length){
   return false;
 }
 
-bool save_config(){
-  String combined_str = wifi_ssid+"+"+wifi_password;
-  for(int x=0; x<7; x++)
-    combined_str += ("+"+midnight_starts[x]+"+"+midnight_stops[x]);
-
-  char buf[CONFIG_MAXSIZE];
-  int posi = 0;
-  for(int x=0; x<N_params; x++){
-    *(unsigned int*)(&buf[posi]) = *g_pointer[x];
-    posi += sizeof(unsigned int);
+DynamicJsonDocument config2json(){
+  DynamicJsonDocument doc(2048);
+  for(auto it=g_params.begin(); it!=g_params.end(); ++it){
+    String name = it->first;
+    void *pp = it->second.second;
+    switch(it->second.first){
+      case T_INT:     doc[name] = *(int*)pp;    break;
+      case T_FLOAT:   doc[name] = *(float*)pp;  break;
+      case T_STRING:  doc[name] = *(String*)pp; break;
+      case T_IP:      doc[name] = ((IPAddress*)pp)->toString(); break;
+    }
   }
-  strcpy(&buf[posi], combined_str.c_str());
-  posi += combined_str.length()+1;
-  md5(&buf[posi], buf, posi);
-  posi += 16;
+  return doc;
+}
 
-  return save_file("/config.bin", buf, posi);
+bool save_config(){
+  File fp = LittleFS.open("/config.json", "w");
+  DynamicJsonDocument doc = config2json();
+  serializeJson(doc, fp);
+  fp.close();
+  return true;
 }
 
 bool load_config(){
-  char md5_comp[16];
-  char buf[CONFIG_MAXSIZE];
-
-  // read config file
-  File fp = LittleFS.open("/config.bin", "r");
+  // test whether the config file is valid
+  File fp = LittleFS.open("/config.json", "r");
   if(!fp.isFile()) return false;
-  int posi = fp.read((uint8_t*)buf, CONFIG_MAXSIZE);
+  DynamicJsonDocument doc(2048);
+  DeserializationError err = deserializeJson(doc, fp);
   fp.close();
-  if(!posi) return false;
-
-  posi = N_params*sizeof(int);
-  if(strlen(&buf[posi])>14*6+32+64)
+  if(err != DeserializationError::Ok){
+    if(DEBUG) Serial.println(String("Error: deserializeJson failed with error ")+err.f_str());
     return false;
-
-  String combined_str = String(&buf[posi]);
-  if(!parse_combined_str(combined_str))
-    return false;
-
-  posi += combined_str.length()+1;
-  md5(md5_comp, buf, posi);
-  if(memcmp(md5_comp, &buf[posi], 16)!=0)
-    return false;
-
-  posi = 0;
-  for(int x=0; x<N_params; x++){
-    *g_pointer[x] = *(unsigned int*)(&buf[posi]);
-    posi += sizeof(unsigned int);
   }
+  if(g_params.size()!=doc.size()){
+    if(DEBUG) Serial.println("Error: JSON size does not match");
+    return false;
+  }
+  for(auto it=g_params.begin(); it!=g_params.end(); ++it)
+    if(!doc.containsKey(it->first)){
+      if(DEBUG) Serial.println("Error: JSON does not contain " + it->first);
+      return false;
+    }
+
+  // load the config file
+  int n_success = 0;
+  for(auto it=g_params.begin(); it!=g_params.end(); ++it)
+    if(set_value(it->first, doc[it->first])) n_success++;
+  if(n_success!=g_params.size() && DEBUG)
+    Serial.printf("Not all parameters loaded successfully: only %d out of %d\n", n_success, g_params.size());
+  
   return true;
 }
 
@@ -404,7 +418,7 @@ void set_onboard_led_level(int level){
   if(DEBUG) Serial.printf("Onboard LED level = %d\n", level);
 }
 
-void set_debug_led(bool state){
+void set_debug(bool state){
   digitalWrite(LED_BUILTIN_AUX, !state);
   DEBUG = state;
   Serial.printf("DEBUG LED state = %d\n", DEBUG);
@@ -470,43 +484,34 @@ void handleRoot(AsyncWebServerRequest *request) {
 }
 
 void handleStatus(AsyncWebServerRequest *request){
-  DynamicJsonDocument doc(2048);
-  doc["datetime"] = getFullDateTime();
-  doc["dbg_led"] = DEBUG;
-  doc["sys_led"] = SYSLED;
-  doc["ambient"] = ambient_level;
-  doc["motion_sensor"] = motion_sensor;
-  doc["onboard_led"] = onboard_led;
-  doc["onboard_led_level"] = onboard_led_level;
-  doc["control_output"] = control_output;
-  doc["sensor_output"] = sensor_log;
-  doc["is_midnight"] = is_midnight();
-  doc["board_info"] = getBoardInfo();
+  DynamicJsonDocument doc(2048), doc1(1024);
+  JsonObject obj = doc.to<JsonObject>(), obj1 = doc1.to<JsonObject>();
+  obj["datetime"] = getFullDateTime();
+  obj["dbg_led"] = DEBUG;
+  obj["sys_led"] = SYSLED;
+  obj["ambient"] = ambient_level;
+  obj["motion_sensor"] = motion_sensor;
+  obj["onboard_led"] = onboard_led;
+  obj["onboard_led_level"] = onboard_led_level;
+  obj["control_output"] = control_output;
+  obj["sensor_output"] = sensor_log;
+  obj["is_midnight"] = is_midnight();
+  obj["board_info"] = getBoardInfo();
+  for(auto it=g_nodeList.begin(); it!=g_nodeList.end(); ++it)
+    obj1[it->first] = it->second.first;
+  obj["node_list"] = obj1;
   if(!svr_reply.isEmpty()){
-    doc["svr_reply"] = svr_reply;
+    obj["svr_reply"] = svr_reply;
     svr_reply = "";
   }
+  obj["this_ip"] = WiFi.localIP().toString();
   String output;
   serializeJson(doc, output);
   request->send(200, "text/html", output);
 }
 
 void handleStatic(AsyncWebServerRequest *request){
-  DynamicJsonDocument doc(2048);
-  for(int x=0; x<N_params; x++){
-    if(g_params[x]=="timezone")
-      doc[g_params[x]] = timezone;
-    else if(g_params[x].startsWith("wifi_"))
-      doc[g_params[x]] = IPAddress(*g_pointer[x]).toString();
-    else
-      doc[g_params[x]] = *g_pointer[x];
-  }
-  doc["wifi_ssid"] = wifi_ssid;
-  doc["wifi_password"] = wifi_password;
-  for(int x=0; x<7; x++){
-    doc["midnight_start"+String(x)] = midnight_starts[x];
-    doc["midnight_stop"+String(x)] = midnight_stops[x];
-  }
+  DynamicJsonDocument doc = config2json();
   String output;
   serializeJson(doc, output);
   request->send(200, "text/html", output);
@@ -546,6 +551,7 @@ void initNTP(){
 }
 
 bool initWifi(){
+  g_nodeList.clear();
   if(dnsServer){
     dnsServer->stop();
     delete dnsServer;
@@ -603,6 +609,65 @@ void deleteALL(){
   }
 }
 
+String get_udp_bc_msg(){
+  DynamicJsonDocument doc(1024);
+  doc["APP"] = WIFI_NAME;
+  doc["node_name"] = node_name;
+  doc["node_ip"] = WiFi.localIP().toString();
+  String udp_bc_msg;
+  serializeJson(doc, udp_bc_msg);
+  return udp_bc_msg;
+}
+
+void udpBroadcast(){
+  String udp_bc_msg = get_udp_bc_msg();
+  if(DEBUG) Serial.println("UDP broadcasting msg: "+udp_bc_msg);
+  asyncUDP.broadcastTo(udp_bc_msg.c_str(), UDP_PORT);
+}
+
+void inform_node_auto(const String &ip, bool force=false){
+  IPAddress ipa;
+  if(!ipa.fromString(ip)) return;
+  unsigned long tm = millis();
+  if(force || g_nodeLastPing.find(ip)==g_nodeLastPing.end() || tm-g_nodeLastPing[ip]>8000){
+    String udp_bc_msg = get_udp_bc_msg();
+    AsyncUDPMessage udp_msg;
+    udp_msg.write((const uint8_t*)udp_bc_msg.c_str(), udp_bc_msg.length());
+    asyncUDP.sendTo(udp_msg, ipa, UDP_PORT);
+    g_nodeLastPing[ip] = tm;
+  }
+}
+
+void udpListen(){
+  if(asyncUDP.listen(UDP_PORT)){
+    asyncUDP.onPacket([](AsyncUDPPacket packet) {
+      if(DEBUG)
+        Serial.printf("Received UDP from %s:%u (%u bytes)\n", packet.remoteIP().toString().c_str(), packet.localPort(), packet.length());
+      DynamicJsonDocument doc(1024);
+      if(deserializeJson(doc, packet.data())!=DeserializationError::Ok) return;
+      if(doc["APP"]!=WIFI_NAME) return;
+      if(!doc.containsKey("node_ip") || !doc.containsKey("node_name")) return;      
+      
+      // check for valid IP
+      String node_ip = doc["node_ip"];
+      String node_name = doc["node_name"];
+      IPAddress ipa;
+      if(!ipa.fromString(node_ip)) return;
+
+      if(g_nodeList.find(node_ip)==g_nodeList.end()){ // not found in nodelist
+        g_nodeList[node_ip] = std::make_pair(node_name, millis());
+        if(DEBUG)
+          Serial.println("New OpenSmart node added: "+node_ip+" "+g_nodeList[node_ip].first);
+      }else{  // existing node, update node_name and reply if not too frequent
+        if(g_nodeList[node_ip].first!=node_name) g_nodeList[node_ip].first = node_name;
+      }
+      inform_node_auto(node_ip);
+      g_nodeList[node_ip].second = millis();
+    });
+    if(DEBUG) Serial.println("UDP listening on Port "+String(UDP_PORT));
+  }
+}
+
 void initServer(){
   server.on("/", handleRoot);
   server.on("/status", handleStatus);
@@ -610,8 +675,8 @@ void initServer(){
   server.on("/reboot", [](AsyncWebServerRequest *request) {reboot = true; request->send(200, "text/html", "");});
   server.on("/restart_wifi", [](AsyncWebServerRequest *request) {restart_wifi = true; request->send(200, "text/html", "");});
   server.on("/update_time", [](AsyncWebServerRequest *request) {update_ntp=true; request->send(200, "text/html", "");});
-  server.on("/dbg_led_on", [](AsyncWebServerRequest *request) {set_debug_led(true);request->send(200, "text/html", "");});
-  server.on("/dbg_led_off", [](AsyncWebServerRequest *request) {set_debug_led(false);request->send(200, "text/html", "");});
+  server.on("/dbg_led_on", [](AsyncWebServerRequest *request) {set_debug(true);request->send(200, "text/html", "");});
+  server.on("/dbg_led_off", [](AsyncWebServerRequest *request) {set_debug(false);request->send(200, "text/html", "");});
   server.on("/sys_led_on", [](AsyncWebServerRequest *request) {set_system_led(true);request->send(200, "text/html", "");});
   server.on("/sys_led_off", [](AsyncWebServerRequest *request) {set_system_led(false);request->send(200, "text/html", "");});
   server.on("/sys_led_level", [](AsyncWebServerRequest *request) {
@@ -650,9 +715,6 @@ void initServer(){
   server.on("/set_value", [](AsyncWebServerRequest *request) {
     request->send(200, "text/html", set_value(request->argName(0), request->arg((size_t)0))?"Success":"Failed");
   });
-  server.on("/set_string", [](AsyncWebServerRequest *request) {
-    request->send(200, "text/html", set_string(request->argName(0), request->arg((size_t)0))?"Success":"Failed");
-  });
   server.on("/set_times", [](AsyncWebServerRequest *request){
     request->send(200, "text/html", set_times(request->argName(0), request->arg((int)0))?"Success":"Failed");
   });
@@ -660,6 +722,9 @@ void initServer(){
   server.serveStatic("/logs/", LittleFS, "/");
   AsyncElegantOTA.begin(&server);
   server.begin();
+  g_nodeList[WiFi.localIP().toString()] = std::make_pair(node_name, millis());
+  udpListen();
+  udpBroadcast();
   Serial.println("HTTP server started");
 }
 
@@ -702,7 +767,6 @@ void setup() {
   Serial.setTimeout(100L);
   Serial.println("\nSystem initialized:");
 
-
   // Load config file and history file if exist
   bool config_loaded = load_config();
   Serial.println(config_loaded?"Config file is valid and loaded!":"Config file NOT loaded!");
@@ -717,7 +781,7 @@ void setup() {
 
   if(DEBUG){
     delay(1000);
-    set_debug_led(true);
+    set_debug(true);
   }
   pinMode(FlashButtonPIN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(FlashButtonPIN), handleInterrupt, FALLING);
@@ -776,7 +840,18 @@ void loop() {
 
   // Auto disable debug
   if(DEBUG && tm_curr-tm_last_debugon>1800000){
-    set_debug_led(false);
+    set_debug(false);
+  }
+
+  // Contact each known node to test whether still alive
+  if(g_nodeList.size()>1){
+    for(auto it=g_nodeList.begin(); it!=g_nodeList.end(); ++it)
+      if(it->first!=WiFi.localIP().toString() && tm_curr-it->second.second>=TEST_ALIVE){
+        if(tm_curr-it->second.second > TEST_ALIVE+30000){
+          g_nodeList.erase(it);
+          break;
+        }else inform_node_auto(it->first);
+      }
   }
 
   // Receive data from motion sensor
