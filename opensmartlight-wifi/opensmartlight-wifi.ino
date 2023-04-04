@@ -211,13 +211,6 @@ std::map <String, std::pair<VAL_TYPE, void*> > g_params = {
 std::map <String, std::pair<String, unsigned long> > g_nodeList;
 std::map <String, unsigned long> g_nodeLastPing;
 
-void update_hash(){
-  String json_str;
-  DynamicJsonDocument doc = config2json();
-  serializeJson(doc, json_str);
-  params_hash = sha1(json_str);
-}
-
 bool set_value(String varname, String val_str){
   if(DEBUG) Serial.println("Setting '"+varname+"' to '"+val_str+"'");
   auto it = g_params.find(varname);
@@ -306,24 +299,24 @@ bool save_file(const char *filename, const char *buf, size_t length){
   return false;
 }
 
-DynamicJsonDocument config2json(){
-  DynamicJsonDocument doc(2048);
+void add_config(JsonObject &obj){
   for(auto it=g_params.begin(); it!=g_params.end(); ++it){
     String name = it->first;
     void *pp = it->second.second;
     switch(it->second.first){
-      case T_INT:     doc[name] = *(int*)pp;    break;
-      case T_FLOAT:   doc[name] = *(float*)pp;  break;
-      case T_STRING:  doc[name] = *(String*)pp; break;
-      case T_IP:      doc[name] = ((IPAddress*)pp)->toString(); break;
+      case T_INT:     obj[name] = *(int*)pp;    break;
+      case T_FLOAT:   obj[name] = *(float*)pp;  break;
+      case T_STRING:  obj[name] = *(String*)pp; break;
+      case T_IP:      obj[name] = ((IPAddress*)pp)->toString(); break;
     }
   }
-  return doc;
 }
 
 bool save_config(){
   File fp = LittleFS.open("/config.json", "w");
-  DynamicJsonDocument doc = config2json();
+  DynamicJsonDocument doc(2048);
+  JsonObject obj = doc.to<JsonObject>();
+  add_config(obj);
   serializeJson(doc, fp);
   fp.close();
   return true;
@@ -483,9 +476,7 @@ void handleRoot(AsyncWebServerRequest *request) {
   request->send_P(200, "text/html", server_html);
 }
 
-void handleStatus(AsyncWebServerRequest *request){
-  DynamicJsonDocument doc(2048), doc1(1024);
-  JsonObject obj = doc.to<JsonObject>(), obj1 = doc1.to<JsonObject>();
+void add_status(JsonObject &obj, JsonObject &obj1){
   obj["datetime"] = getFullDateTime();
   obj["dbg_led"] = DEBUG;
   obj["sys_led"] = SYSLED;
@@ -505,13 +496,22 @@ void handleStatus(AsyncWebServerRequest *request){
     svr_reply = "";
   }
   obj["this_ip"] = WiFi.localIP().toString();
+}
+
+void handleStatus(AsyncWebServerRequest *request){
+  DynamicJsonDocument doc(2048), doc1(1024);
+  JsonObject obj = doc.to<JsonObject>(), obj1 = doc1.to<JsonObject>();
+  add_status(obj, obj1);
   String output;
   serializeJson(doc, output);
   request->send(200, "text/html", output);
 }
 
 void handleStatic(AsyncWebServerRequest *request){
-  DynamicJsonDocument doc = config2json();
+  DynamicJsonDocument doc(2048), doc1(1024);
+  JsonObject obj = doc.to<JsonObject>(), obj1 = doc1.to<JsonObject>();
+  add_config(obj);
+  add_status(obj, obj1);
   String output;
   serializeJson(doc, output);
   request->send(200, "text/html", output);
@@ -646,7 +646,7 @@ void udpListen(){
       DynamicJsonDocument doc(1024);
       if(deserializeJson(doc, packet.data())!=DeserializationError::Ok) return;
       if(doc["APP"]!=WIFI_NAME) return;
-      if(!doc.containsKey("node_ip") || !doc.containsKey("node_name")) return;      
+      if(!doc.containsKey("node_ip") || !doc.containsKey("node_name")) return;
       
       // check for valid IP
       String node_ip = doc["node_ip"];
@@ -783,8 +783,8 @@ void setup() {
     delay(1000);
     set_debug(true);
   }
-  pinMode(FlashButtonPIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(FlashButtonPIN), handleInterrupt, FALLING);
+  // pinMode(FlashButtonPIN, INPUT_PULLUP);
+  // attachInterrupt(digitalPinToInterrupt(FlashButtonPIN), handleInterrupt, FALLING);
 }
 
 unsigned long elapse = millis();

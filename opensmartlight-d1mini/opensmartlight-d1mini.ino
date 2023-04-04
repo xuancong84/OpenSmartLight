@@ -771,8 +771,8 @@ void setup() {
   initServer();
   digitalWrite(LED_BUILTIN, 1);
 
-  pinMode(FlashButtonPIN, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(FlashButtonPIN), handleInterrupt, FALLING);
+  // pinMode(FlashButtonPIN, INPUT_PULLUP);
+  // attachInterrupt(digitalPinToInterrupt(FlashButtonPIN), handleInterrupt, FALLING);
 }
 
 unsigned long elapse = millis();

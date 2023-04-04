@@ -388,7 +388,6 @@ window.onload = () => {
   getById('led_level_min').innerHTML = getById('led_level').min;
   getById('led_level_max').innerHTML = getById('led_level').max;
   update_status('static');
-  update_status();
 }
 dragElement(popup);
 setInterval(update_status, 1000);
