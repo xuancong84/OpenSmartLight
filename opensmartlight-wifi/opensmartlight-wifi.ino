@@ -122,6 +122,7 @@ unsigned long tm_last_ambient = 0;
 unsigned long tm_last_timesync = 0;
 unsigned long tm_last_debugon = 0;
 unsigned long tm_last_savehist = 0;
+unsigned long tm_smartlight_off = 0;
 
 // Define NTP Client to get time
 AsyncUDP asyncUDP;
@@ -884,13 +885,13 @@ void loop() {
       }
       if(millis()>elapse){
         smartlight_off();
-        delay(500); // wait for light sensor to stablize
+        tm_smartlight_off = millis();
       }
     }else{  // when light/led is off
       if(s_mask & 4){
         smartlight_on();
         elapse = millis()+DELAY_ON_MOV;
-      }else if(ambient_level<DARK_TH_LOW){ // return to day mode
+      }else if(ambient_level<DARK_TH_LOW && millis()-tm_smartlight_off>5000){ // return to day mode
         set_sensor(false);
         is_dark_mode = false;
       }
