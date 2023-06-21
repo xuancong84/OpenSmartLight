@@ -18,16 +18,16 @@ class CaptiveDNS:
 		return packet
 	
 	async def task_func(self):
+		print('Captive-portal DNS started')
 		while True:
 			gc.collect()
 			try:
 				packet, sender = self.sock.recvfrom(self.max_pkt_len)
-				print("DNS query from", sender)
 				self.sock.sendto(self.answer(packet), sender)
 			except asyncio.CancelledError:
 				return
 			except:
-				await time.sleep(1)
+				await asyncio.sleep(0.5)
 				continue
 
 	def run(self, host='0.0.0.0', port=53):
