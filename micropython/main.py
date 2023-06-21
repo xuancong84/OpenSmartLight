@@ -1,4 +1,4 @@
-import os, sys, esp, gc
+import os, sys, esp, gc, uping, network
 import machine, time, ntptime
 from microdot import Microdot
 gc.collect()
@@ -8,14 +8,8 @@ gc.collect()
 try:
 	import secret as cred
 except:
-	pass
-wifi_IP = getattr(cred, 'WIFI_IP', '')
-wifi_gateway = getattr(cred, 'WIFI_GATEWAY', '')
-wifi_subnet = getattr(cred, 'WIFI_SUBNET', '')
-wifi_DNS1 = getattr(cred, 'WIFI_DNS1', '')
-wifi_DNS2 = getattr(cred, 'WIFI_DNS2', '')
-wifi_ssid = getattr(cred, 'WIFI_SSID', '')
-wifi_password = getattr(cred, 'WIFI_PASSWORD', '')
+	class dummy: pass
+	cred = dummy()
 
 
 # constant definitions
@@ -48,18 +42,18 @@ saved = {
 	'LED_BEGIN': 100,
 	'LED_END': 125,
 	'GLIDE_TIME': 800,
-	'wifi_IP': wifi_IP,
-	'wifi_gateway': wifi_gateway,
-	'wifi_subnet': wifi_subnet,
-	'wifi_DNS1': wifi_DNS1,
-	'wifi_DNS2': wifi_DNS2,
-	'wifi_ssid': wifi_ssid,
-	'wifi_password': wifi_password,
+	'wifi_IP': getattr(cred, 'WIFI_IP', ''),
+	'wifi_subnet': getattr(cred, 'WIFI_SUBNET', ''),
+	'wifi_gateway': getattr(cred, 'WIFI_GATEWAY', ''),
+	'wifi_DNS': getattr(cred, 'WIFI_DNS', ''),
+	'wifi_ssid': getattr(cred, 'WIFI_SSID', ''),
+	'wifi_password': getattr(cred, 'WIFI_PASSWORD', ''),
 	'midnight_starts': ["23:00", "23:00", "23:00", "23:00", "00:00", "00:00", "23:00"],
 	'midnight_stops': ["07:00", "07:00", "07:00", "07:00", "07:00", "07:00", "07:00"]
 }
 
 # Unsaved state parameter
+g_nodeList, g_nodeLastPing = {}, {}
 ambient_level = 0
 onboard_led_level = 0
 is_dark_mode = False
@@ -118,7 +112,7 @@ def open_logfile_auto_rotate():
 def log_event(msg):
 	open_logfile_auto_rotate()
 	fullDateTime = getFullDateTime()
-	print(f"{getFullDateTime()} : {msg}\n", file=fp_hist, flush=True);
+	print(f"{getFullDateTime()} : {msg}", file=fp_hist, flush=True);
 
 def save_config():
 	with open('config.json', 'w') as fp:
@@ -131,6 +125,63 @@ def load_config():
 		saved = saved_new
 		return True
 	return False
+
+hasInternet = lambda:bool(uping.ping('8.8.8.8',quiet=True)[1])
+
+def initNTP():
+	success=True
+	try:
+		ntptime.settime()
+	except:
+		success=False
+	log_event(f"Synchronize time {'successfully' if success else 'failed'}")
+	print(f"Current datetime = {getFullDateTime()}")
+
+def hotspot():
+	pass
+
+def initWifi():
+	g_nodeList.clear()
+	if(dnsServer){
+		dnsServer->stop();
+		delete dnsServer;
+		dnsServer = NULL;
+	}
+
+	if not saved['wifi_ssid']:
+		return hotspot()
+
+	print("Connecting to WiFi ...")
+
+	# Configures static IP address
+	sta_if = network.WLAN(network.STA_IF)
+	sta_if.active(False)
+	ap_if = network.WLAN(network.AP_IF)
+	ap_if.active(False)
+	sta_if.active(True)
+	sta_if.ifconfig([saved['wifi_'+i] for i in ['IP','subnet','gateway','DNS']])
+	sta_if.connect(saved['wifi_ssid'],saved['wifi_password'])
+
+	for i in range(60):
+		if sta_if.isconnected():
+			break
+		time.sleep(1)
+		print(".", end='', flush=True)
+	
+	if sta_if.isconnected():
+		log_event("Connected to WIFI, SSID="+saved['wifi_ssid'])
+		print("\nWiFi connected\nIP address: "+sta_if.ifconfig()[0])
+	else:
+		log_event("Failed to connect to WIFI, SSID="+saved['wifi_ssid'])
+		print("\nUnable to connect to WiFi");
+		return hotspot()
+
+getFileList = lambda: os.listdir()
+
+def deleteALL():
+	for fn in getFileList():
+		if fn.endswith(".log"):
+			os.remove(fn)
 
 # SETUP
 PIN_LED_BUILTIN.off()
