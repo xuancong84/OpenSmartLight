@@ -1,5 +1,5 @@
 import os, sys, esp, gc, uping, network
-import machine, time, ntptime
+import machine, time, ntptime, select, socket
 from microdot import Microdot
 gc.collect()
 
@@ -112,7 +112,9 @@ def open_logfile_auto_rotate():
 def log_event(msg):
 	open_logfile_auto_rotate()
 	fullDateTime = getFullDateTime()
-	print(f"{getFullDateTime()} : {msg}", file=fp_hist, flush=True);
+	print(f"{getFullDateTime()} : {msg}", file=fp_hist, flush=True)
+	if DEBUG:
+		print(f"{getFullDateTime()} : {msg}", flush=True)
 
 def save_config():
 	with open('config.json', 'w') as fp:
@@ -134,30 +136,25 @@ def initNTP():
 		ntptime.settime()
 	except:
 		success=False
-	log_event(f"Synchronize time {'successfully' if success else 'failed'}")
-	print(f"Current datetime = {getFullDateTime()}")
+	log_event(f"Synchronize time {'succeeded' if success else 'failed'} at {getFullDateTime()}")
 
 def hotspot():
-	pass
+	ap_if = network.WLAN(network.AP_IF)
+	ap_if.active(True)
+	ap_if.ifconfig(('172.0.0.1', '255.255.255.0', '172.0.0.1', '172.0.0.1'))
+	ap_if.config(ssid='ESP-AP', authmode=network.AUTH_OPEN)
+	return False
 
 def initWifi():
 	g_nodeList.clear()
-	if(dnsServer){
-		dnsServer->stop();
-		delete dnsServer;
-		dnsServer = NULL;
-	}
 
 	if not saved['wifi_ssid']:
 		return hotspot()
 
-	print("Connecting to WiFi ...")
+	print("Connecting to WiFi ...", end='', flush=True)
 
-	# Configures static IP address
+	# Configure static IP address
 	sta_if = network.WLAN(network.STA_IF)
-	sta_if.active(False)
-	ap_if = network.WLAN(network.AP_IF)
-	ap_if.active(False)
 	sta_if.active(True)
 	sta_if.ifconfig([saved['wifi_'+i] for i in ['IP','subnet','gateway','DNS']])
 	sta_if.connect(saved['wifi_ssid'],saved['wifi_password'])
@@ -169,24 +166,18 @@ def initWifi():
 		print(".", end='', flush=True)
 	
 	if sta_if.isconnected():
-		log_event("Connected to WIFI, SSID="+saved['wifi_ssid'])
-		print("\nWiFi connected\nIP address: "+sta_if.ifconfig()[0])
+		log_event(f"Connected to WIFI, SSID={saved['wifi_ssid']}, IP={sta_if.ifconfig()[0]}")
 	else:
+		sta_if.active(False)
 		log_event("Failed to connect to WIFI, SSID="+saved['wifi_ssid'])
-		print("\nUnable to connect to WiFi");
 		return hotspot()
-
-getFileList = lambda: os.listdir()
+	
+	return True
 
 def deleteALL():
-	for fn in getFileList():
+	for fn in os.listdir():
 		if fn.endswith(".log"):
 			os.remove(fn)
-
-# SETUP
-PIN_LED_BUILTIN.off()
-
-# LOOP
 
 app = Microdot()
 
@@ -194,4 +185,47 @@ app = Microdot()
 def index(request):
 	return 'Hello, world!'
 
-app.run(port=80)
+
+class WebServer:
+	def __init__(self, app: Microdot, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
+		self.app = app
+		self.sock_web = app.run(host=host, port=port, loop_forever=False, max_conn=max_conn)
+		self.poll = select.poll()
+		self.poll.register(self.sock_web, select.POLLIN)
+		self.sock_map = {self.sock_web: self.app.run_once}
+		self.cpIP = captivePortalIP
+
+		if captivePortalIP:
+			self.sock_dns = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+			self.sock_dns.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+			self.sock_dns.bind((captivePortalIP, 53))
+			self.poll.register(self.sock_dns, select.POLLIN)
+			self.sock_map[self.sock_dns] = self.handleDNS
+		else:
+			self.sock_dns = None
+
+	def handleDNS(self):
+		data, sender = self.sock_dns.recvfrom(512)
+		packet = data[:2] + b"\x81\x80" + data[4:6] + data[4:6] + b"\x00\x00\x00\x00"
+		packet += data[12:] + b"\xC0\x0C\x00\x01\x00\x01\x00\x00\x00\x3C\x00\x04"
+		packet += bytes(map(int, self.cpIP.split(".")))
+		self.sock_dns.sendto(packet, sender)
+
+	def run(self):
+		while True:
+			for tp in self.poll.poll():
+				self.sock_map[tp[0]]()
+				gc.collect()
+
+
+# SETUP
+PIN_LED_BUILTIN.off()
+open_logfile_auto_rotate()
+config_loaded = load_config()
+log_event("Config file loaded" if config_loaded else "Config file NOT loaded")
+initWifi()
+PIN_LED_BUILTIN.on()
+	  
+# LOOP
+server = WebServer(app, host='192.168.4.1', captivePortalIP='192.168.4.1')
+server.run()

@@ -1045,7 +1045,7 @@ class Microdot():
 		"""
 		raise HTTPException(status_code, reason)
 
-	def run(self, host='0.0.0.0', port=5000, debug=False, ssl=None):
+	def run(self, host='0.0.0.0', port=5000, debug=False, ssl=None, loop_forever=True, max_conn=5):
 		"""Start the web server. This function does not normally return, as
 		the server enters an endless listening loop. The :func:`shutdown`
 		function provides a method for terminating the server gracefully.
@@ -1088,23 +1088,31 @@ class Microdot():
 				mode=concurrency_mode, host=host, port=port))
 		self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		self.server.bind(addr)
-		self.server.listen(5)
+		self.server.listen(max_conn)
 
 		if ssl:
 			self.server = ssl.wrap_socket(self.server, server_side=True)
 
+		if not loop_forever:
+			return self.server
+
 		while not self.shutdown_requested:
-			try:
-				sock, addr = self.server.accept()
-			except OSError as exc:  # pragma: no cover
-				if exc.errno == errno.ECONNABORTED:
-					break
-				else:
-					print_exception(exc)
-			except Exception as exc:  # pragma: no cover
-				print_exception(exc)
+			self.run_once()
+
+	def run_once(self):
+		try:
+			sock, addr = self.server.accept()
+		except OSError as exc:  # pragma: no cover
+			if exc.errno == errno.ECONNABORTED:
+				self.shutdown_requested = True
+				return
 			else:
-				create_thread(self.handle_request, sock, addr)
+				print_exception(exc)
+		except Exception as exc:  # pragma: no cover
+			print_exception(exc)
+		else:
+			create_thread(self.handle_request, sock, addr)
+
 
 	def shutdown(self):
 		"""Request a server shutdown. The server will then exit its request
