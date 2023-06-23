@@ -1,8 +1,23 @@
-import os, sys, esp, gc, uping, network
-import machine, time, ntptime, select, socket
-from microdot import Microdot
-gc.collect()
+import machine
+machine.Pin(2, machine.Pin.OUT).off()
 
+print('DEBUG00')
+import os, sys
+sys.exit(0)
+
+import esp, gc, uping, network, random
+
+gc.collect()
+print('DEBUG01')
+
+import machine, time, ntptime, select, socket
+from microdot import *
+gc.collect()
+print('DEBUG02')
+
+# Global objects
+ap_if = network.WLAN(network.AP_IF)
+sta_if = network.WLAN(network.STA_IF)
 
 # Load credentials if present
 try:
@@ -11,6 +26,7 @@ except:
 	class dummy: pass
 	cred = dummy()
 
+print('DEBUG03')
 
 # constant definitions
 PIN_LED_BUILTIN = machine.Pin(2, machine.Pin.OUT)
@@ -139,9 +155,9 @@ def initNTP():
 	log_event(f"Synchronize time {'succeeded' if success else 'failed'} at {getFullDateTime()}")
 
 def hotspot():
-	ap_if = network.WLAN(network.AP_IF)
+	rand_ip = f'{random.getrandbits(16)%240+10}.0.0.1'
 	ap_if.active(True)
-	ap_if.ifconfig(('172.0.0.1', '255.255.255.0', '172.0.0.1', '172.0.0.1'))
+	ap_if.ifconfig((rand_ip, '255.255.255.0', rand_ip, rand_ip))
 	ap_if.config(ssid='ESP-AP', authmode=network.AUTH_OPEN)
 	return False
 
@@ -154,7 +170,6 @@ def initWifi():
 	print("Connecting to WiFi ...", end='', flush=True)
 
 	# Configure static IP address
-	sta_if = network.WLAN(network.STA_IF)
 	sta_if.active(True)
 	sta_if.ifconfig([saved['wifi_'+i] for i in ['IP','subnet','gateway','DNS']])
 	sta_if.connect(saved['wifi_ssid'],saved['wifi_password'])
@@ -166,6 +181,7 @@ def initWifi():
 		print(".", end='', flush=True)
 	
 	if sta_if.isconnected():
+		ap_if.active(False)
 		log_event(f"Connected to WIFI, SSID={saved['wifi_ssid']}, IP={sta_if.ifconfig()[0]}")
 	else:
 		sta_if.active(False)
@@ -183,7 +199,7 @@ app = Microdot()
 
 @app.route('/')
 def index(request):
-	return 'Hello, world!'
+	return send_file('/static/server_html.h')
 
 
 class WebServer:
@@ -225,7 +241,11 @@ config_loaded = load_config()
 log_event("Config file loaded" if config_loaded else "Config file NOT loaded")
 initWifi()
 PIN_LED_BUILTIN.on()
-	  
+if ap_if.active():
+	server = WebServer(app, host=ap_if.ifconfig()[0], captivePortalIP=ap_if.ifconfig()[0])
+else:
+	server = WebServer(app, host=sta_if.ifconfig()[0], captivePortalIP='')
+
 # LOOP
-server = WebServer(app, host='192.168.4.1', captivePortalIP='192.168.4.1')
+print('Starting main server ...')
 server.run()

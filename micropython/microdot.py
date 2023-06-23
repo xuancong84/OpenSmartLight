@@ -81,7 +81,7 @@ def urldecode_bytes(s):
 	s = s.replace(b'+', b' ')
 	parts = s.split(b'%')
 	if len(parts) == 1:
-		return s.decode()
+		return s.decode('utf8', 'ignore')
 	result = [parts[0]]
 	for item in parts[1:]:
 		if item == b'':
@@ -90,7 +90,7 @@ def urldecode_bytes(s):
 			code = item[:2]
 			result.append(bytes([int(code, 16)]))
 			result.append(item[2:])
-	return b''.join(result).decode()
+	return b''.join(result).decode('utf8', 'ignore')
 
 
 def urlencode(s):
@@ -381,16 +381,16 @@ class Request():
 		This method returns a newly created ``Request`` object.
 		"""
 		# request line
-		line = Request._safe_readline(client_stream).strip().decode()
+		line = Request._safe_readline(client_stream)
 		if not line:
 			return None
-		method, url, http_version = line.split()
+		method, url, http_version = (line.split() + ['/0.9'])[:3]
 		http_version = http_version.split('/', 1)[1]
 
 		# headers
 		headers = NoCaseDict()
 		while True:
-			line = Request._safe_readline(client_stream).strip().decode()
+			line = Request._safe_readline(client_stream)
 			if line == '':
 				break
 			header, value = line.split(':', 1)
@@ -448,7 +448,7 @@ class Request():
 			mime_type = self.content_type.split(';')[0]
 			if mime_type != 'application/json':
 				return None
-			self._json = json.loads(self.body.decode())
+			self._json = json.loads(self.body.decode('utf8', 'ignore'))
 		return self._json
 
 	@property
@@ -495,7 +495,7 @@ class Request():
 		line = stream.readline(Request.max_readline + 1)
 		if len(line) > Request.max_readline:
 			raise ValueError('line too long')
-		return line
+		return line.strip().decode('utf8', 'ignore')
 
 
 class Response():
