@@ -37,20 +37,13 @@ def hello(request):
 	N += 1
 	return f'Hello world = {N}'
 
-def start_server():
-	print('Starting microdot app')
-	try:
-		app.run(port=80)
-	except:
-		app.shutdown()
-
 class WebServer:
 	def __init__(self, app: Microdot, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
 		self.app = app
 		self.sock_web = app.run(host=host, port=port, loop_forever=False, max_conn=max_conn)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
-		self.sock_map = {self.sock_web: self.app.run_once}
+		self.sock_map = {id(self.sock_web): self.app.run_once}
 		self.cpIP = captivePortalIP
 
 		if captivePortalIP:
@@ -58,7 +51,7 @@ class WebServer:
 			self.sock_dns.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			self.sock_dns.bind((captivePortalIP, 53))
 			self.poll.register(self.sock_dns, select.POLLIN)
-			self.sock_map[self.sock_dns] = self.handleDNS
+			self.sock_map[id(self.sock_dns)] = self.handleDNS
 		else:
 			self.sock_dns = None
 
@@ -72,11 +65,22 @@ class WebServer:
 	def run(self):
 		while True:
 			for tp in self.poll.poll():
-				self.sock_map[tp[0]]()
+				self.sock_map[id(tp[0])]()
 				gc.collect()
 
 
-def start():
+def start_server_hotspot():
 	create_hotspot()
 	server = WebServer(app, host='192.168.4.1', captivePortalIP='192.168.4.1')
 	server.run()
+
+def start_server_wifi():
+	connect_wifi()
+	print('Starting microdot app')
+	try:
+		app.run(port=80)
+	except:
+		app.shutdown()
+
+print('BOOT OK')
+gc.collect()
