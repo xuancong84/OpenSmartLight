@@ -88,7 +88,7 @@ class WebServer:
 				gc.collect()
 
 
-class RX():
+class RC():
 	def __init__(self, rx_pin, tx_pin=None):  # Typically ~15 frames
 		self.rx_pin = machine.Pin(rx_pin, machine.Pin.IN, machine.Pin.PULL_UP)
 		self.tx_pin = self.rx_pin if tx_pin is None else machine.Pin(tx_pin, machine.Pin.OUT)

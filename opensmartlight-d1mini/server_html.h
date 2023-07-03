@@ -209,7 +209,10 @@ input {font-size:15px;}
 <hr>
 <h3>Motion Sensor &nbsp;&nbsp; Status: <label class="toggle"><input id='motion_sensor' type="checkbox" onchange='set_ckbox(this)'>
   <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;&nbsp;
-  <button onclick='show_list()' class='bb'>View History</button></h3>
+  <button onclick='show_list()' class='bb'>View History</button>
+  &nbsp; Logging: <label class="toggle"><input id='ENABLE_LOG' type="checkbox" onchange='set_ckbox(this)'>
+  <span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label>
+  </h3>
 <table>
 <tr><td>MOV_TRIG_TH</td> <td><input type='number' id='MOV_TRIG_TH' onchange='set_value(this)'></td> <td>The MOV threshold level to trigger light-on. </td>
   <td rowspan=6>Motion Sensor Log:<br><textarea id='sensor_output' rows=10 cols=20 style='resize:both;' readonly></textarea></td></tr>
