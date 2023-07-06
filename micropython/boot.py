@@ -1,4 +1,5 @@
-from microdot import Microdot
+# from microdot import Microdot
+from microWebSrv import MicroWebSrv
 import uos
 import machine
 import gc
@@ -42,22 +43,48 @@ def create_hotspot():
 	print(ap_if.ifconfig())
 
 
-app = Microdot()
-N = 0
+class MDotServer:
+	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
+		self.app = Microdot()
+		self.N = 0
+		self.sock_web = self.app.run(host=host, port=port, loop_forever=False, max_conn=max_conn)
+		self.poll = select.poll()
+		self.poll.register(self.sock_web, select.POLLIN)
+		self.sock_map = {id(self.sock_web): self.app.run_once}
+		self.cpIP = captivePortalIP
 
+		if captivePortalIP:
+			self.sock_dns = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+			self.sock_dns.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+			self.sock_dns.bind((captivePortalIP, 53))
+			self.poll.register(self.sock_dns, select.POLLIN)
+			self.sock_map[id(self.sock_dns)] = self.handleDNS
+		else:
+			self.sock_dns = None
 
-@app.route('/')
-def hello(request):
-	global N
-	N += 1
-	return f'Hello world = {N}'
+		@self.app.route('/')
+		def hello(request):
+			self.N += 1
+			return f'Hello world = {self.N}'
 
+	def handleDNS(self):
+		data, sender = self.sock_dns.recvfrom(512)
+		packet = data[:2] + b"\x81\x80" + data[4:6] + data[4:6] + b"\x00\x00\x00\x00"
+		packet += data[12:] + b"\xC0\x0C\x00\x01\x00\x01\x00\x00\x00\x3C\x00\x04"
+		packet += bytes(map(int, self.cpIP.split(".")))
+		self.sock_dns.sendto(packet, sender)
 
-class WebServer:
-	def __init__(self, app: Microdot, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
-		self.app = app
-		self.sock_web = app.run(host=host, port=port,
-								loop_forever=False, max_conn=max_conn)
+	def run(self):
+		while True:
+			for tp in self.poll.poll():
+				self.sock_map[id(tp[0])]()
+				gc.collect()
+
+class MWebServer:
+	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
+		routeHandlers = [( "/", "GET", lambda rq: f'hello world' )]
+		self.app = MicroWebSrv(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
+		self.sock_web = self.app.run(host=host, port=port, loop_forever=False, max_conn=max_conn)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
 		self.sock_map = {id(self.sock_web): self.app.run_once}
@@ -74,10 +101,8 @@ class WebServer:
 
 	def handleDNS(self):
 		data, sender = self.sock_dns.recvfrom(512)
-		packet = data[:2] + b"\x81\x80" + \
-			data[4:6] + data[4:6] + b"\x00\x00\x00\x00"
-		packet += data[12:] + \
-			b"\xC0\x0C\x00\x01\x00\x01\x00\x00\x00\x3C\x00\x04"
+		packet = data[:2] + b"\x81\x80" + data[4:6] + data[4:6] + b"\x00\x00\x00\x00"
+		packet += data[12:] + b"\xC0\x0C\x00\x01\x00\x01\x00\x00\x00\x3C\x00\x04"
 		packet += bytes(map(int, self.cpIP.split(".")))
 		self.sock_dns.sendto(packet, sender)
 
@@ -195,18 +220,20 @@ class RC():
 		machine.enable_irq(st_irq)
 		# ** End of time critical **
 
+		p(0)	# turn off radio
+
 
 def start_server_hotspot():
 	create_hotspot()
-	server = WebServer(app, host='192.168.4.1', captivePortalIP='192.168.4.1')
+	server = MWebServer(host='192.168.4.1', captivePortalIP='192.168.4.1')
 	server.run()
 
 
 def start_server_wifi():
 	connect_wifi()
-	server = WebServer(app, host=sta_if.ifconfig()[0])
+	server = MWebServer(host=sta_if.ifconfig()[0])
 	server.run()
 
-
+pin4 = machine.Pin(4, machine.Pin.OUT)
 print('BOOT OK')
 gc.collect()
