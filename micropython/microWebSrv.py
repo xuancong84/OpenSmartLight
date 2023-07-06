@@ -80,21 +80,23 @@ class MicroWebSrv :
 	_pyhtmlPagesExt = '.pyhtml'
 
 	# ============================================================================
-	# ===( Class globals  )=======================================================
-	# ============================================================================
-
-	_docoratedRouteHandlers = []
-
-	# ============================================================================
 	# ===( Utils  )===============================================================
 	# ============================================================================
 
+	_RouteHandlers = []
+
 	@classmethod
-	def route(cls, url, method='GET'):
+	def Route(cls, url, method='GET'):
 		""" Adds a route handler function to the routing list """
 		def route_decorator(func):
-			item = (url, method, func)
-			cls._docoratedRouteHandlers.append(item)
+			cls._RouteHandlers += [(url, method, func)]
+			return func
+		return route_decorator
+	
+	def route(self, url, method='GET'):
+		""" Adds a route handler function to the routing list """
+		def route_decorator(func):
+			self.add_route(url, method, func)
 			return func
 		return route_decorator
 
@@ -146,6 +148,23 @@ class MicroWebSrv :
 	# ===( Constructor )==========================================================
 	# ============================================================================
 
+	def add_route(self, route, method, func):
+		routeParts = route.split('/')
+		# -> ['', 'users', '<uID>', 'addresses', '<addrID>', 'test', '<anotherID>']
+		routeArgNames = []
+		routeRegex    = ''
+		for s in routeParts :
+			if s.startswith('<') and s.endswith('>') :
+				routeArgNames.append(s[1:-1])
+				routeRegex += '/(\\w*)'
+			elif s :
+				routeRegex += '/' + s
+		routeRegex += '$'
+		# -> '/users/(\w*)/addresses/(\w*)/test/(\w*)$'
+		routeRegex = re.compile(routeRegex)
+
+		self._routeHandlers.append(MicroWebSrvRoute(route, method, func, routeArgNames, routeRegex))
+
 	def __init__( self,
 				routeHandlers = [],
 				port          = 80,
@@ -162,34 +181,18 @@ class MicroWebSrv :
 		self.LetCacheStaticContentLevel = 2
 
 		self._routeHandlers = []
-		routeHandlers += self._docoratedRouteHandlers
-		for route, method, func in routeHandlers :
-			routeParts = route.split('/')
-			# -> ['', 'users', '<uID>', 'addresses', '<addrID>', 'test', '<anotherID>']
-			routeArgNames = []
-			routeRegex    = ''
-			for s in routeParts :
-				if s.startswith('<') and s.endswith('>') :
-					routeArgNames.append(s[1:-1])
-					routeRegex += '/(\\w*)'
-				elif s :
-					routeRegex += '/' + s
-			routeRegex += '$'
-			# -> '/users/(\w*)/addresses/(\w*)/test/(\w*)$'
-			routeRegex = re.compile(routeRegex)
-
-			self._routeHandlers.append(MicroWebSrvRoute(route, method, func, routeArgNames, routeRegex))
+		for route, method, func in routeHandlers+self._RouteHandlers:
+			self.add_route(route, method, func)
 
 	# ============================================================================
 	# ===( Server Process )=======================================================
 	# ============================================================================
 
-	def run(self, loop_forever=True):
+	def run(self, max_conn=4, loop_forever=True):
 		self._server = socket.socket()
 		self._server.setsockopt( socket.SOL_SOCKET, socket.SO_REUSEADDR, 1 )
 		self._server.bind(self._srvAddr)
-		self._server.listen(16)
-		self._serverProcess()
+		self._server.listen(max_conn)
 		if not loop_forever:
 			return self._server
 		while True:
@@ -300,11 +303,13 @@ class MicroWebSrv :
 							if routeHandler :
 								try :
 									if routeArgs is not None:
-										routeHandler(self, response, routeArgs)
+										ret = routeHandler(self, response, routeArgs)
 									else :
-										routeHandler(self, response)
+										ret = routeHandler(self, response)
+									if type(ret)==str:
+										response.WriteResponseOk(content=ret, headers=None, contentType="text/html", contentCharset="UTF-8")
 								except Exception as ex :
-									print('MicroWebSrv handler exception:\r\n  - In route %s %s\r\n  - %s' % (self._method, self._resPath, ex))
+									print(f'MicroWebSrv handler exception:\r\n  - In route {self._method} {self._resPath}\r\n  - {ex}')
 									raise ex
 							elif self._method.upper() == "GET" :
 								filepath = self._microWebSrv._physPathFromURLPath(self._resPath)
@@ -525,8 +530,7 @@ class MicroWebSrv :
 		# ------------------------------------------------------------------------
 
 		def _writeFirstLine(self, code) :
-			reason = self._responseCodes.get(code, ('Unknown reason', ))[0]
-			return self._write("HTTP/1.1 %s %s\r\n" % (code, reason))
+			return self._write(f"HTTP/1.1 {code}\r\n")
 
 		# ------------------------------------------------------------------------
 
@@ -537,8 +541,7 @@ class MicroWebSrv :
 
 		def _writeContentTypeHeader(self, contentType, charset=None) :
 			if contentType :
-				ct = contentType \
-				+ (("; charset=%s" % charset) if charset else "")
+				ct = contentType + (("; charset=%s" % charset) if charset else "")
 			else :
 				ct = "application/octet-stream"
 			self._writeHeader("Content-Type", ct)
@@ -672,16 +675,7 @@ class MicroWebSrv :
 		# ------------------------------------------------------------------------
 
 		def WriteResponseError(self, code) :
-			responseCode = self._responseCodes.get(code, ('Unknown reason', ''))
-			return self.WriteResponse( code,
-									None,
-									"text/html",
-									"UTF-8",
-									self._errCtnTmpl % {
-											'code'    : code,
-											'reason'  : responseCode[0],
-											'message' : responseCode[1]
-									} )
+			return self.WriteResponse(code, None, "text/html", "UTF-8", f'Error: HTTP {code}')
 
 		# ------------------------------------------------------------------------
 
@@ -739,20 +733,6 @@ class MicroWebSrv :
 
 		# ------------------------------------------------------------------------
 
-		_errCtnTmpl = """\
-		<html>
-			<head>
-				<title>Error</title>
-			</head>
-			<body>
-				<h1>%(code)d %(reason)s</h1>
-				%(message)s
-			</body>
-		</html>
-		"""
-
-		# ------------------------------------------------------------------------
-
 		_execErrCtnTmpl = """\
 		<html>
 			<head>
@@ -764,74 +744,6 @@ class MicroWebSrv :
 			</body>
 		</html>
 		"""
-
-		# ------------------------------------------------------------------------
-
-		_responseCodes = {
-			100: ('Continue', 'Request received, please continue'),
-			101: ('Switching Protocols',
-				'Switching to new protocol; obey Upgrade header'),
-
-			200: ('OK', 'Request fulfilled, document follows'),
-			201: ('Created', 'Document created, URL follows'),
-			202: ('Accepted',
-				'Request accepted, processing continues off-line'),
-			203: ('Non-Authoritative Information', 'Request fulfilled from cache'),
-			204: ('No Content', 'Request fulfilled, nothing follows'),
-			205: ('Reset Content', 'Clear input form for further input.'),
-			206: ('Partial Content', 'Partial content follows.'),
-
-			300: ('Multiple Choices',
-				'Object has several resources -- see URI list'),
-			301: ('Moved Permanently', 'Object moved permanently -- see URI list'),
-			302: ('Found', 'Object moved temporarily -- see URI list'),
-			303: ('See Other', 'Object moved -- see Method and URL list'),
-			304: ('Not Modified',
-				'Document has not changed since given time'),
-			305: ('Use Proxy',
-				'You must use proxy specified in Location to access this '
-				'resource.'),
-			307: ('Temporary Redirect',
-				'Object moved temporarily -- see URI list'),
-
-			400: ('Bad Request',
-				'Bad request syntax or unsupported method'),
-			401: ('Unauthorized',
-				'No permission -- see authorization schemes'),
-			402: ('Payment Required',
-				'No payment -- see charging schemes'),
-			403: ('Forbidden',
-				'Request forbidden -- authorization will not help'),
-			404: ('Not Found', 'Nothing matches the given URI'),
-			405: ('Method Not Allowed',
-				'Specified method is invalid for this resource.'),
-			406: ('Not Acceptable', 'URI not available in preferred format.'),
-			407: ('Proxy Authentication Required', 'You must authenticate with '
-				'this proxy before proceeding.'),
-			408: ('Request Timeout', 'Request timed out; try again later.'),
-			409: ('Conflict', 'Request conflict.'),
-			410: ('Gone',
-				'URI no longer exists and has been permanently removed.'),
-			411: ('Length Required', 'Client must specify Content-Length.'),
-			412: ('Precondition Failed', 'Precondition in headers is false.'),
-			413: ('Request Entity Too Large', 'Entity is too large.'),
-			414: ('Request-URI Too Long', 'URI is too long.'),
-			415: ('Unsupported Media Type', 'Entity body in unsupported format.'),
-			416: ('Requested Range Not Satisfiable',
-				'Cannot satisfy request range.'),
-			417: ('Expectation Failed',
-				'Expect condition could not be satisfied.'),
-
-			500: ('Internal Server Error', 'Server got itself in trouble'),
-			501: ('Not Implemented',
-				'Server does not support this operation'),
-			502: ('Bad Gateway', 'Invalid responses from another server/proxy.'),
-			503: ('Service Unavailable',
-				'The server cannot process the request due to a high load'),
-			504: ('Gateway Timeout',
-				'The gateway server did not receive a timely response'),
-			505: ('HTTP Version Not Supported', 'Cannot fulfill request.'),
-		}
 
 	# ============================================================================
 	# ============================================================================

@@ -46,6 +46,7 @@ void blink_halt(){
 
 // Saved parameters
 float timezone = 8;
+unsigned int ENABLE_LOG = 0;
 unsigned int DARK_TH_LOW = 960;
 unsigned int DARK_TH_HIGH = 990;
 unsigned int DELAY_ON_MOV = 30000;
@@ -57,7 +58,6 @@ unsigned int MOV_CONT_TH = 250;
 unsigned int LED_BEGIN = 100;
 unsigned int LED_END = 125;
 unsigned int GLIDE_TIME = 800;
-unsigned int ENABLE_LOG = 0;
 String midnight_starts[7] = { "23:00", "23:00", "23:00", "23:00", "00:00", "00:00", "23:00" };
 String midnight_stops[7] = { "07:00", "07:00", "07:00", "07:00", "07:00", "07:00", "07:00" };
 
