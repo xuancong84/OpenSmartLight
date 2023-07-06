@@ -1045,7 +1045,7 @@ class Microdot():
 		"""
 		raise HTTPException(status_code, reason)
 
-	def run(self, host='0.0.0.0', port=5000, debug=False, ssl=None, loop_forever=True, max_conn=5):
+	def run(self, host='0.0.0.0', port=5000, debug=False, ssl=None, loop_forever=True, max_conn=4):
 		"""Start the web server. This function does not normally return, as
 		the server enters an endless listening loop. The :func:`shutdown`
 		function provides a method for terminating the server gracefully.

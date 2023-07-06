@@ -48,6 +48,7 @@ void blink_halt(){
 
 // Saved parameters
 float timezone = 8;
+unsigned int ENABLE_LOG = 0;
 unsigned int DARK_TH_LOW = 960;
 unsigned int DARK_TH_HIGH = 990;
 unsigned int DELAY_ON_MOV = 30000;
@@ -173,6 +174,7 @@ enum VAL_TYPE{
 };
 
 std::map <String, std::pair<VAL_TYPE, void*> > g_params = {
+  {"ENABLE_LOG",    {T_INT, &ENABLE_LOG}},
   {"DARK_TH_LOW",   {T_INT, &DARK_TH_LOW}},
   {"DARK_TH_HIGH",  {T_INT, &DARK_TH_HIGH}},
   {"DELAY_ON_MOV",  {T_INT, &DELAY_ON_MOV}},
@@ -277,6 +279,7 @@ void open_logfile_auto_rotate(){
 }
 
 void log_event(const char *event){
+  if(!ENABLE_LOG) return;
   open_logfile_auto_rotate();
   String fullDateTime = getFullDateTime();
   fp_hist.printf("%s : %s\n", fullDateTime.c_str(), event);
@@ -334,15 +337,6 @@ bool load_config(){
     if(DEBUG) Serial.println(String("Error: deserializeJson failed with error ")+err.f_str());
     return false;
   }
-  if(g_params.size()!=doc.size()){
-    if(DEBUG) Serial.println("Error: JSON size does not match");
-    return false;
-  }
-  for(auto it=g_params.begin(); it!=g_params.end(); ++it)
-    if(!doc.containsKey(it->first)){
-      if(DEBUG) Serial.println("Error: JSON does not contain " + it->first);
-      return false;
-    }
 
   // load the config file
   int n_success = 0;
@@ -704,6 +698,8 @@ void initServer(){
   server.on("/glide_led_off", [](AsyncWebServerRequest *request) {do_glide=-1;request->send(200, "text/html", "");});
   server.on("/save_config", [](AsyncWebServerRequest *request) {request->send(200, "text/html", save_config()?"Success":"Failed");});
   server.on("/load_config", [](AsyncWebServerRequest *request) {request->send(200, "text/html", load_config()?"Success":"Failed");});
+  server.on("/ENABLE_LOG_on", [](AsyncWebServerRequest *request) {ENABLE_LOG=1;request->send(200, "text/html", "");});
+  server.on("/ENABLE_LOG_off", [](AsyncWebServerRequest *request) {ENABLE_LOG=0;request->send(200, "text/html", "");});
   server.on("/onboard_led_on", [](AsyncWebServerRequest *request) {set_onboard_led(true);request->send(200, "text/html", "");});
   server.on("/onboard_led_off", [](AsyncWebServerRequest *request) {set_onboard_led(false);request->send(200, "text/html", "");});
   server.on("/onboard_led_level", [](AsyncWebServerRequest *request) {
@@ -761,7 +757,6 @@ void setup() {
 
   // Initialize the file-system and create logfile
   LittleFS.begin();
-  open_logfile_auto_rotate();
 
   // Initialize serial
   Serial.begin(115200);
