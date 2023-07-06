@@ -1,19 +1,7 @@
-import machine
-machine.Pin(2, machine.Pin.OUT).off()
-
-print('DEBUG00')
-import os, sys
-sys.exit(0)
-
-import esp, gc, uping, network, random
-
-gc.collect()
-print('DEBUG01')
-
+import os, sys, esp, gc, uping, network, random
 import machine, time, ntptime, select, socket
 from microdot import *
 gc.collect()
-print('DEBUG02')
 
 # Global objects
 ap_if = network.WLAN(network.AP_IF)
@@ -25,8 +13,6 @@ try:
 except:
 	class dummy: pass
 	cred = dummy()
-
-print('DEBUG03')
 
 # constant definitions
 PIN_LED_BUILTIN = machine.Pin(2, machine.Pin.OUT)
