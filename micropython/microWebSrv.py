@@ -287,12 +287,7 @@ class MicroWebSrv :
 				self._socketfile = self._socket
 			else:   # CPython
 				self._socketfile = self._socket.makefile('rwb')
-						
-			self._processRequest()
 
-		# ------------------------------------------------------------------------
-
-		def _processRequest(self) :
 			try :
 				response = MicroWebSrv._response(self)
 				if self._parseFirstLine(response) :

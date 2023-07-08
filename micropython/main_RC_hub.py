@@ -1,44 +1,56 @@
-from microWebSrv import MicroWebSrv
-import uos
-import machine
-import gc
-import network
-import socket
-import select
-import time
-import ujson
+import machine, gc, network, socket, select, time, random
 from array import array
-from utime import ticks_us, ticks_diff
+from time import ticks_us, ticks_diff
 from math import sqrt
+from microWebSrv import MicroWebSrv
+gc.collect()
+
+PIN_RC_IN = 5
+PIN_RC_OUT = 4
+DEBUG = True
+
+pino = machine.Pin(PIN_RC_OUT, machine.Pin.OUT)
+pino(0)
 
 sta_if = network.WLAN(network.STA_IF)
 sta_if.active(False)
 ap_if = network.WLAN(network.AP_IF)
 ap_if.active(False)
+wifi = {}
 
-gc.collect()
-
+def prt(*args, **kwarg):
+	if DEBUG: print(*args, **kwarg)
 
 def connect_wifi():
-	if sta_if.active():
-		print(f'Already exist: {sta_if.ifconfig()}')
-		return
-	import secret as cred
-	sta_if.active(True)
-	sta_if.ifconfig((cred.WIFI_IP, cred.WIFI_SUBNET, cred.WIFI_GATEWAY, cred.WIFI_DNS))
-	sta_if.connect(cred.WIFI_SSID, cred.WIFI_PASSWD)
-	print(sta_if.ifconfig())
-
+	global wifi
+	if sta_if.isconnected():
+		prt(f'Already exist: {sta_if.ifconfig()}')
+		return True
+	try:
+		import secret as cred
+		sta_if.active(True)
+		sta_if.ifconfig((cred.WIFI_IP, cred.WIFI_SUBNET, cred.WIFI_GATEWAY, cred.WIFI_DNS))
+		sta_if.connect(cred.WIFI_SSID, cred.WIFI_PASSWD)
+		x = 0
+		while x<30 and not sta_if.isconnected():
+			time.sleep(2)
+			prt('.', end='')
+			x += 1
+		wifi.update({'mode':'wifi', 'config':sta_if.ifconfig()})
+		return sta_if.isconnected()
+	except:
+		return False
 
 def create_hotspot():
-	if ap_if.active():
-		print(f'Already exist: {ap_if.ifconfig()}')
+	global wifi
+	if ap_if.isconnected():
+		prt(f'Already exist: {ap_if.ifconfig()}')
 		return
 	ap_if.active(True)
-	ap_if.ifconfig(('192.168.4.1', '255.255.255.0', '192.168.4.1', '192.168.4.1'))
+	IP = f'192.168.{min(250, random.getrandbits(8))}.1'
+	ap_if.ifconfig((IP, '255.255.255.0', IP, IP))
 	ap_if.config(ssid='ESP-AP', authmode=network.AUTH_OPEN)
-	print(ap_if.ifconfig())
-
+	wifi.update({'mode':'hotspot', 'config':ap_if.ifconfig()})
 
 g_N = 0
 @MicroWebSrv.Route('/global')
@@ -94,7 +106,7 @@ class RC():
 		self.data = {}
 		gc.collect()
 
-	# View list of pulse lengths: print(receiver['on'])
+	# View list of pulse lengths: prt(receiver['on'])
 	def __getitem__(self, key):
 		return self.data.get(key, (None, None))
 
@@ -106,7 +118,7 @@ class RC():
 
 	def recv(self, key=None, nedges=800):
 		gc.collect()
-		print('Receiving radio data ...')
+		prt('Receiving radio data ...')
 		p = self.rx_pin
 		arr = array('I',  [0]*nedges)
 
@@ -136,7 +148,7 @@ class RC():
 		if len(gap_pos) < 6:
 			return 'Too few frames', None
 		segs = [arr[gap_pos[i-1]:gap_pos[i]] for i in range(1, len(gap_pos))]
-		print(f'init level={init_level}')
+		prt(f'init level={init_level}')
 		init_level = 1-init_level if (gap_pos[0]&1) else init_level
 		del arr
 
@@ -154,18 +166,18 @@ class RC():
 			return 'Too few selected frames', None
 		
 		if N_old != N_new:
-			print('Deleted {} frames of wrong length'.format(N_old - N_new))
+			prt('Deleted {} frames of wrong length'.format(N_old - N_new))
 
-		print(f'Averaging {N_new} frames')
+		prt(f'Averaging {N_new} frames')
 		m = [sum(x)/N_new for x in zip(*segs)]	# mean
 		std = [sqrt(sum([(y - m[i])**2 for y in x])/N_new) for i, x in enumerate(zip(*segs))]
 		del segs
-		print('Capture quality {:5.1f} (0: perfect)'.format(sum(std)/len(std)))
+		prt('Capture quality {:5.1f} (0: perfect)'.format(sum(std)/len(std)))
 		res = list(map(round, m))
 	
 		if key != None:
 			self.data[key] = init_level, res
-			print(f'Key "{key}" stored.')
+			prt(f'Key "{key}" stored.')
 		return init_level, res
 
 
@@ -173,10 +185,10 @@ class RC():
 		gc.collect()
 		init_level, arr = self[key] if type(key)==str else key
 		if arr == None:
-			print('No valid data found')
+			prt('No valid data found')
 			return
 		
-		print('Sending radio data ...')
+		prt('Sending radio data ...')
 		p = self.tx_pin
 
 		# ** Time critical **
@@ -195,18 +207,16 @@ class RC():
 
 		p(0)	# turn off radio
 
+rc = RC(PIN_RC_IN, PIN_RC_OUT)
 
-def start_server_hotspot():
-	create_hotspot()
-	server = MWebServer(host='192.168.4.1', captivePortalIP='192.168.4.1')
-	server.run()
-
-
-def start_server_wifi():
-	connect_wifi()
-	server = MWebServer(host=sta_if.ifconfig()[0])
-	server.run()
-
-pin4 = machine.Pin(4, machine.Pin.OUT)
-print('BOOT OK')
 gc.collect()
+
+### MAIN function
+def run():
+	cpIP = ''
+	if not connect_wifi():
+		create_hotspot()
+		cpIP = wifi['config'][0]
+	prt(wifi)
+	server = MWebServer(captivePortalIP=cpIP)
+	server.run()
