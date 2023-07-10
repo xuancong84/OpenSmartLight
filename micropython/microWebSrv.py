@@ -544,7 +544,7 @@ class MicroWebSrv :
 		# ------------------------------------------------------------------------
 
 		def _writeServerHeader(self) :
-			self._writeHeader("Server", "MicroWebSrv by JC`zic")
+			self._writeHeader("Server", "Embedded System Linux")
 
 		# ------------------------------------------------------------------------
 
@@ -683,41 +683,11 @@ class MicroWebSrv :
 
 		# ------------------------------------------------------------------------
 
-		def WriteResponseNotModified(self) :
-			return self.WriteResponseError(304)
-
-		# ------------------------------------------------------------------------
-
-		def WriteResponseBadRequest(self) :
-			return self.WriteResponseError(400)
-
-		# ------------------------------------------------------------------------
-
-		def WriteResponseForbidden(self) :
-			return self.WriteResponseError(403)
-
-		# ------------------------------------------------------------------------
-
 		def WriteResponseNotFound(self) :
 			if self._client._microWebSrv._notFoundUrl :
 				self.WriteResponseRedirect(self._client._microWebSrv._notFoundUrl)
 			else :
 				return self.WriteResponseError(404)
-
-		# ------------------------------------------------------------------------
-
-		def WriteResponseMethodNotAllowed(self) :
-			return self.WriteResponseError(405)
-
-		# ------------------------------------------------------------------------
-
-		def WriteResponseInternalServerError(self) :
-			return self.WriteResponseError(500)
-
-		# ------------------------------------------------------------------------
-
-		def WriteResponseNotImplemented(self) :
-			return self.WriteResponseError(501)
 
 		# ------------------------------------------------------------------------
 
