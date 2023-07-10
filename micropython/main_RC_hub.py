@@ -2,7 +2,7 @@ import machine, gc, network, socket, select, time, random
 from array import array
 from time import ticks_us, ticks_diff
 from math import sqrt
-from microWebSrv import MicroWebSrv
+from microWebSrv import MicroWebSrv as MWS
 gc.collect()
 
 PIN_RC_IN = 5
@@ -52,18 +52,37 @@ def create_hotspot():
 	ap_if.config(ssid='ESP-AP', authmode=network.AUTH_OPEN)
 	wifi.update({'mode':'hotspot', 'config':ap_if.ifconfig()})
 
-g_N = 0
-@MicroWebSrv.Route('/global')
-def hello(*req):
-	global g_N
-	g_N += 1
-	return f'Hello global = {g_N}'
+def start_wifi():
+	if not connect_wifi():
+		create_hotspot()
+		return wifi['config'][0]
+	return ''
+
+# Global actions
+g_reboot = False
+g_restartWifi = False
+
+@MWS.Route('/save_wifi')
+def save_wifi(*req):
+	return True
+
+@MWS.Route('/load_wifi')
+def save_wifi(*req):
+	return True
+
+def set_true(vn):
+	exec(f'{vn}=True')
+	return 'OK'
 
 class MWebServer:
 	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
 		self.N = 0
-		routeHandlers = [( "/", "GET", lambda *_: f'Hello world!' )]
-		self.app = MicroWebSrv(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
+		routeHandlers = [
+			( "/", "GET", lambda *_: f'Hello world!' ),
+			( "/restart_wifi", "GET", lambda *_: set_true('g_restartWifi') ),
+			( "/reboot", "GET", lambda *_: set_true('g_reboot') )
+		]
+		self.app = MWS(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
 		self.sock_web = self.app.run(max_conn=max_conn, loop_forever=False)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
@@ -96,6 +115,11 @@ class MWebServer:
 			for tp in self.poll.poll():
 				self.sock_map[id(tp[0])]()
 				gc.collect()
+			if g_reset:
+				machine.reset()
+			if g_restartWifi:
+				g_restartWifi = False
+				start_wifi()
 
 
 class RC():
@@ -213,10 +237,7 @@ gc.collect()
 
 ### MAIN function
 def run():
-	cpIP = ''
-	if not connect_wifi():
-		create_hotspot()
-		cpIP = wifi['config'][0]
+	cpIP = start_wifi()
 	prt(wifi)
 	server = MWebServer(captivePortalIP=cpIP)
 	server.run()
