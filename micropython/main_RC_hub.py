@@ -1,4 +1,4 @@
-import machine, gc, network, socket, select, time, random
+import machine, gc, network, socket, select, time, random, json
 from array import array
 from time import ticks_us, ticks_diff
 from math import sqrt
@@ -27,10 +27,15 @@ def connect_wifi():
 		prt(f'Already exist: {sta_if.ifconfig()}')
 		return True
 	try:
-		import secret as cred
+		cred = eval(open('secret.py').read())
 		sta_if.active(True)
-		sta_if.ifconfig((cred.WIFI_IP, cred.WIFI_SUBNET, cred.WIFI_GATEWAY, cred.WIFI_DNS))
-		sta_if.connect(cred.WIFI_SSID, cred.WIFI_PASSWD)
+		WIFI_IP = cred.get('WIFI_IP', '')
+		WIFI_SUBNET = cred.get('WIFI_SUBNET', '')
+		WIFI_GATEWAY = cred.get('WIFI_GATEWAY', '')
+		WIFI_DNS = cred.get('WIFI_DNS', '')
+		if WIFI_IP and WIFI_SUBNET and WIFI_GATEWAY and WIFI_DNS:
+			sta_if.ifconfig((WIFI_IP, WIFI_SUBNET, WIFI_GATEWAY, WIFI_DNS))
+		sta_if.connect(cred['WIFI_SSID'], cred['WIFI_PASSWD'])
 		x = 0
 		while x<30 and not sta_if.isconnected():
 			time.sleep(2)
@@ -43,7 +48,7 @@ def connect_wifi():
 
 def create_hotspot():
 	global wifi
-	if ap_if.isconnected():
+	if ap_if.active():
 		prt(f'Already exist: {ap_if.ifconfig()}')
 		return
 	ap_if.active(True)
@@ -62,12 +67,16 @@ def start_wifi():
 g_reboot = False
 g_restartWifi = False
 
-@MWS.Route('/save_wifi')
-def save_wifi(*req):
-	return True
+@MWS.Route('/save_wifi', 'POST')
+def save_wifi(client: MWS._client, resp):
+	with open('secret.py', 'wb') as fp:
+		fp.write(client.ReadRequestContent())
+	return 'Saved OK'
 
 @MWS.Route('/load_wifi')
-def save_wifi(*req):
+def load_wifi(client, resp: MWS._response):
+	obj = eval(open('secret.py').read())
+	resp.WriteResponseJSONOk(obj)
 	return True
 
 def set_true(vn):
@@ -111,14 +120,18 @@ class MWebServer:
 		self.sock_dns.sendto(packet, sender)
 
 	def run(self):
+		global g_reboot, g_restartWifi
 		while True:
 			for tp in self.poll.poll():
 				self.sock_map[id(tp[0])]()
 				gc.collect()
-			if g_reset:
+			if g_reboot:
 				machine.reset()
 			if g_restartWifi:
 				g_restartWifi = False
+				sta_if.disconnect()
+				sta_if.active(False)
+				ap_if.active(False)
 				start_wifi()
 
 

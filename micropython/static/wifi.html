@@ -65,28 +65,33 @@ input {font-size:15px;}
   <tr><th>DNS</th>        <td><input type="text" minlength="7" maxlength="15" size="16" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id="WIFI_DNS">     </td></tr>
 </tbody></table>
 <p>
-  <button onclick="alert(save_wifi())" title="Save config file to persist across restarts" class="bb">Save Settings</button>&nbsp;
-  <button onclick="location.reload()" title="Load settings from config file" class="bb">Load Settings</button>&nbsp;
+  <button onclick="save_wifi()" title="Save config file to persist across restarts" class="bb">Save Settings</button>&nbsp;
+  <button onclick="load_wifi()" title="Load settings from config file" class="bb">Load Settings</button>&nbsp;
   <button onclick="GET('/restart_wifi')" class="bb">Restart WIFI</button>
   <button onclick="GET('/reboot')" class="bb">Reboot</button>
 </p>
 
 <script>
+var xmlHttp = new XMLHttpRequest();
 function getById(id_str){return document.getElementById(id_str);}
-function GET(url){
-  xmlHttp.open('GET', url, false);
-  xmlHttp.send(null);
+function GET(url, method='GET', data=null){
+  xmlHttp.open(method, url, false);
+  xmlHttp.send(data);
   return xmlHttp.responseText;
 }
 function goto(url){ location.href = url; }
 function save_wifi(){
-  var str="";
-  for(var s of ["WIFI_SSID", "WIFI_PASSWD", "WIFI_IP", "WIFI_SUBNET", "WIFI_GATEWAY", "WIFI_DNS"])
-    str += s+'='+getById(s)+'\n';
-  return GET(str);
+  var obj={};
+  for(var k of ["WIFI_SSID", "WIFI_PASSWD", "WIFI_IP", "WIFI_SUBNET", "WIFI_GATEWAY", "WIFI_DNS"])
+    obj[k] = getById(k).value;
+  alert(GET('/save_wifi', 'POST', JSON.stringify(obj)));
 }
 function load_wifi(){
-  GET()
+  obj = JSON.parse(GET('/load_wifi'));
+  for(var k in obj) getById(k).value=obj[k];
+}
+window.onload = () => {
+  load_wifi();
 }
 </script>
 </body>
