@@ -295,6 +295,7 @@ class MicroWebSrv :
 						upg = self._getConnUpgrade()
 						if not upg :
 							routeHandler, routeArgs = self._microWebSrv.GetRouteHandler(self._resPath, self._method)
+							print(f'DB: routeHandler={routeHandler}, routeArgs={routeArgs}, _resPath={self._resPath}, method={self._method}')
 							if routeHandler :
 								try :
 									if routeArgs is not None:
@@ -317,7 +318,7 @@ class MicroWebSrv :
 											if self._microWebSrv.LetCacheStaticContentLevel > 0 :
 												if self._microWebSrv.LetCacheStaticContentLevel > 1 and \
 												'if-modified-since' in self._headers :
-													response.WriteResponseNotModified()
+													response.WriteResponseError(304)
 												else:
 													headers = { 'Last-Modified' : 'Fri, 1 Jan 2018 23:42:00 GMT', \
 																'Cache-Control' : 'max-age=315360000' }
@@ -325,11 +326,11 @@ class MicroWebSrv :
 											else :
 												response.WriteResponseFile(filepath, contentType)
 										else :
-											response.WriteResponseForbidden()
+											response.WriteResponseError(403)
 								else :
 									response.WriteResponseNotFound()
 							else :
-								response.WriteResponseMethodNotAllowed()
+								response.WriteResponseError(405)
 						elif upg == 'websocket' and 'MicroWebSocket' in globals() \
 							and self._microWebSrv.AcceptWebSocketCallback :
 								MicroWebSocket( socket         = self._socket,
@@ -340,11 +341,12 @@ class MicroWebSrv :
 												acceptCallback = self._microWebSrv.AcceptWebSocketCallback )
 								return
 						else :
-							response.WriteResponseNotImplemented()
+							response.WriteResponseError(501)
 					else :
-						response.WriteResponseBadRequest()
-			except :
-				response.WriteResponseInternalServerError()
+						response.WriteResponseError(400)
+			except Exception as e:
+				raise e
+				response.WriteResponseError(500)
 			try :
 				if self._socketfile is not self._socket:
 					self._socketfile.close()
@@ -615,7 +617,7 @@ class MicroWebSrv :
 													'module'  : 'PyHTML',
 													'message' : str(ex)
 											} )
-			return self.WriteResponseNotImplemented()
+			return self.WriteResponseError(501)
 
 		# ------------------------------------------------------------------------
 
@@ -636,7 +638,7 @@ class MicroWebSrv :
 								size -= x
 							return True
 						except :
-							self.WriteResponseInternalServerError()
+							self.WriteResponseError(500)
 							return False
 			except :
 				pass
