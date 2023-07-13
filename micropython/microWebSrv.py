@@ -464,14 +464,22 @@ class MicroWebSrv :
 		# ------------------------------------------------------------------------
 
 		def ReadRequestContent(self, size=None) :
-			if size is None :
-				size = self._contentLength
+			size = size or self._contentLength
 			if size > 0 :
 				try :
 					return self._socketfile.read(size)
 				except :
 					pass
 			return b''
+
+		def YieldRequestContent(self, blksz=1024) :
+			rem = self._contentLength
+			while rem > 0:
+				try:
+					yield self._socketfile.read(min(rem, blksz))
+					rem -= blksz
+				except:
+					break
 
 		# ------------------------------------------------------------------------
 

@@ -21,6 +21,116 @@ wifi = {}
 def prt(*args, **kwarg):
 	if DEBUG: print(*args, **kwarg)
 
+class RC():
+	def __init__(self, rx_pin, tx_pin=None):  # Typically ~15 frames
+		self.rx_pin = machine.Pin(rx_pin, machine.Pin.IN, machine.Pin.PULL_UP)
+		self.tx_pin = self.rx_pin if tx_pin is None else machine.Pin(tx_pin, machine.Pin.OUT)
+		self.tx_pin(0)
+		self.data = {}
+		gc.collect()
+
+	# View list of pulse lengths: prt(receiver['on'])
+	def __getitem__(self, key):
+		return self.data.get(key, (None, None))
+
+	def __delitem__(self, key):  # Key deletion: del receiver['on']
+		del self.data[key]
+
+	def keys(self):
+		return self.data.keys()
+
+	def recv(self, key=None, nedges=800):
+		gc.collect()
+		prt('Receiving radio data ...')
+		p = self.rx_pin
+		arr = array('I',  [0]*nedges)
+
+		# ** Time critical **
+		st_irq = machine.disable_irq()
+		tm_til = ticks_us()+3000000
+		init_level = v = p()
+		for x in range(nedges):
+			while v == p() and ticks_us()<tm_til: pass
+			arr[x] = ticks_us()
+			if arr[x]>tm_til: break
+			v = p()
+		machine.enable_irq(st_irq)
+		# ** End of time critical **
+
+		if x < nedges-1:
+			return 'No signal received'
+
+        # Compute diffs
+		for x in range(nedges-1, 0, -1):
+			arr[x] = ticks_diff(arr[x], arr[x-1])
+		arr[0] = 0
+
+		# Extract segments
+		gap = round(max(arr)*0.8)
+		gap_pos = [i for i,v in enumerate(arr) if v>=gap]
+		if len(gap_pos) < 6:
+			return 'Too few frames'
+		segs = [arr[gap_pos[i-1]:gap_pos[i]] for i in range(1, len(gap_pos))]
+		prt(f'init level={init_level}')
+		init_level = 1-init_level if (gap_pos[0]&1) else init_level
+		del arr
+
+		lengths = [len(x) for x in segs]
+
+		# Select segments with most common frame length
+		cnter = {x:lengths.count(x) for x in set(lengths)}
+		cnt_max = max(cnter.values())
+		len_most = [i for i,j in cnter.items() if j==cnt_max][0]
+		N_old = len(segs)
+		segs = [seg for seg in segs if len(seg)==len_most]
+		N_new = len(segs)
+
+		if N_new < 5:
+			return 'Too few selected frames'
+		
+		if N_old != N_new:
+			prt('Deleted {} frames of wrong length'.format(N_old - N_new))
+
+		prt(f'Averaging {N_new} frames')
+		m = [sum(x)/N_new for x in zip(*segs)]	# mean
+		std = [sqrt(sum([(y - m[i])**2 for y in x])/N_new) for i, x in enumerate(zip(*segs))]
+		del segs
+		prt('Capture quality {:5.1f} (0: perfect)'.format(sum(std)/len(std)))
+		ret = {'init_level':init_level, 'data':list(map(round, m))}
+	
+		if key != None:
+			self.data[key] = ret
+			prt(f'Key "{key}" stored.')
+		return ret
+
+
+	def send(self, key, repeat=5):
+		gc.collect()
+		obj = self[key] if type(key)==str else key
+		init_level, arr = obj['init_level'], obj['data']
+		if arr == None:
+			prt('No valid data found')
+			return
+		
+		prt('Sending radio data ...')
+		p = self.tx_pin
+
+		# ** Time critical **
+		st_irq = machine.disable_irq()
+		for i in range(repeat):
+			level = init_level
+			p(level)
+			tm_til = ticks_us()
+			for dt in arr:
+				tm_til += dt
+				level = 1-level
+				while ticks_us()<tm_til: pass
+				p(level)
+		machine.enable_irq(st_irq)
+		# ** End of time critical **
+
+		p(0)	# turn off radio
+
 def connect_wifi():
 	global wifi
 	if sta_if.isconnected():
@@ -66,18 +176,23 @@ def start_wifi():
 # Global actions
 g_reboot = False
 g_restartWifi = False
+rc = RC(PIN_RC_IN, PIN_RC_OUT)
 
-@MWS.Route('/save_wifi', 'POST')
-def save_wifi(client: MWS._client, resp):
-	with open('secret.py', 'wb') as fp:
-		fp.write(client.ReadRequestContent())
-	return 'Saved OK'
+def load_file(fn):
+	try:
+		return open(fn).read()
+	except:
+		return ''
 
-@MWS.Route('/load_wifi')
-def load_wifi(client, resp: MWS._response):
-	obj = eval(open('secret.py').read())
-	resp.WriteResponseJSONOk(obj)
-	return True
+def save_file(fn, gen):
+	try:
+		with open(fn, 'wb') as fp:
+			for L in gen:
+				fp.write(L)
+				gc.collect()
+		return True
+	except:
+		return False
 
 def set_true(vn):
 	exec(f'{vn}=True')
@@ -88,8 +203,14 @@ class MWebServer:
 		self.N = 0
 		routeHandlers = [
 			( "/", "GET", lambda *_: f'Hello world!' ),
-			( "/restart_wifi", "GET", lambda *_: set_true('g_restartWifi') ),
-			( "/reboot", "GET", lambda *_: set_true('g_reboot') )
+			( "/wifi_restart", "GET", lambda *_: set_true('g_restartWifi') ),
+			( "/wifi_save", "POST", lambda clie, resp: 'Save OK' if save_file('secret.py', clie.YieldRequestContent()) else 'Save failed' ),
+			( "/wifi_load", "GET", lambda *_: load_file('secret.py')),
+			( "/reboot", "GET", lambda *_: set_true('g_reboot') ),
+			( "/rc_record", "GET", lambda *_: str(rc.recv()) ),
+			( "/rc_emit", "POST", lambda cli, *arg: str(rc.send(cli.ReadRequestContent())) ),
+			( "/rc_save", "POST", lambda clie, resp: 'Save OK' if save_file('rc-codes.txt', clie.YieldRequestContent()) else 'Save failed' ),
+			( "/rc_load", "POST", lambda clie, resp: resp.WriteResponseFile('rc-codes.txt') ),
 		]
 		self.app = MWS(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
 		self.sock_web = self.app.run(max_conn=max_conn, loop_forever=False)
@@ -134,117 +255,6 @@ class MWebServer:
 				ap_if.active(False)
 				start_wifi()
 
-
-class RC():
-	def __init__(self, rx_pin, tx_pin=None):  # Typically ~15 frames
-		self.rx_pin = machine.Pin(rx_pin, machine.Pin.IN, machine.Pin.PULL_UP)
-		self.tx_pin = self.rx_pin if tx_pin is None else machine.Pin(tx_pin, machine.Pin.OUT)
-		self.tx_pin(0)
-		self.data = {}
-		gc.collect()
-
-	# View list of pulse lengths: prt(receiver['on'])
-	def __getitem__(self, key):
-		return self.data.get(key, (None, None))
-
-	def __delitem__(self, key):  # Key deletion: del receiver['on']
-		del self.data[key]
-
-	def keys(self):
-		return self.data.keys()
-
-	def recv(self, key=None, nedges=800):
-		gc.collect()
-		prt('Receiving radio data ...')
-		p = self.rx_pin
-		arr = array('I',  [0]*nedges)
-
-		# ** Time critical **
-		st_irq = machine.disable_irq()
-		tm_til = ticks_us()+3000000
-		init_level = v = p()
-		for x in range(nedges):
-			while v == p() and ticks_us()<tm_til: pass
-			arr[x] = ticks_us()
-			if arr[x]>tm_til: break
-			v = p()
-		machine.enable_irq(st_irq)
-		# ** End of time critical **
-
-		if x < nedges-1:
-			return 'No signal received', None
-
-        # Compute diffs
-		for x in range(nedges-1, 0, -1):
-			arr[x] = ticks_diff(arr[x], arr[x-1])
-		arr[0] = 0
-
-		# Extract segments
-		gap = round(max(arr)*0.8)
-		gap_pos = [i for i,v in enumerate(arr) if v>=gap]
-		if len(gap_pos) < 6:
-			return 'Too few frames', None
-		segs = [arr[gap_pos[i-1]:gap_pos[i]] for i in range(1, len(gap_pos))]
-		prt(f'init level={init_level}')
-		init_level = 1-init_level if (gap_pos[0]&1) else init_level
-		del arr
-
-		lengths = [len(x) for x in segs]
-
-		# Select segments with most common frame length
-		cnter = {x:lengths.count(x) for x in set(lengths)}
-		cnt_max = max(cnter.values())
-		len_most = [i for i,j in cnter.items() if j==cnt_max][0]
-		N_old = len(segs)
-		segs = [seg for seg in segs if len(seg)==len_most]
-		N_new = len(segs)
-
-		if N_new < 5:
-			return 'Too few selected frames', None
-		
-		if N_old != N_new:
-			prt('Deleted {} frames of wrong length'.format(N_old - N_new))
-
-		prt(f'Averaging {N_new} frames')
-		m = [sum(x)/N_new for x in zip(*segs)]	# mean
-		std = [sqrt(sum([(y - m[i])**2 for y in x])/N_new) for i, x in enumerate(zip(*segs))]
-		del segs
-		prt('Capture quality {:5.1f} (0: perfect)'.format(sum(std)/len(std)))
-		res = list(map(round, m))
-	
-		if key != None:
-			self.data[key] = init_level, res
-			prt(f'Key "{key}" stored.')
-		return init_level, res
-
-
-	def send(self, key, repeat=5):
-		gc.collect()
-		init_level, arr = self[key] if type(key)==str else key
-		if arr == None:
-			prt('No valid data found')
-			return
-		
-		prt('Sending radio data ...')
-		p = self.tx_pin
-
-		# ** Time critical **
-		st_irq = machine.disable_irq()
-		for i in range(repeat):
-			level = init_level
-			p(level)
-			tm_til = ticks_us()
-			for dt in arr:
-				tm_til += dt
-				level = 1-level
-				while ticks_us()<tm_til: pass
-				p(level)
-		machine.enable_irq(st_irq)
-		# ** End of time critical **
-
-		p(0)	# turn off radio
-
-rc = RC(PIN_RC_IN, PIN_RC_OUT)
 
 gc.collect()
 

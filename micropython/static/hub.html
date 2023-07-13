@@ -55,19 +55,17 @@ input {font-size:15px;}
 </style>
 </head>
 <body>
-<h2>OpenSmartNode (WiFi Configuration)
+<h2>OpenSmartNode (Remote Control Hub)
   <span id="svr_reply" style="color:red"></span></h2>
-<h3>WIFI SSID: <input id="WIFI_SSID" type="text"">&nbsp;&nbsp;Password: <input id="WIFI_PASSWD" type="text"></h3>
-<table><tbody>
-  <tr><th>IP Address</th> <td><input type="text" minlength="7" maxlength="15" size="16" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id="WIFI_IP">      </td></tr>
-  <tr><th>Subnet</th>     <td><input type="text" minlength="7" maxlength="15" size="16" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id="WIFI_SUBNET">  </td></tr>
-  <tr><th>Gateway</th>    <td><input type="text" minlength="7" maxlength="15" size="16" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id="WIFI_GATEWAY"> </td></tr>
-  <tr><th>DNS</th>        <td><input type="text" minlength="7" maxlength="15" size="16" pattern="^((\d{1,2}|1\d\d|2[0-4]\d|25[0-5])\.){3}(\d{1,2}|1\d\d|2[0-4]\d|25[0-5])$" id="WIFI_DNS">     </td></tr>
-</tbody></table>
+<h3>Remote Control Button Mapping</h3>
+<table id="rc-table">
+  <tr><th>SN</th><th>Code</th><th>Description</th><th>RC Data</th><th>Operations</th></tr>
+  <tr><td colspan="100%"><button onclick="add_new_row()" style="height:16pt" class="bb">Add New Row</button></td></tr>
+</table>
 <p>
-  <button onclick="wifi_save()" title="Save config file to persist across restarts" class="bb">Save Settings</button>&nbsp;
-  <button onclick="wifi_load()" title="Load settings from config file" class="bb">Load Settings</button>&nbsp;
-  <button onclick="GET('/wifi_restart')" class="bb">Restart WIFI</button>
+  <button onclick="save()" title="Save remote control mappings" class="bb">Save Table</button>&nbsp;
+  <button onclick="load()" title="Load remote control mappings" class="bb">Load Table</button>&nbsp;
+  <button onclick="GET('/rc_del_all')" title="Clear all mappings, this does not delete from storage" class="bb">Clear All</button>
   <button onclick="GET('/reboot')" class="bb">Reboot</button>
 </p>
 
@@ -79,19 +77,46 @@ function GET(url, method='GET', data=null){
   xmlHttp.send(data);
   return xmlHttp.responseText;
 }
+var tb = getById('rc-table');
+var rid = 0;
 function goto(url){ location.href = url; }
-function wifi_save(){
-  var obj={};
-  for(var k of ["WIFI_SSID", "WIFI_PASSWD", "WIFI_IP", "WIFI_SUBNET", "WIFI_GATEWAY", "WIFI_DNS"])
-    obj[k] = getById(k).value;
-  alert(GET('/wifi_save', 'POST', JSON.stringify(obj)));
+function save(){
+  var N = tb.rows.length-2;
+  var ret = '';
+  for(var n=1; n<=N; ++n)
+    ret += ['code', 'desc', 'data'].map(x=>getById(x+n).value).join('\t')+'\n';
+  alert(GET('/rc_save', 'POST', ret));
 }
-function wifi_load(){
-  obj = JSON.parse(GET('/wifi_load'));
+function load(){
+  try{
+    var lines = GET('/rc_load').split('\n');
+    while(tb.rows.length>2) tb.deleteRow(1);
+    for(var line of lines){
+      var its = line.split('\t');
+    }
+  }catch(err){
+    alert(err);
+  }
   for(var k in obj) getById(k).value=obj[k];
 }
+function record(id){
+  getById('data'+id).value = GET('/rc_record');
+}
+function emit(id){
+  var v = getById('data'+id);
+  if(v.startsWith('{') && v.endsWith('}'))
+    alert(GET('/rc_emit', 'POST', v));
+}
+function add_new_row(){
+  var id = tb.rows.length-1;
+  var row = tb.insertRow(id);
+  row.innerHTML = `<td>${id}</td><td><input id='code${rid}' type='text' style='width:60pt'></td><td><input id='desc${rid}' type='text' style='width:120pt'></td>
+    <td><input id='data${rid}' type='text' style='width:240pt'> <input type='button' onclick='record(${rid})' value='Record'>
+      <input type='button' onclick='emit(${rid})' value='Emit'></td><td><input type='button' onclick='tb.deleteRow(${rid})' value='Delete'></td>`;
+  rid++;
+}
 window.onload = () => {
-  wifi_load();
+  // load_rc();
 }
 </script>
 </body>
