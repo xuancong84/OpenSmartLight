@@ -90,9 +90,7 @@ function wifi_load(){
   obj = JSON.parse(GET('/wifi_load'));
   for(var k in obj) getById(k).value=obj[k];
 }
-window.onload = () => {
-  wifi_load();
-}
+window.onload = () => { wifi_load(); }
 </script>
 </body>
 </html>

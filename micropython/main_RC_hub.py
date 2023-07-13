@@ -1,4 +1,4 @@
-import machine, gc, network, socket, select, time, random, json
+import sys, machine, gc, network, socket, select, time, random, json
 from array import array
 from time import ticks_us, ticks_diff
 from math import sqrt
@@ -106,11 +106,14 @@ class RC():
 
 	def send(self, key, repeat=5):
 		gc.collect()
-		obj = self[key] if type(key)==str else key
-		init_level, arr = obj['init_level'], obj['data']
-		if arr == None:
-			prt('No valid data found')
-			return
+
+		try:
+			obj = key if type(key)==dict else self.data.get(key, eval(key if type(key)==str else key.decode()))
+			init_level, arr = obj['init_level'], obj['data']
+		except Exception as e:
+			prt(f'key={key}')
+			prt(e)
+			return False
 		
 		prt('Sending radio data ...')
 		p = self.tx_pin
@@ -130,6 +133,7 @@ class RC():
 		# ** End of time critical **
 
 		p(0)	# turn off radio
+		return True
 
 def connect_wifi():
 	global wifi
@@ -173,14 +177,25 @@ def start_wifi():
 		return wifi['config'][0]
 	return ''
 
-# Global actions
+# Globals
 g_reboot = False
 g_restartWifi = False
 rc = RC(PIN_RC_IN, PIN_RC_OUT)
 
-def load_file(fn):
+def get_rc_code(key):
 	try:
-		return open(fn).read()
+		with open('rc-codes.txt') as fp:
+			L = fp.readline().strip()
+			its = L.split('\t')
+			if key == its[0]:
+				return eval(its[2])
+	except:
+		return {}
+
+def load_file(fn, resp):
+	try:
+		open(fn).close()
+		return resp.WriteResponseFile(fn)
 	except:
 		return ''
 
@@ -205,18 +220,19 @@ class MWebServer:
 			( "/", "GET", lambda *_: f'Hello world!' ),
 			( "/wifi_restart", "GET", lambda *_: set_true('g_restartWifi') ),
 			( "/wifi_save", "POST", lambda clie, resp: 'Save OK' if save_file('secret.py', clie.YieldRequestContent()) else 'Save failed' ),
-			( "/wifi_load", "GET", lambda *_: load_file('secret.py')),
+			( "/wifi_load", "GET", lambda clie, resp: load_file('secret.py',resp)),
 			( "/reboot", "GET", lambda *_: set_true('g_reboot') ),
 			( "/rc_record", "GET", lambda *_: str(rc.recv()) ),
 			( "/rc_emit", "POST", lambda cli, *arg: str(rc.send(cli.ReadRequestContent())) ),
 			( "/rc_save", "POST", lambda clie, resp: 'Save OK' if save_file('rc-codes.txt', clie.YieldRequestContent()) else 'Save failed' ),
-			( "/rc_load", "POST", lambda clie, resp: resp.WriteResponseFile('rc-codes.txt') ),
+			( "/rc_load", "GET", lambda clie, resp: load_file('rc-codes.txt',resp) ),
 		]
 		self.app = MWS(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
 		self.sock_web = self.app.run(max_conn=max_conn, loop_forever=False)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
-		self.sock_map = {id(self.sock_web): self.app.run_once}
+		self.poll.register(sys.stdin, select.POLLIN)
+		self.sock_map = {id(self.sock_web): self.app.run_once, id(sys.stdin): self.handleRC}
 		self.cpIP = captivePortalIP
 
 		if captivePortalIP:
@@ -228,17 +244,18 @@ class MWebServer:
 		else:
 			self.sock_dns = None
 
-		@self.app.route('/local')
-		def hello(*req):
-			self.N += 1
-			return f'Hello local = {self.N}'
-
 	def handleDNS(self):
 		data, sender = self.sock_dns.recvfrom(512)
 		packet = data[:2] + b"\x81\x80" + data[4:6] + data[4:6] + b"\x00\x00\x00\x00"
 		packet += data[12:] + b"\xC0\x0C\x00\x01\x00\x01\x00\x00\x00\x3C\x00\x04"
 		packet += bytes(map(int, self.cpIP.split(".")))
 		self.sock_dns.sendto(packet, sender)
+
+	def handleRC(self):
+		key = sys.stdin.readline()[:-1]
+		code = get_rc_code(key)
+		if code:
+			rc.send(code)
 
 	def run(self):
 		global g_reboot, g_restartWifi

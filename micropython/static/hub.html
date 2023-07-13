@@ -1,48 +1,45 @@
 <!DOCTYPE html>
-<html><head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OpenSmartNode</title>
-<style>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>OpenSmartNode</title>
+	<style>
 button {
-  align-items: center;
-  appearance: none;
-  background-color: #3EB2FD;
-  background-image: linear-gradient(1deg, #4F58FD, #149BF3 99%);
-  background-size: calc(100% + 20px) calc(100% + 20px);
-  border-radius: 100px;
-  border-width: 0;
-  box-shadow: none;
-  box-sizing: border-box;
-  color: #FFFFFF;
-  cursor: pointer;
-  display: inline-flex;
-  font-family: CircularStd,sans-serif;
-  font-size: 1rem;
-  height: auto;
-  justify-content: center;
-  line-height: 1;
-  padding: 6px 20px;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  transition: background-color .2s,background-position .2s;
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: manipulation;
-  vertical-align: middle;
-  white-space: nowrap;
+	align-items: center;
+	appearance: none;
+	background-color: #3EB2FD;
+	background-image: linear-gradient(1deg, #4F58FD, #149BF3 99%);
+	background-size: calc(100% + 20px) calc(100% + 20px);
+	border-radius: 100px;
+	border-width: 0;
+	box-shadow: none;
+	box-sizing: border-box;
+	color: #FFFFFF;
+	cursor: pointer;
+	display: inline-flex;
+	font-family: CircularStd, sans-serif;
+	font-size: 1rem;
+	height: auto;
+	justify-content: center;
+	line-height: 1;
+	padding: 6px 20px;
+	position: relative;
+	text-align: center;
+	text-decoration: none;
+	transition: background-color .2s, background-position .2s;
+	user-select: none;
+	-webkit-user-select: none;
+	touch-action: manipulation;
+	vertical-align: middle;
+	white-space: nowrap;
 }
+
 button:active,
-button:focus {
-  outline: none;
-}
-button:hover {
-  background-position: -20px -20px;
-}
-button:focus:not(:active) {
-  box-shadow: rgba(40, 170, 255, 0.25) 0 0 0 .125em;
-}
+button:focus {outline: none;}
+button:hover {background-position: -20px -20px;}
+button:focus:not(:active) {box-shadow: rgba(40, 170, 255, 0.25) 0 0 0 .125em;}
 
 table, th, td {border: 1px solid;}
 th {padding-left: 5px; padding-right: 5px;}
@@ -51,73 +48,105 @@ input[type=text],input[type=password] {width: 125px;}
 h3 {margin-bottom:10px;}
 input {font-size:15px;}
 .bb { font-weight: bold; }
-
-</style>
+.ptr {cursor: pointer;}
+	</style>
 </head>
+
 <body>
-<h2>OpenSmartNode (Remote Control Hub)
-  <span id="svr_reply" style="color:red"></span></h2>
-<h3>Remote Control Button Mapping</h3>
-<table id="rc-table">
-  <tr><th>SN</th><th>Code</th><th>Description</th><th>RC Data</th><th>Operations</th></tr>
-  <tr><td colspan="100%"><button onclick="add_new_row()" style="height:16pt" class="bb">Add New Row</button></td></tr>
-</table>
-<p>
-  <button onclick="save()" title="Save remote control mappings" class="bb">Save Table</button>&nbsp;
-  <button onclick="load()" title="Load remote control mappings" class="bb">Load Table</button>&nbsp;
-  <button onclick="GET('/rc_del_all')" title="Clear all mappings, this does not delete from storage" class="bb">Clear All</button>
-  <button onclick="GET('/reboot')" class="bb">Reboot</button>
-</p>
+	<h2>OpenSmartNode (Remote Control Hub)
+		<span id="svr_reply" style="color:red"></span>
+	</h2>
+	<h3>Remote Control Button Mapping</h3>
+	<table id="rc-table" style="width:100%">
+		<tr>
+			<th style="width:10pt">SN</th>
+			<th style="width:4%">Code</th>
+			<th style="width:8%">Description</th>
+			<th style="width:75%">Remote Controller Data</th>
+			<th style="width:12%">Actions</th>
+		</tr>
+		<tr>
+			<td colspan="100%"><button onclick="add_new_row()">Add New Row</button></td>
+		</tr>
+	</table>
+	<p>Notes: it is better to sort the commands with most frequently used one on top, you can drag the SN index to swap two rows.</p>
+	<p>
+		<button onclick="save()" title="Save remote control mappings" class="bb">Save Table</button>&nbsp;
+		<button onclick="load()" title="Load remote control mappings" class="bb">Load Table</button>&nbsp;
+		<button onclick="GET('/rc_del_all')" title="Clear all mappings, this does not delete from storage" class="bb">Clear All</button>&nbsp;
+		<button onclick="GET('/reboot')" class="bb">Reboot</button>
+	</p>
 
 <script>
-var xmlHttp = new XMLHttpRequest();
-function getById(id_str){return document.getElementById(id_str);}
-function GET(url, method='GET', data=null){
-  xmlHttp.open(method, url, false);
-  xmlHttp.send(data);
-  return xmlHttp.responseText;
-}
-var tb = getById('rc-table');
-var rid = 0;
-function goto(url){ location.href = url; }
-function save(){
-  var N = tb.rows.length-2;
-  var ret = '';
-  for(var n=1; n<=N; ++n)
-    ret += ['code', 'desc', 'data'].map(x=>getById(x+n).value).join('\t')+'\n';
-  alert(GET('/rc_save', 'POST', ret));
-}
-function load(){
-  try{
-    var lines = GET('/rc_load').split('\n');
-    while(tb.rows.length>2) tb.deleteRow(1);
-    for(var line of lines){
-      var its = line.split('\t');
-    }
-  }catch(err){
-    alert(err);
-  }
-  for(var k in obj) getById(k).value=obj[k];
-}
-function record(id){
-  getById('data'+id).value = GET('/rc_record');
-}
-function emit(id){
-  var v = getById('data'+id);
-  if(v.startsWith('{') && v.endsWith('}'))
-    alert(GET('/rc_emit', 'POST', v));
-}
-function add_new_row(){
-  var id = tb.rows.length-1;
-  var row = tb.insertRow(id);
-  row.innerHTML = `<td>${id}</td><td><input id='code${rid}' type='text' style='width:60pt'></td><td><input id='desc${rid}' type='text' style='width:120pt'></td>
-    <td><input id='data${rid}' type='text' style='width:240pt'> <input type='button' onclick='record(${rid})' value='Record'>
-      <input type='button' onclick='emit(${rid})' value='Emit'></td><td><input type='button' onclick='tb.deleteRow(${rid})' value='Delete'></td>`;
-  rid++;
-}
-window.onload = () => {
-  // load_rc();
-}
+	var xmlHttp = new XMLHttpRequest();
+	function getById(id_str) { return document.getElementById(id_str); }
+	function GET(url, method = 'GET', data = null) {
+		xmlHttp.open(method, url, false);
+		xmlHttp.send(data);
+		return xmlHttp.responseText;
+	}
+	var tb = getById('rc-table');
+	var rid = 0;
+	var drag_rid;
+	function goto(url) { location.href = url; }
+	function save() {
+		var N = tb.rows.length - 2;
+		var ret = '';
+		for (var n = 1; n <= N; ++n)
+			ret += [1, 2, 3].map(x => tb.rows[n].children[x].textContent).join('\t') + '\n';
+		alert(GET('/rc_save', 'POST', ret));
+	}
+	function load() {
+		try {
+      var txt = GET('/rc_load').trim();
+      if(!txt) return;
+			var lines = txt.split('\n');
+			while (tb.rows.length > 2) tb.deleteRow(1);
+			for (var line of lines) {
+				var its = line.split('\t');
+				var row = add_new_row();
+				for (var x = 0; x < 3; x++)
+					row.children[x+1].textContent = its[x];
+			}
+		} catch (err) {
+			alert(err);
+		}
+	}
+	function record(rid) {
+		getById('R'+rid).children[3].textContent = GET('/rc_record');
+	}
+	function emit(rid) {
+		var v = getById('R'+rid).children[3].textContent;
+		if (v.startsWith('{') && v.endsWith('}'))
+			alert(GET('/rc_emit', 'POST', v));
+	}
+	function deleteRow(rid) {
+		getById('R' + rid).remove();
+		for (var i = 1; i < tb.rows.length - 1; i++)
+			tb.rows[i].children[0].textContent = i;
+	}
+	function allowDrop(ev) {ev.preventDefault();}
+	function drop(rid){
+		if(drag_rid==rid) return;
+		var src=getById('R'+drag_rid), tgt=getById('R'+rid);
+		for(var x=1; x<=3; x++)
+			[src.children[x].textContent, tgt.children[x].textContent] = [tgt.children[x].textContent, src.children[x].textContent];
+	}
+	function add_new_row() {
+		var insp = tb.rows.length - 1;
+		var row = tb.insertRow(insp);
+    row.setAttribute('id', 'R'+rid);
+		row.innerHTML = `<th class="ptr" draggable=true ondragstart="drag_rid=${rid};" ondrop="drop(${rid})" ondragover="allowDrop(event)">${insp}</th>
+	<td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td>
+	<td style="text-align:center">
+  <input type='button' onclick='record(${rid})' value='Record' title="Hold the button on your remote controller and click RECORD">
+	<input type='button' onclick='emit(${rid})' value='Emit' title="Send out the signal of this button">
+  <input type='button' onclick='deleteRow(${rid})' value='Delete' title="Delete this row"></td>`;
+		rid++;
+		return row;
+	}
+	window.onload = () => { load(); }
 </script>
 </body>
+
 </html>
