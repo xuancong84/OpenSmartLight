@@ -1,4 +1,5 @@
 import sys, machine, gc, network, socket, select, time, random, json
+import urequests as url
 from array import array
 from time import ticks_us, ticks_diff
 from math import sqrt
@@ -185,12 +186,13 @@ rc = RC(PIN_RC_IN, PIN_RC_OUT)
 def get_rc_code(key):
 	try:
 		with open('rc-codes.txt') as fp:
-			L = fp.readline().strip()
-			its = L.split('\t')
-			if key == its[0]:
-				return eval(its[2])
-	except:
-		return {}
+			for L in fp:
+				its = L.split('\t')
+				if key == its[0]:
+					return eval(its[2])
+	except Exception as e:
+		prt(e)
+	return None
 
 def load_file(fn, resp):
 	try:
@@ -251,11 +253,31 @@ class MWebServer:
 		packet += bytes(map(int, self.cpIP.split(".")))
 		self.sock_dns.sendto(packet, sender)
 
+	def execRC(self, s):
+		prt(f'execRC:{s}')
+		if s is None: return
+		try:
+			if type(s)==list:
+				for i in s:
+					self.execRC(i)
+					gc.collect()
+			elif type(s)==str:
+				if s.startswith('http'):
+					url.get(s).close()
+				else:
+					code = get_rc_code(s)
+					if code is not None:
+						self.execRC(code)
+			elif type(s)==dict:
+				rc.send(s)
+		except:
+			pass
+
 	def handleRC(self):
 		key = sys.stdin.readline()[:-1]
+		prt(f'RX received {key}')
 		code = get_rc_code(key)
-		if code:
-			rc.send(code)
+		self.execRC(code)
 
 	def run(self):
 		global g_reboot, g_restartWifi
