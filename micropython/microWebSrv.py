@@ -20,6 +20,15 @@ try :
 except :
 	pass
 
+def YieldFile(filepath, blksz=1024):
+	size = stat(filepath)[6]
+	buf = bytearray(blksz)
+	with open(filepath, 'rb') as fp:
+		while size>0:
+			x = fp.readinto(buf)
+			size -= x
+			yield buf[:x]
+
 class MicroWebSrvRoute :
 	def __init__(self, route, method, func, routeArgNames, routeRegex) :
 		self.route         = route        
@@ -27,7 +36,6 @@ class MicroWebSrvRoute :
 		self.func          = func         
 		self.routeArgNames = routeArgNames
 		self.routeRegex    = routeRegex   
-
 
 class MicroWebSrv :
 
@@ -629,36 +637,25 @@ class MicroWebSrv :
 
 		# ------------------------------------------------------------------------
 
-		def WriteResponseFile(self, filepath, contentType=None, headers=None) :
-			try :
-				size = stat(filepath)[6]
-				if size > 0 :
-					with open(filepath, 'rb') as file :
-						self._writeBeforeContent(200, headers, contentType, None, size)
-						try :
-							buf = bytearray(1024)
-							while size > 0 :
-								x = file.readinto(buf)
-								if x < len(buf) :
-									buf = memoryview(buf)[:x]
-								if not self._write(buf) :
-									return False
-								size -= x
-							return True
-						except :
-							self.WriteResponseError(500)
-							return False
-			except :
-				pass
+		def WriteResponseFile(self, obj, contentType=None, headers=None) :
+			try:
+				obj, size = (YieldFile(obj),stat(obj)[6]) if type(obj) == str else (obj,0)
+				self._writeBeforeContent(200, headers, contentType, None, size)
+				for ba in obj:
+					if not self._write(ba):
+						return False
+				return True
+			except Exception as e:
+				print(e)
 			self.WriteResponseNotFound()
 			return False
 
 		# ------------------------------------------------------------------------
 
-		def WriteResponseFileAttachment(self, filepath, attachmentName, headers=None) :
+		def WriteResponseFileAttachment(self, filepath, attachmentName=None, headers=None) :
 			if not isinstance(headers, dict) :
 				headers = { }
-			headers["Content-Disposition"] = "attachment; filename=\"%s\"" % attachmentName
+			headers["Content-Disposition"] = "attachment; filename=\"%s\"" % (attachmentName or filepath.split('/')[-1])
 			return self.WriteResponseFile(filepath, None, headers)
 
 		# ------------------------------------------------------------------------
