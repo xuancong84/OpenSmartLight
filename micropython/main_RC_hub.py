@@ -12,8 +12,6 @@ DEBUG = True
 
 LED = machine.Pin(2, machine.Pin.OUT)
 LED(0)
-time.sleep(1)
-LED(1)
 
 def flashLED(intv=0.25):
 	for i in range(3):
@@ -22,15 +20,12 @@ def flashLED(intv=0.25):
 		LED(1)
 		time.sleep(intv)
 
-pino = machine.Pin(PIN_RC_OUT, machine.Pin.OUT)
-pino(0)
-
 sta_if = network.WLAN(network.STA_IF)
 ap_if = network.WLAN(network.AP_IF)
 wifi = {}
 
 def prt(*args, **kwarg):
-	if DEBUG: print(*args, **kwarg)
+	if DEBUG:print(*args, **kwarg)
 
 def connect_wifi():
 	global wifi
@@ -242,9 +237,35 @@ def set_true(vn):
 	exec(f'{vn}=True')
 	return 'OK'
 
+def execRC(s):
+	prt(f'execRC:{s}')
+	if s is None: return
+	try:
+		if type(s)==list:
+			for i in s:
+				execRC(i)
+				gc.collect()
+		elif type(s)==str:
+			if s.startswith('http'):
+				url.get(s).close()
+			else:
+				code = get_rc_code(s)
+				if code is not None:
+					execRC(code)
+		elif type(s)==dict:
+			rc.send(s)
+	except:
+		pass
+
+def handleRC():
+	key = sys.stdin.readline().strip()
+	prt(f'RX received {key}')
+	code = get_rc_code(key)
+	execRC(code)
+	flashLED(0.1)
+
 class MWebServer:
 	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
-		self.N = 0
 		routeHandlers = [
 			( "/", "GET", lambda *_: f'Hello world!' ),
 			( "/wifi_restart", "GET", lambda *_: set_true('g_restartWifi') ),
@@ -263,10 +284,12 @@ class MWebServer:
 		self.sock_web = self.app.run(max_conn=max_conn, loop_forever=False)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
-		self.uart = machine.UART(0, 115200, tx=machine.Pin(15), rx=machine.Pin(13))	# swap UART0 to alternative ports to avoid interference from CH340
+		machine.UART(0, 115200, tx=machine.Pin(15), rx=machine.Pin(13))	# swap UART0 to alternative ports to avoid interference from CH340
 		self.poll.register(sys.stdin, select.POLLIN)
-		self.poll.register(self.uart, select.POLLIN)
-		self.sock_map = {id(self.sock_web): self.app.run_once, id(sys.stdin): self.handleRC_stdin, id(self.uart): self.handleRC}
+		self.sock_map = {
+			id(self.sock_web): self.app.run_once, 
+			id(sys.stdin): handleRC,
+		}
 		self.cpIP = captivePortalIP
 
 		if captivePortalIP:
@@ -284,40 +307,6 @@ class MWebServer:
 		packet += data[12:] + b"\xC0\x0C\x00\x01\x00\x01\x00\x00\x00\x3C\x00\x04"
 		packet += bytes(map(int, self.cpIP.split(".")))
 		self.sock_dns.sendto(packet, sender)
-
-	def execRC(self, s):
-		prt(f'execRC:{s}')
-		if s is None: return
-		try:
-			if type(s)==list:
-				for i in s:
-					self.execRC(i)
-					gc.collect()
-			elif type(s)==str:
-				if s.startswith('http'):
-					url.get(s).close()
-				else:
-					code = get_rc_code(s)
-					if code is not None:
-						self.execRC(code)
-			elif type(s)==dict:
-				rc.send(s)
-		except:
-			pass
-
-	def handleRC(self):
-		key = self.uart.readline().strip()
-		prt(f'RX received {key}')
-		code = get_rc_code(key)
-		self.execRC(code)
-		flashLED(0.1)
-
-	def handleRC_stdin(self):
-		key = sys.stdin.readline().strip()
-		prt(f'RX received {key}')
-		code = get_rc_code(key)
-		self.execRC(code)
-		flashLED(0.1)
 
 	def run(self):
 		global g_reboot, g_restartWifi
@@ -344,6 +333,8 @@ def run():
 		cpIP = start_wifi()
 		prt(wifi)
 		server = MWebServer(captivePortalIP=cpIP)
+		LED(1)
 		server.run()
-	except:
+	except Exception as e:
 		machine.UART(0, 115200, tx=machine.Pin(1), rx=machine.Pin(3))
+		prt(e)
