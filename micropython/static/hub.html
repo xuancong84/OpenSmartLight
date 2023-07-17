@@ -135,13 +135,13 @@ input {font-size:15px;}
 	function add_new_row() {
 		var insp = tb.rows.length - 1;
 		var row = tb.insertRow(insp);
-    row.setAttribute('id', 'R'+rid);
+		row.setAttribute('id', 'R'+rid);
 		row.innerHTML = `<th class="ptr" draggable=true ondragstart="drag_rid=${rid};" ondrop="drop(${rid})" ondragover="allowDrop(event)">${insp}</th>
 	<td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td>
 	<td style="text-align:center">
-  <input type='button' onclick='record(${rid})' value='Record' title="Hold the button on your remote controller and click RECORD">
+	<input type='button' onclick='record(${rid})' value='Record' title="Hold the button on your remote controller and click RECORD">
 	<input type='button' onclick='emit(${rid})' value='Emit' title="Send out the signal of this button">
-  <input type='button' onclick='deleteRow(${rid})' value='Delete' title="Delete this row"></td>`;
+	<input type='button' onclick='deleteRow(${rid})' value='Delete' title="Delete this row"></td>`;
 		rid++;
 		return row;
 	}

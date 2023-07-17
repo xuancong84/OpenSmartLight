@@ -1,4 +1,4 @@
-import sys, machine, gc, network, socket, select, time, random, json
+import os, sys, machine, gc, network, socket, select, time, random, json
 import urequests as url
 from array import array
 from time import ticks_us, ticks_diff
@@ -10,17 +10,68 @@ PIN_RC_IN = 5
 PIN_RC_OUT = 4
 DEBUG = True
 
+LED = machine.Pin(2, machine.Pin.OUT)
+LED(0)
+time.sleep(1)
+LED(1)
+
+def flashLED(intv=0.25):
+	for i in range(3):
+		LED(0)
+		time.sleep(intv)
+		LED(1)
+		time.sleep(intv)
+
 pino = machine.Pin(PIN_RC_OUT, machine.Pin.OUT)
 pino(0)
 
 sta_if = network.WLAN(network.STA_IF)
-sta_if.active(False)
 ap_if = network.WLAN(network.AP_IF)
-ap_if.active(False)
 wifi = {}
 
 def prt(*args, **kwarg):
 	if DEBUG: print(*args, **kwarg)
+
+def connect_wifi():
+	global wifi
+	if sta_if.isconnected():
+		sta_if.disconnect()
+		time.sleep(1)
+	try:
+		cred = eval(open('secret.py').read())
+		sta_if.active(True)
+		WIFI_IP, WIFI_SUBNET, WIFI_GATEWAY, WIFI_DNS = [cred.get(v, '') for v in ['WIFI_IP', 'WIFI_SUBNET', 'WIFI_GATEWAY', 'WIFI_DNS']]
+		if WIFI_IP and WIFI_SUBNET and WIFI_GATEWAY and WIFI_DNS:
+			sta_if.ifconfig((WIFI_IP, WIFI_SUBNET, WIFI_GATEWAY, WIFI_DNS))
+		sta_if.connect(cred['WIFI_SSID'], cred['WIFI_PASSWD'])
+		x = 0
+		while x<30 and not sta_if.isconnected():
+			time.sleep(2)
+			prt('.', end='')
+			x += 1
+		wifi.update({'mode':'wifi', 'config':sta_if.ifconfig()})
+		return sta_if.isconnected()
+	except Exception as e:
+		prt(e)
+		return False
+
+def create_hotspot():
+	global wifi
+	if ap_if.active():
+		wifi.update({'mode':'hotspot', 'config':ap_if.ifconfig()})
+		return
+	ap_if.active(True)
+	IP = f'192.168.{min(250, random.getrandbits(8))}.1'
+	ap_if.ifconfig((IP, '255.255.255.0', IP, IP))
+	ap_if.config(ssid='ESP-AP', authmode=network.AUTH_OPEN)
+	wifi.update({'mode':'hotspot', 'config':ap_if.ifconfig()})
+
+def start_wifi():
+	if not connect_wifi():
+		create_hotspot()
+		return wifi['config'][0]
+	return ''
+
 
 class RC():
 	def __init__(self, rx_pin, tx_pin=None):  # Typically ~15 frames
@@ -136,47 +187,6 @@ class RC():
 		p(0)	# turn off radio
 		return True
 
-def connect_wifi():
-	global wifi
-	if sta_if.isconnected():
-		prt(f'Already exist: {sta_if.ifconfig()}')
-		return True
-	try:
-		cred = eval(open('secret.py').read())
-		sta_if.active(True)
-		WIFI_IP = cred.get('WIFI_IP', '')
-		WIFI_SUBNET = cred.get('WIFI_SUBNET', '')
-		WIFI_GATEWAY = cred.get('WIFI_GATEWAY', '')
-		WIFI_DNS = cred.get('WIFI_DNS', '')
-		if WIFI_IP and WIFI_SUBNET and WIFI_GATEWAY and WIFI_DNS:
-			sta_if.ifconfig((WIFI_IP, WIFI_SUBNET, WIFI_GATEWAY, WIFI_DNS))
-		sta_if.connect(cred['WIFI_SSID'], cred['WIFI_PASSWD'])
-		x = 0
-		while x<30 and not sta_if.isconnected():
-			time.sleep(2)
-			prt('.', end='')
-			x += 1
-		wifi.update({'mode':'wifi', 'config':sta_if.ifconfig()})
-		return sta_if.isconnected()
-	except:
-		return False
-
-def create_hotspot():
-	global wifi
-	if ap_if.active():
-		prt(f'Already exist: {ap_if.ifconfig()}')
-		return
-	ap_if.active(True)
-	IP = f'192.168.{min(250, random.getrandbits(8))}.1'
-	ap_if.ifconfig((IP, '255.255.255.0', IP, IP))
-	ap_if.config(ssid='ESP-AP', authmode=network.AUTH_OPEN)
-	wifi.update({'mode':'hotspot', 'config':ap_if.ifconfig()})
-
-def start_wifi():
-	if not connect_wifi():
-		create_hotspot()
-		return wifi['config'][0]
-	return ''
 
 # Globals
 g_reboot = False
@@ -194,13 +204,6 @@ def get_rc_code(key):
 		prt(e)
 	return None
 
-def load_file(fn, resp):
-	try:
-		open(fn).close()
-		return resp.WriteResponseFile(fn)
-	except:
-		return ''
-
 def save_file(fn, gen):
 	try:
 		with open(fn, 'wb') as fp:
@@ -210,6 +213,30 @@ def save_file(fn, gen):
 		return True
 	except:
 		return False
+	
+def list_files(path=''):
+	yield f'{path}/\t\n'
+	for f in os.listdir(path):
+		ff = path+'/'+f
+		try:
+			os.listdir(ff)
+			yield from list_files(ff)
+		except:
+			yield f'{ff}\t{os.stat(ff)[6]}\n'
+
+def isDir(path):
+	try:
+		os.listdir(path)
+		return True
+	except:
+		return False
+
+def deleteFile(path):
+	try:
+		os.rmdir(path) if isDir(path) else os.remove(path)
+		return 'OK'
+	except Exception as e:
+		return str(e)
 
 def set_true(vn):
 	exec(f'{vn}=True')
@@ -222,19 +249,24 @@ class MWebServer:
 			( "/", "GET", lambda *_: f'Hello world!' ),
 			( "/wifi_restart", "GET", lambda *_: set_true('g_restartWifi') ),
 			( "/wifi_save", "POST", lambda clie, resp: 'Save OK' if save_file('secret.py', clie.YieldRequestContent()) else 'Save failed' ),
-			( "/wifi_load", "GET", lambda clie, resp: load_file('secret.py',resp)),
+			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
 			( "/reboot", "GET", lambda *_: set_true('g_reboot') ),
 			( "/rc_record", "GET", lambda *_: str(rc.recv()) ),
 			( "/rc_emit", "POST", lambda cli, *arg: str(rc.send(cli.ReadRequestContent())) ),
 			( "/rc_save", "POST", lambda clie, resp: 'Save OK' if save_file('rc-codes.txt', clie.YieldRequestContent()) else 'Save failed' ),
-			( "/rc_load", "GET", lambda clie, resp: load_file('rc-codes.txt',resp) ),
+			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile('rc-codes.txt') ),
+			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseFile(list_files()) ),
+			( "/delete_files", "GET", lambda clie, resp: deleteFile(clie.GetRequestQueryString()) ),
+			( "/get_file", "GET", lambda clie, resp: resp.WriteResponseFileAttachment(clie.GetRequestQueryString()) ),
 		]
 		self.app = MWS(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
 		self.sock_web = self.app.run(max_conn=max_conn, loop_forever=False)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
+		self.uart = machine.UART(0, 115200, tx=machine.Pin(15), rx=machine.Pin(13))	# swap UART0 to alternative ports to avoid interference from CH340
 		self.poll.register(sys.stdin, select.POLLIN)
-		self.sock_map = {id(self.sock_web): self.app.run_once, id(sys.stdin): self.handleRC}
+		self.poll.register(self.uart, select.POLLIN)
+		self.sock_map = {id(self.sock_web): self.app.run_once, id(sys.stdin): self.handleRC_stdin, id(self.uart): self.handleRC}
 		self.cpIP = captivePortalIP
 
 		if captivePortalIP:
@@ -274,10 +306,18 @@ class MWebServer:
 			pass
 
 	def handleRC(self):
-		key = sys.stdin.readline()[:-1]
+		key = self.uart.readline().strip()
 		prt(f'RX received {key}')
 		code = get_rc_code(key)
 		self.execRC(code)
+		flashLED(0.1)
+
+	def handleRC_stdin(self):
+		key = sys.stdin.readline().strip()
+		prt(f'RX received {key}')
+		code = get_rc_code(key)
+		self.execRC(code)
+		flashLED(0.1)
 
 	def run(self):
 		global g_reboot, g_restartWifi
@@ -292,6 +332,7 @@ class MWebServer:
 				sta_if.disconnect()
 				sta_if.active(False)
 				ap_if.active(False)
+				time.sleep(1)
 				start_wifi()
 
 
@@ -299,7 +340,10 @@ gc.collect()
 
 ### MAIN function
 def run():
-	cpIP = start_wifi()
-	prt(wifi)
-	server = MWebServer(captivePortalIP=cpIP)
-	server.run()
+	try:
+		cpIP = start_wifi()
+		prt(wifi)
+		server = MWebServer(captivePortalIP=cpIP)
+		server.run()
+	except:
+		machine.UART(0, 115200, tx=machine.Pin(1), rx=machine.Pin(3))
