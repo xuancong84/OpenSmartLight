@@ -1,7 +1,7 @@
 # This file is executed on every boot (including wake-boot from deepsleep)
 #import esp
 #esp.osdebug(None)
-import os, machine, gc, network
+import os, machine, gc, network, time
 #os.dupterm(None, 1) # disable REPL on UART(0)
 
 sta_if = network.WLAN(network.STA_IF)
@@ -16,8 +16,10 @@ if True:
 
 gc.collect()
 
+DBPin = machine.Pin(12, machine.Pin.IN, machine.Pin.PULL_UP)
 mains = [f for f in os.listdir() if f.startswith('main')]
 
 if mains:
 	exec(f'from {mains[0].split(".")[0]} import *')
-	run()
+	if DBPin():
+		run()
