@@ -1,16 +1,19 @@
-import os, sys, machine, gc, network, socket, select, time, random, json
+import os, sys, gc, machine, network, socket, select, time, random, ntptime
 import urequests as url
 from array import array
 from time import ticks_us, ticks_diff
 from math import sqrt
 from microWebSrv import MicroWebSrv as MWS
+from machine import Pin, UART
 gc.collect()
 
 PIN_RC_IN = 5
 PIN_RC_OUT = 4
 DEBUG = True
+LOGFILE = 'static/log.txt'
+timezone = 8
 
-LED = machine.Pin(2, machine.Pin.OUT)
+LED = Pin(2, Pin.OUT)
 LED(0)
 
 def flashLED(intv=0.25):
@@ -20,15 +23,41 @@ def flashLED(intv=0.25):
 		LED(1)
 		time.sleep(intv)
 
-sta_if = network.WLAN(network.STA_IF)
-ap_if = network.WLAN(network.AP_IF)
 wifi = {}
 
+def getTimeString(tm=None):
+	tm = tm or time.localtime(time.time()+3600*timezone)
+	return '%02d:%02d:%02d'%(tm[3],tm[4],tm[5])
+
+def getDateString(tm, showDay=True):
+	ds = "%04d-%02d-%02d"%(tm[0],tm[1],tm[2])
+	return ds if showDay else ds[:-3]
+
+weekDays=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+def getWeekdayString(tm):
+	return weekDays[tm[6]]
+
+def getFullDateTime():
+	tm = time.localtime(time.time()+3600*timezone)
+	return getDateString(tm)+" ("+getWeekdayString(tm)+") "+getTimeString(tm)
+
 def prt(*args, **kwarg):
-	if DEBUG:print(*args, **kwarg)
+	if DEBUG:
+		print(getFullDateTime(), end=' ')
+		print(*args, **kwarg)
+	if LOGFILE:
+		try:
+			if os.stat(LOGFILE)[6]>1000000:
+				os.remove(LOGFILE)
+		except:
+			pass
+		with open(LOGFILE, 'a') as fp:
+			print(getFullDateTime(), end=' ', file=fp)
+			print(*args, **kwarg, file=fp)
 
 def connect_wifi():
 	global wifi
+	sta_if = network.WLAN(network.STA_IF)
 	if sta_if.isconnected():
 		sta_if.disconnect()
 		time.sleep(1)
@@ -52,6 +81,7 @@ def connect_wifi():
 
 def create_hotspot():
 	global wifi
+	ap_if = network.WLAN(network.AP_IF)
 	if ap_if.active():
 		wifi.update({'mode':'hotspot', 'config':ap_if.ifconfig()})
 		return
@@ -65,13 +95,14 @@ def start_wifi():
 	if not connect_wifi():
 		create_hotspot()
 		return wifi['config'][0]
+	ntptime.settime()
 	return ''
 
 
 class RC():
 	def __init__(self, rx_pin, tx_pin=None):  # Typically ~15 frames
-		self.rx_pin = machine.Pin(rx_pin, machine.Pin.IN, machine.Pin.PULL_UP)
-		self.tx_pin = self.rx_pin if tx_pin is None else machine.Pin(tx_pin, machine.Pin.OUT)
+		self.rx_pin = Pin(rx_pin, Pin.IN, Pin.PULL_UP)
+		self.tx_pin = self.rx_pin if tx_pin is None else Pin(tx_pin, Pin.OUT)
 		self.tx_pin(0)
 		self.data = {}
 		gc.collect()
@@ -238,7 +269,7 @@ def set_true(vn):
 	return 'OK'
 
 def execRC(s):
-	prt(f'execRC:{s}')
+	prt(f'execRC:{str(s)[:10]}...')
 	if s is None: return
 	try:
 		if type(s)==list:
@@ -284,7 +315,7 @@ class MWebServer:
 		self.sock_web = self.app.run(max_conn=max_conn, loop_forever=False)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
-		machine.UART(0, 115200, tx=machine.Pin(15), rx=machine.Pin(13))	# swap UART0 to alternative ports to avoid interference from CH340
+		UART(0, 115200, tx=Pin(15), rx=Pin(13))	# swap UART0 to alternative ports to avoid interference from CH340
 		self.poll.register(sys.stdin, select.POLLIN)
 		self.sock_map = {
 			id(self.sock_web): self.app.run_once, 
@@ -318,10 +349,6 @@ class MWebServer:
 				machine.reset()
 			if g_restartWifi:
 				g_restartWifi = False
-				sta_if.disconnect()
-				sta_if.active(False)
-				ap_if.active(False)
-				time.sleep(1)
 				start_wifi()
 
 
@@ -336,5 +363,5 @@ def run():
 		LED(1)
 		server.run()
 	except Exception as e:
-		machine.UART(0, 115200, tx=machine.Pin(1), rx=machine.Pin(3))
+		UART(0, 115200, tx=Pin(1), rx=Pin(3))
 		prt(e)

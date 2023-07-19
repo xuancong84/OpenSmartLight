@@ -16,10 +16,10 @@ if True:
 
 gc.collect()
 
-DBPin = machine.Pin(12, machine.Pin.IN, machine.Pin.PULL_UP)
 mains = [f for f in os.listdir() if f.startswith('main')]
 
 if mains:
 	exec(f'from {mains[0].split(".")[0]} import *')
-	if DBPin():
+	gc.collect()
+	if machine.Pin(12, machine.Pin.IN, machine.Pin.PULL_UP)():
 		run()

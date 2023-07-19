@@ -94,7 +94,7 @@ def getWeekdayString(tm):
 
 def getFullDateTime():
   tm = time.localtime(time.time()+3600*saved['timezone'])
-  return getDateString(tm)+" ("+getWeekdayString(tm)+") "+getTimeString(tm);
+  return getDateString(tm)+" ("+getWeekdayString(tm)+") "+getTimeString(tm)
 
 def getBoardInfo():
 	s = os.statvfs('/')
