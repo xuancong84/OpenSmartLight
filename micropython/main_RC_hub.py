@@ -103,7 +103,7 @@ class RC():
 	def __init__(self, rx_pin, tx_pin=None):  # Typically ~15 frames
 		self.rx_pin = Pin(rx_pin, Pin.IN, Pin.PULL_UP)
 		self.tx_pin = self.rx_pin if tx_pin is None else Pin(tx_pin, Pin.OUT)
-		self.tx_pin(0)
+		self.tx_pin(0)	# turn off radio
 		self.data = {}
 		gc.collect()
 
@@ -215,14 +215,13 @@ class RC():
 
 
 # Globals
-g_reboot = False
-g_restartWifi = False
 rc = RC(PIN_RC_IN, PIN_RC_OUT)
 
 def get_rc_code(key):
 	try:
 		with open('rc-codes.txt') as fp:
 			for L in fp:
+				gc.collect()
 				its = L.split('\t')
 				if key == its[0]:
 					return eval(its[2])
@@ -264,10 +263,6 @@ def deleteFile(path):
 	except Exception as e:
 		return str(e)
 
-def set_true(vn):
-	exec(f'{vn}=True')
-	return 'OK'
-
 def execRC(s):
 	prt(f'execRC:{str(s)[:10]}...')
 	if s is None: return
@@ -297,12 +292,13 @@ def handleRC():
 
 class MWebServer:
 	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
+		self.cmd = ''
 		routeHandlers = [
 			( "/", "GET", lambda *_: f'Hello world!' ),
-			( "/wifi_restart", "GET", lambda *_: set_true('g_restartWifi') ),
+			( "/wifi_restart", "GET", lambda *_: self.set_cmd('restartWifi') ),
 			( "/wifi_save", "POST", lambda clie, resp: 'Save OK' if save_file('secret.py', clie.YieldRequestContent()) else 'Save failed' ),
 			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
-			( "/reboot", "GET", lambda *_: set_true('g_reboot') ),
+			( "/reboot", "GET", lambda *_: self.set_cmd('reboot') ),
 			( "/rc_record", "GET", lambda *_: str(rc.recv()) ),
 			( "/rc_emit", "POST", lambda cli, *arg: str(rc.send(cli.ReadRequestContent())) ),
 			( "/rc_save", "POST", lambda clie, resp: 'Save OK' if save_file('rc-codes.txt', clie.YieldRequestContent()) else 'Save failed' ),
@@ -332,6 +328,10 @@ class MWebServer:
 		else:
 			self.sock_dns = None
 
+	def set_cmd(self, vn):
+		self.cmd = vn
+		return 'OK'
+
 	def handleDNS(self):
 		data, sender = self.sock_dns.recvfrom(512)
 		packet = data[:2] + b"\x81\x80" + data[4:6] + data[4:6] + b"\x00\x00\x00\x00"
@@ -340,16 +340,16 @@ class MWebServer:
 		self.sock_dns.sendto(packet, sender)
 
 	def run(self):
-		global g_reboot, g_restartWifi
 		while True:
 			for tp in self.poll.poll():
 				self.sock_map[id(tp[0])]()
 				gc.collect()
-			if g_reboot:
-				machine.reset()
-			if g_restartWifi:
-				g_restartWifi = False
-				start_wifi()
+				time.sleep(0.2)
+				if self.cmd=='reboot':
+					machine.reset()
+				elif self.cmd=='restartWifi':
+					start_wifi()
+				self.cmd = ''
 
 
 gc.collect()
