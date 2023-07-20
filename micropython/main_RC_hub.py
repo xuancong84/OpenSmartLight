@@ -287,22 +287,24 @@ def send_udp(obj):
 def execRC(s):
 	if type(s)==bytes:
 		s = s.decode()
-	prt(f'execRC:{str(s)}...')
+	prt(f'execRC:{str(s)}')
 	if s is None: return
 	try:
 		if type(s)==list:
+			res = []
 			for i in s:
-				execRC(i)
+				res += [execRC(i)]
 				gc.collect()
+			return '\r\n'.join(res)
 		elif type(s)==str:
 			if s.startswith('http'):
 				url.get(s).close()
 			else:
 				code = get_rc_code(s)
 				if code is not None:
-					execRC(code)
+					return execRC(code)
 				else:
-					execRC(eval(s))
+					return execRC(eval(s))
 		elif type(s)==dict:
 			p = s.get('protocol', 'RF433')
 			prt(p, s)
@@ -317,7 +319,7 @@ def execRC(s):
 	except Exception as e:
 		prt(e)
 		return str(e)
-	return 'OK'
+	return 'Unknown command'
 
 def handleRC():
 	key = sys.stdin.readline().strip()
@@ -336,7 +338,7 @@ class MWebServer:
 			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
 			( "/reboot", "GET", lambda *_: self.set_cmd('reboot') ),
 			( "/rc_record", "GET", lambda *_: str(rc.recv()) ),
-			( "/rc_exec", "POST", lambda cli, *arg: self.set_cmd(cli.ReadRequestContent().decode())),
+			( "/rc_exec", "POST", lambda cli, *arg: execRC(cli.ReadRequestContent())),
 			( "/rc_save", "POST", lambda clie, resp: 'Save OK' if save_file('rc-codes.txt', clie.YieldRequestContent()) else 'Save failed' ),
 			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile('rc-codes.txt') ),
 			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseFile(list_files()) ),
@@ -381,12 +383,12 @@ class MWebServer:
 			for tp in self.poll.poll():
 				self.sock_map[id(tp[0])]()
 				gc.collect()
-				time.sleep(0.2)
+				time.sleep(0.1)
 				if self.cmd=='reboot':
 					machine.reset()
 				elif self.cmd=='restartWifi':
 					start_wifi()
-				else:
+				elif self.cmd:
 					execRC(self.cmd)
 				self.cmd = ''
 
