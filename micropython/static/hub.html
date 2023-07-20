@@ -124,8 +124,7 @@ input {font-size:15px;}
 	}
 	function emit(rid) {
 		var v = getById('R'+rid).children[3].textContent;
-		if (v.startsWith('{') && v.endsWith('}'))
-			alert(GET('/rc_exec', 'POST', v));
+		alert(GET('/rc_exec', 'POST', v));
 	}
 	function deleteRow(rid) {
 		getById('R' + rid).remove();
