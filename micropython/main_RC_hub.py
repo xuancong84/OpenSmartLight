@@ -191,7 +191,7 @@ class RC():
 		except Exception as e:
 			prt(f'key={key}')
 			prt(e)
-			return False
+			return str(e)
 		
 		prt('Sending radio data ...')
 		p = self.tx_pin
@@ -211,7 +211,7 @@ class RC():
 		# ** End of time critical **
 
 		p(0)	# turn off radio
-		return True
+		return 'OK'
 
 
 # Globals
@@ -263,8 +263,31 @@ def deleteFile(path):
 	except Exception as e:
 		return str(e)
 
+def send_tcp(obj):
+	try:
+		s = socket.socket()
+		s.connect((obj['IP'], obj['PORT']))
+		s.send(obj['data'])
+		s.recv(256)
+		s.close()
+		return f'OK, sent {len(obj["data"])} bytes'
+	except Exception as e:
+		prt(e)
+		return str(e)
+
+def send_udp(obj):
+	try:
+		with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+			s.sendto(obj['data'], (obj['IP'], obj['PORT']))
+			return f'OK, sent {len(obj["data"])} bytes'
+	except Exception as e:
+		prt(e)
+		return str(e)
+
 def execRC(s):
-	prt(f'execRC:{str(s)[:10]}...')
+	if type(s)==bytes:
+		s = s.decode()
+	prt(f'execRC:{str(s)}...')
 	if s is None: return
 	try:
 		if type(s)==list:
@@ -278,10 +301,23 @@ def execRC(s):
 				code = get_rc_code(s)
 				if code is not None:
 					execRC(code)
+				else:
+					execRC(eval(s))
 		elif type(s)==dict:
-			rc.send(s)
-	except:
-		pass
+			p = s.get('protocol', 'RF433')
+			prt(p, s)
+			if p=='RF433':
+				return rc.send(s)
+			elif p=='TCP':
+				return send_tcp(s)
+			elif p=='UDP':
+				return send_udp(s)
+			else:
+				return 'Unknown protocol'
+	except Exception as e:
+		prt(e)
+		return str(e)
+	return 'OK'
 
 def handleRC():
 	key = sys.stdin.readline().strip()
@@ -300,7 +336,7 @@ class MWebServer:
 			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
 			( "/reboot", "GET", lambda *_: self.set_cmd('reboot') ),
 			( "/rc_record", "GET", lambda *_: str(rc.recv()) ),
-			( "/rc_emit", "POST", lambda cli, *arg: str(rc.send(cli.ReadRequestContent())) ),
+			( "/rc_exec", "POST", lambda cli, *arg: self.set_cmd(cli.ReadRequestContent().decode())),
 			( "/rc_save", "POST", lambda clie, resp: 'Save OK' if save_file('rc-codes.txt', clie.YieldRequestContent()) else 'Save failed' ),
 			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile('rc-codes.txt') ),
 			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseFile(list_files()) ),
@@ -329,6 +365,7 @@ class MWebServer:
 			self.sock_dns = None
 
 	def set_cmd(self, vn):
+		prt(f'Setting cmd to :{vn}')
 		self.cmd = vn
 		return 'OK'
 
@@ -349,6 +386,8 @@ class MWebServer:
 					machine.reset()
 				elif self.cmd=='restartWifi':
 					start_wifi()
+				else:
+					execRC(self.cmd)
 				self.cmd = ''
 
 
