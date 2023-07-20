@@ -6,6 +6,13 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>OpenSmartNode</title>
 	<style>
+.content_editable {
+    white-space: pre-wrap;       /* css-3 */
+    white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+    white-space: -pre-wrap;      /* Opera 4-6 */
+    white-space: -o-pre-wrap;    /* Opera 7 */
+    word-wrap: break-word;       /* Internet Explorer 5.5+ */
+}
 button {
 	align-items: center;
 	appearance: none;
@@ -93,7 +100,7 @@ input {font-size:15px;}
 		var N = tb.rows.length - 2;
 		var ret = '';
 		for (var n = 1; n <= N; ++n)
-			ret += [1, 2, 3].map(x => tb.rows[n].children[x].textContent).join('\t') + '\n';
+			ret += [1, 2, 3].map(x => tb.rows[n].children[x].innerText).join('\t') + '\n';
 		alert(GET('/rc_save', 'POST', ret));
 	}
 	function load() {
@@ -118,7 +125,7 @@ input {font-size:15px;}
 	function emit(rid) {
 		var v = getById('R'+rid).children[3].textContent;
 		if (v.startsWith('{') && v.endsWith('}'))
-			alert(GET('/rc_emit', 'POST', v));
+			alert(GET('/rc_exec', 'POST', v));
 	}
 	function deleteRow(rid) {
 		getById('R' + rid).remove();
@@ -137,10 +144,10 @@ input {font-size:15px;}
 		var row = tb.insertRow(insp);
 		row.setAttribute('id', 'R'+rid);
 		row.innerHTML = `<th class="ptr" draggable=true ondragstart="drag_rid=${rid};" ondrop="drop(${rid})" ondragover="allowDrop(event)">${insp}</th>
-	<td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td>
+	<td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true" class="content_editable"></td>
 	<td style="text-align:center">
 	<input type='button' onclick='record(${rid})' value='Record' title="Hold the button on your remote controller and click RECORD">
-	<input type='button' onclick='emit(${rid})' value='Emit' title="Send out the signal of this button">
+	<input type='button' onclick='emit(${rid})' value='Send' title="Execute this command">
 	<input type='button' onclick='deleteRow(${rid})' value='Delete' title="Delete this row"></td>`;
 		rid++;
 		return row;
