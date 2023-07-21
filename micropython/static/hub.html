@@ -113,7 +113,7 @@ input {font-size:15px;}
 				var its = line.split('\t');
 				var row = add_new_row();
 				for (var x = 0; x < 3; x++)
-					row.children[x+1].textContent = its[x];
+					row.children[x+1].innerText = its[x];
 			}
 		} catch (err) {
 			alert(err);
@@ -143,11 +143,14 @@ input {font-size:15px;}
 		var row = tb.insertRow(insp);
 		row.setAttribute('id', 'R'+rid);
 		row.innerHTML = `<th class="ptr" draggable=true ondragstart="drag_rid=${rid};" ondrop="drop(${rid})" ondragover="allowDrop(event)">${insp}</th>
-	<td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true" class="content_editable"></td>
-	<td style="text-align:center">
+<td contenteditable="true" class="content_editable"></td>
+<td contenteditable="true" class="content_editable"></td>
+<td contenteditable="true" class="content_editable"></td>
+<td style="text-align:center">
 	<input type='button' onclick='record(${rid})' value='Record' title="Hold the button on your remote controller and click RECORD">
 	<input type='button' onclick='emit(${rid})' value='Send' title="Execute this command">
-	<input type='button' onclick='deleteRow(${rid})' value='Delete' title="Delete this row"></td>`;
+	<input type='button' onclick='deleteRow(${rid})' value='Delete' title="Delete this row">
+</td>`;
 		rid++;
 		return row;
 	}
