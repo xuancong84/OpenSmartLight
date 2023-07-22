@@ -267,19 +267,35 @@ def send_tcp(obj):
 	try:
 		s = socket.socket()
 		s.connect((obj['IP'], obj['PORT']))
-		s.send(obj['data'])
+		nsent = s.send(obj['data'])
 		s.recv(256)
 		s.close()
-		return f'OK, sent {len(obj["data"])} bytes'
+		return f'OK, sent {nsent} bytes'
 	except Exception as e:
 		prt(e)
 		return str(e)
 
 def send_udp(obj):
 	try:
-		with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-			s.sendto(obj['data'], (obj['IP'], obj['PORT']))
-			return f'OK, sent {len(obj["data"])} bytes'
+		s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		nsent = s.sendto(obj['data'], (obj['IP'], obj['PORT']))
+		s.close()
+		return f'OK, sent {nsent} bytes'
+	except Exception as e:
+		prt(e)
+		return str(e)
+	
+def send_wol(obj):
+	try:
+		mac = obj['data']
+		if len(mac) == 17:
+			mac = mac.replace(mac[2], "")
+		elif len(mac) != 12:
+			return "Incorrect MAC address format"
+		s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		nsent = s.sendto(bytes.fromhex("F"*12 + mac*16), (obj.get('IP', '255.255.255.255'), obj.get('PORT', 9)))
+		s.close()
+		return f'OK, sent {nsent} bytes'
 	except Exception as e:
 		prt(e)
 		return str(e)
@@ -314,6 +330,8 @@ def execRC(s):
 				return send_tcp(s)
 			elif p=='UDP':
 				return send_udp(s)
+			elif p=='WOL':
+				return send_wol(s)
 			else:
 				return 'Unknown protocol'
 	except Exception as e:
