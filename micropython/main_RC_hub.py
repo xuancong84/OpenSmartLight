@@ -235,9 +235,10 @@ def save_file(fn, gen):
 			for L in gen:
 				fp.write(L)
 				gc.collect()
-		return True
-	except:
-		return False
+		return 'Save OK'
+	except Exception as e:
+		prt(e)
+		return str(e)
 	
 def list_files(path=''):
 	yield f'{path}/\t\n'
@@ -256,10 +257,22 @@ def isDir(path):
 	except:
 		return False
 
+@MWS.Route('/move_file', 'POST')
+def move_file(clie, resp):
+	try:
+		src, dst = clie.ReadRequestContent().decode().split('\n')[:2]
+		if isDir(dst):
+			dst += src.rstrip('/').split('/')[-1]
+		os.rename(src, dst)
+		return f'OK, moved {src} to {dst}'
+	except Exception as e:
+		prt(e)
+		return str(e)
+
 def deleteFile(path):
 	try:
 		os.rmdir(path) if isDir(path) else os.remove(path)
-		return 'OK'
+		return 'Delete OK'
 	except Exception as e:
 		return str(e)
 
@@ -352,16 +365,17 @@ class MWebServer:
 		routeHandlers = [
 			( "/", "GET", lambda *_: f'Hello world!' ),
 			( "/wifi_restart", "GET", lambda *_: self.set_cmd('restartWifi') ),
-			( "/wifi_save", "POST", lambda clie, resp: 'Save OK' if save_file('secret.py', clie.YieldRequestContent()) else 'Save failed' ),
+			( "/wifi_save", "POST", lambda clie, resp: save_file('secret.py', clie.YieldRequestContent()) ),
 			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
 			( "/reboot", "GET", lambda *_: self.set_cmd('reboot') ),
 			( "/rc_record", "GET", lambda *_: str(rc.recv()) ),
 			( "/rc_exec", "POST", lambda cli, *arg: execRC(cli.ReadRequestContent())),
-			( "/rc_save", "POST", lambda clie, resp: 'Save OK' if save_file('rc-codes.txt', clie.YieldRequestContent()) else 'Save failed' ),
+			( "/rc_save", "POST", lambda clie, resp: save_file('rc-codes.txt', clie.YieldRequestContent()) ),
 			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile('rc-codes.txt') ),
 			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseFile(list_files()) ),
 			( "/delete_files", "GET", lambda clie, resp: deleteFile(clie.GetRequestQueryString()) ),
 			( "/get_file", "GET", lambda clie, resp: resp.WriteResponseFileAttachment(clie.GetRequestQueryString()) ),
+			( "/upload_file", "POST", lambda clie, resp: save_file(clie.GetRequestQueryString(), clie.YieldRequestContent()) ),
 		]
 		self.app = MWS(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
 		self.sock_web = self.app.run(max_conn=max_conn, loop_forever=False)
