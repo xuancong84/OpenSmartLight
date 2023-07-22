@@ -61,9 +61,11 @@ input {font-size:15px;}
 
 <body>
 	<h2>OpenSmartNode (Remote Control Hub)
+		<button onclick="window.location.href='/file.html'" title="Go to file transfer page" class="bb">File Transfer ...</button> 
+		<button onclick="window.location.href='/wifi.html'" title="Go to WiFi settings page" class="bb">Wifi Settings ...</button>
 		<span id="svr_reply" style="color:red"></span>
 	</h2>
-	<h3>Remote Control Button Mapping</h3>
+	<h3>Remote Control KeyCode Mapping</h3>
 	<table id="rc-table" style="width:100%">
 		<tr>
 			<th style="width:10pt">SN</th>
@@ -76,7 +78,7 @@ input {font-size:15px;}
 			<td colspan="100%"><button onclick="add_new_row()">Add New Row</button></td>
 		</tr>
 	</table>
-	<p>Notes: it is better to sort the commands with most frequently used one on top, you can drag the SN index to swap two rows.</p>
+	<p>Notes: it is better to sort the commands with most frequently used one on top, you can drag the SN index to sort the rows.</p>
 	<p>
 		<button onclick="save()" title="Save remote control mappings" class="bb">Save Table</button>&nbsp;
 		<button onclick="load()" title="Load remote control mappings" class="bb">Load Table</button>&nbsp;
@@ -134,9 +136,13 @@ input {font-size:15px;}
 	function allowDrop(ev) {ev.preventDefault();}
 	function drop(rid){
 		if(drag_rid==rid) return;
-		var src=getById('R'+drag_rid), tgt=getById('R'+rid);
-		for(var x=1; x<=3; x++)
-			[src.children[x].textContent, tgt.children[x].textContent] = [tgt.children[x].textContent, src.children[x].textContent];
+		var upper = Math.min(drag_rid, rid), lower = Math.max(drag_rid, rid);
+		var inc = drag_rid==upper?1:-1;
+		for(var i=drag_rid; i!=rid; i+=inc){
+			var src=getById('R'+i), tgt=getById('R'+(i+inc));
+			for(var x=1; x<=3; x++)
+				[src.children[x].textContent, tgt.children[x].textContent] = [tgt.children[x].textContent, src.children[x].textContent];
+		}
 	}
 	function add_new_row() {
 		var insp = tb.rows.length - 1;
