@@ -56,6 +56,84 @@ h3 {margin-bottom:10px;}
 input {font-size:15px;}
 .bb { font-weight: bold; }
 .ptr {cursor: pointer;}
+.toggle {
+  --width: 80px;
+  --height: calc(var(--width) / 3);
+
+  position: relative;
+  display: inline-block;
+  width: var(--width);
+  height: var(--height);
+  box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.3);
+  border-radius: var(--height);
+  cursor: pointer;
+  vertical-align: middle;
+}
+.toggle input {
+  display: none;
+}
+.toggle .slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--height);
+  background-color: #ccc;
+  transition: all 0.4s ease-in-out;
+}
+.toggle input:checked+.slider {
+  background-color: #2196F3;
+}
+.toggle .slider::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--height));
+  height: calc(var(--height));
+  border-radius: calc(var(--height) / 2);
+  background-color: #fff;
+  box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.3);
+  transition: all 0.4s ease-in-out;
+}
+.toggle input:checked+.slider::before {
+  transform: translateX(calc(var(--width) - var(--height)));
+}
+.toggle .labels {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  font-size: 16px;
+  font-family: sans-serif;
+  transition: all 0.4s ease-in-out;
+}
+.toggle .labels::after {
+  content: attr(data-off);
+  position: absolute;
+  right: 14px;
+  color: #4d4d4d;
+  opacity: 1;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
+  transition: all 0.4s ease-in-out;
+}
+.toggle .labels::before {
+  content: attr(data-on);
+  position: absolute;
+  left: 18px;
+  color: #ffffff;
+  opacity: 0;
+  text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.4);
+  transition: all 0.4s ease-in-out;
+}
+.toggle input:checked~.labels::after {
+  opacity: 0;
+}
+.toggle input:checked~.labels::before {
+  opacity: 1;
+}
 	</style>
 </head>
 
@@ -63,9 +141,12 @@ input {font-size:15px;}
 	<h2>OpenSmartNode (Remote Control Hub)
 		<button onclick="window.location.href='/file.html'" title="Go to file transfer page" class="bb">File Transfer ...</button> 
 		<button onclick="window.location.href='/wifi.html'" title="Go to WiFi settings page" class="bb">Wifi Settings ...</button>
-		<span id="svr_reply" style="color:red"></span>
 	</h2>
-	<h3>Remote Control KeyCode Mapping</h3>
+	<h3><span>Logging:</span><label class="toggle"><input id='cb_debug' type="checkbox" onchange='set_ckbox(this)'>
+		<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;
+		Server Time: <span id="tm"></span>
+	</h3>
+	<h3>Remote Control Mapping Table</h3>
 	<table id="rc-table" style="width:100%">
 		<tr>
 			<th style="width:10pt">SN</th>
@@ -97,7 +178,9 @@ input {font-size:15px;}
 	var tb = getById('rc-table');
 	var rid = 0;
 	var drag_rid;
-	function goto(url) { location.href = url; }
+	function set_ckbox(obj){
+		alert(GET('/setv?DEBUG='+(obj.checked?'True':'False')));
+	}
 	function save() {
 		var N = tb.rows.length - 2;
 		var ret = '';
@@ -105,10 +188,15 @@ input {font-size:15px;}
 			ret += [1, 2, 3].map(x => tb.rows[n].children[x].innerText).join('\t') + '\n';
 		alert(GET('/rc_save', 'POST', ret));
 	}
+	function update(){
+		getById('tm').textContent = GET('/getv?getFullDateTime()');
+		getById('cb_debug').checked = GET('/getv?str(DEBUG)')=='True';
+	}
 	function load() {
 		try {
-      var txt = GET('/rc_load').trim();
-      if(!txt) return;
+			update();
+			var txt = GET('/rc_load').trim();
+			if(!txt) return;
 			var lines = txt.split('\n');
 			while (tb.rows.length > 2) tb.deleteRow(1);
 			for (var line of lines) {
