@@ -7,14 +7,14 @@ from microWebSrv import MicroWebSrv as MWS
 from machine import Pin
 gc.collect()
 
-PIN_RC_IN = 5
-PIN_RC_OUT = 4
+PIN_RC_IN = 3
+PIN_RC_OUT = 2
 DEBUG = True
 LOGFILE = 'static/log.txt'
 timezone = 8
 
-LED = Pin(2, Pin.OUT)
-LED(0)
+LED = Pin(12, Pin.OUT)
+LED(1)
 
 def flashLED(intv=0.25):
 	for i in range(3):
@@ -45,15 +45,15 @@ def prt(*args, **kwarg):
 	if DEBUG:
 		print(getFullDateTime(), end=' ')
 		print(*args, **kwarg)
-	if LOGFILE:
-		try:
-			if os.stat(LOGFILE)[6]>1000000:
-				os.remove(LOGFILE)
-		except:
-			pass
-		with open(LOGFILE, 'a') as fp:
-			print(getFullDateTime(), end=' ', file=fp)
-			print(*args, **kwarg, file=fp)
+		if LOGFILE:
+			try:
+				if os.stat(LOGFILE)[6]>1000000:
+					os.remove(LOGFILE)
+			except:
+				pass
+			with open(LOGFILE, 'a') as fp:
+				print(getFullDateTime(), end=' ', file=fp)
+				print(*args, **kwarg, file=fp)
 
 def connect_wifi():
 	global wifi
@@ -352,11 +352,20 @@ def execRC(s):
 		return str(e)
 	return 'Unknown command'
 
+def Exec(cmd):
+	try:
+		exec(cmd, globals(), globals())
+		return 'OK'
+	except Exception as e:
+		return str(e)
+
 class MWebServer:
 	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
 		self.cmd = ''
 		routeHandlers = [
 			( "/", "GET", lambda *_: f'Hello world!' ),
+			( "/setv", "GET", lambda clie, resp: Exec(clie.GetRequestQueryString()) ),
+			( "/getv", "GET", lambda clie, resp: eval(clie.GetRequestQueryString(), globals(), globals()) ),
 			( "/wifi_restart", "GET", lambda *_: self.set_cmd('restartWifi') ),
 			( "/wifi_save", "POST", lambda clie, resp: save_file('secret.py', clie.YieldRequestContent()) ),
 			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
@@ -434,7 +443,7 @@ def run():
 		cpIP = start_wifi()
 		prt(wifi)
 		server = MWebServer(captivePortalIP=cpIP)
-		LED(1)
+		LED(0)
 		server.run()
 	except Exception as e:
 		prt(e)
