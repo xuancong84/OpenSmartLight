@@ -384,7 +384,6 @@ class MWebServer:
 		self.uart = machine.UART(1, 115200, rx=3, tx=2)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
-		# self.poll.register(sys.stdin, select.POLLIN)
 		self.poll.register(self.uart, select.POLLIN)
 		self.sock_map = {
 			id(self.sock_web): self.app.run_once, 
