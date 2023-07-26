@@ -33,9 +33,9 @@ S3F	射灯3关闭	{'protocol': 'TCP', 'IP': '192.168.50.13', 'PORT': 6668, 'data
 LDN	射灯全开启	['S1N', 'S2N', 'S3N']
 LDF	射灯全关闭	['S1F', 'S2F', 'S3F']
 LTVN	客厅电视机开启	{'protocol': 'WOL', 'data': '64:95:6C:39:3E:80'}
-LTVF	客厅电视机关闭	{}
+LTVF	客厅电视机关闭	{'protocol': 'FILE', 'filename': 'livingTVoff.tcp'}
 MTVN	主人房电视机开启	{'protocol': 'WOL', 'data': '74:e6:b8:20:1d:db'}
-MTVF	主人房电视机关闭	{}
+MTVF	主人房电视机关闭	{'protocol': 'FILE', 'filename': 'masterTVoff.tcp'}
 _KF	进入用餐模式	['LFN', 'DLS']
 _CW	退出用餐模式	['LFF', 'DLS']
 ALLN	客厅全部灯开启	['DLS', 'SLS', 'PLS', 'S1N', 'S2N', 'S3N']

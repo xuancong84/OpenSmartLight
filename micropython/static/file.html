@@ -108,18 +108,25 @@ input {font-size:15px;}
 			alert(GET('/move_file', 'POST', srcFile+'\n'+dstFile+'\n'));
 			load();
 		}else{
-			var fs = e.dataTransfer.files;
+			var fs = Array.from(e.dataTransfer.files);
+			var dstPath = e.target.textContent;
 			var res = '';
-			n_remain = fs.length;
-			for(f of fs){
-				var rd = new FileReader();
-				var fn = e.target.textContent.endsWith('/')?(e.target.textContent+f.name):e.target.textContent;
-				rd.onload = function(event){
-					res += GET('/upload_file?'+fn, 'POST', rd.result)+' : '+fn+'\r\n';
-					if(--n_remain==0){alert(res);load();}
+			const up1 = () => {
+				if(!fs.length){
+					alert(res);
+					load();
+					return;
 				}
-				rd.readAsBinaryString(f);
-			}
+				var f = fs.shift();
+				var rd = new FileReader();
+				var fn = dstPath.endsWith('/')?(dstPath+f.name):dstPath;
+				rd.onload = () => {
+					res += GET('/upload_file?'+fn, 'POST', rd.result)+' : '+fn+'\r\n';
+					up1();
+				};
+				rd.readAsArrayBuffer(f);
+			};
+			up1();
 		}
 	}
 	function add_new_row() {
