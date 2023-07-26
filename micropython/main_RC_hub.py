@@ -45,15 +45,15 @@ def prt(*args, **kwarg):
 	if DEBUG:
 		print(getFullDateTime(), end=' ')
 		print(*args, **kwarg)
-	if LOGFILE:
-		try:
-			if os.stat(LOGFILE)[6]>1000000:
-				os.remove(LOGFILE)
-		except:
-			pass
-		with open(LOGFILE, 'a') as fp:
-			print(getFullDateTime(), end=' ', file=fp)
-			print(*args, **kwarg, file=fp)
+		if LOGFILE:
+			try:
+				if os.stat(LOGFILE)[6]>1000000:
+					os.remove(LOGFILE)
+			except:
+				pass
+			with open(LOGFILE, 'a') as fp:
+				print(getFullDateTime(), end=' ', file=fp)
+				print(*args, **kwarg, file=fp)
 
 def connect_wifi():
 	global wifi
@@ -280,10 +280,10 @@ def send_tcp(obj):
 	try:
 		s = socket.socket()
 		s.connect((obj['IP'], obj['PORT']))
-		nsent = s.send(obj['data'])
-		s.recv(256)
+		s.sendall(obj['data'])
+		s.recv(obj.get('recv_size', 256))
 		s.close()
-		return f'OK, sent {nsent} bytes'
+		return f'OK, sent {len(obj["data"])} bytes'
 	except Exception as e:
 		prt(e)
 		return str(e)
@@ -312,6 +312,34 @@ def send_wol(obj):
 	except Exception as e:
 		prt(e)
 		return str(e)
+
+def send_cap(fn):
+	s = None
+	with open(fn, 'rb') as fp:
+		for L in fp:
+			L = L.strip()
+			if L.startswith(b'{'):
+				obj = eval(L)
+				del L
+				gc.collect()
+				s = socket.socket()
+				s.connect((obj['IP'], obj['PORT']))
+				if 'data' in obj:
+					s.sendall(obj['data'])
+			elif L.startswith(b'b'):
+				a = eval(L)
+				del L
+				gc.collect()
+				s.sendall(a)
+				del a
+			elif L.isdigit():
+				s.recv(int(L)*2)
+			gc.collect()
+	try:
+		s.close()
+	except Exception as e:
+		return str(e)
+
 
 def execRC(s):
 	if type(s)==bytes:
@@ -345,6 +373,8 @@ def execRC(s):
 				return send_udp(s)
 			elif p=='WOL':
 				return send_wol(s)
+			elif p=='FILE':
+				return send_cap(s['filename'])
 			else:
 				return 'Unknown protocol'
 	except Exception as e:
@@ -352,18 +382,20 @@ def execRC(s):
 		return str(e)
 	return 'Unknown command'
 
-def handleRC():
-	key = sys.stdin.readline().strip()
-	prt(f'RX received {key}')
-	code = get_rc_code(key)
-	execRC(code)
-	flashLED(0.1)
+def Exec(cmd):
+	try:
+		exec(cmd, globals(), globals())
+		return 'OK'
+	except Exception as e:
+		return str(e)
 
 class MWebServer:
 	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
 		self.cmd = ''
 		routeHandlers = [
 			( "/", "GET", lambda *_: f'Hello world!' ),
+			( "/setv", "GET", lambda clie, resp: Exec(clie.GetRequestQueryString()) ),
+			( "/getv", "GET", lambda clie, resp: eval(clie.GetRequestQueryString(), globals(), globals()) ),
 			( "/wifi_restart", "GET", lambda *_: self.set_cmd('restartWifi') ),
 			( "/wifi_save", "POST", lambda clie, resp: save_file('secret.py', clie.YieldRequestContent()) ),
 			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
@@ -385,7 +417,7 @@ class MWebServer:
 		self.poll.register(sys.stdin, select.POLLIN)
 		self.sock_map = {
 			id(self.sock_web): self.app.run_once, 
-			id(sys.stdin): handleRC,
+			id(sys.stdin): self.handleRC,
 		}
 		self.cpIP = captivePortalIP
 
@@ -397,6 +429,13 @@ class MWebServer:
 			self.sock_map[id(self.sock_dns)] = self.handleDNS
 		else:
 			self.sock_dns = None
+
+	def handleRC(self):
+		key = sys.stdin.readline().strip()
+		prt(f'RX received {key}')
+		code = get_rc_code(key)
+		execRC(code)
+		flashLED(0.1)
 
 	def set_cmd(self, vn):
 		prt(f'Setting cmd to :{vn}')
