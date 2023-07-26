@@ -24,7 +24,7 @@ def get_packet():
 		else:
 			over_cap_line = L
 			break
-	return ret
+	return ret.splitlines()
 
 def split_ip_port(t):
 	its = t.decode().strip(':').split('.')
@@ -32,9 +32,9 @@ def split_ip_port(t):
 
 ip_to_int = lambda ip: int(''.join([('%02x'%int(i)) for i in ip.split('.')]), 16)
 
-def parse_packet(pkt):
+def parse_tcp(pkt):
 	try:
-		Ls = [L for L in pkt.splitlines() if L]
+		Ls = pkt
 		its = Ls[0].split(b' ')
 		assert Ls[0][0:1].isdigit() and its[1]==b'IP'
 		srcAddr, _, dstAddr = its[2:5]
@@ -48,28 +48,70 @@ def parse_packet(pkt):
 		assert (pair&0xf)==0
 		srcIP, srcPort = split_ip_port(srcAddr)
 		dstIP, dstPort = split_ip_port(dstAddr)
-		return bdata[posi+dw_len*4:], {'from_ip':srcIP, 'to_ip':dstIP, 'from_port':srcPort, 'to_port':dstPort,
-				 'srcIPint': ip_to_int(srcIP), 'dstIPint': ip_to_int(dstIP)}
+		return {'from_ip':srcIP, 'to_ip':dstIP, 'from_port':srcPort, 'to_port':dstPort, 'firstline': Ls[0].decode(),
+			'srcIPint': ip_to_int(srcIP), 'dstIPint': ip_to_int(dstIP), 'data': bdata[posi+dw_len*4:]}
 	except Exception as e:
 		return None
 
+
+def split_packets(txt):
+	chunks, chunk = [], []
+	for L in txt.splitlines():
+		if not L.strip(): continue
+		if L.startswith(b'\t'):
+			chunk += [L]
+		else:
+			if chunk:
+				chunks += [chunk]
+			chunk = [L]
+	if chunk:
+		chunks += [chunk]
+	return chunks
+
+
+def apply_filter(obj):
+	global from_ip, to_ip, from_port, to_port, netmask
+	intmask = eval(format((0xffffffff>>netmask)^0xffffffff, '#032b'))
+	if from_ip and obj['from_ip']!=from_ip:
+		return True
+	if to_ip and obj['to_ip']!=to_ip:
+		return True
+	if from_port and obj['from_port']!=from_port:
+		return True
+	if to_port and obj['to_port']!=to_port:
+		return True
+	if netmask and obj['srcIPint']&intmask != obj['dstIPint']&intmask:
+		return True
+	return False
+
+
+def print_split(bs, chk_sz, fp):
+	if chk_sz<len(bs):
+		for i in range(0, len(bs), chk_sz):
+			print(bs[i:i+chk_sz], file=fp)
+	else:
+		print(bs, file=fp)
+
+
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser(usage = '$0 arg1 1>output 2>progress', description = 'This program extracts TCP data sent to an remote-controlled device.',
+	parser = argparse.ArgumentParser(usage = '$0 arg1 1>output 2>progress', description = 'this program extract TCP data sent to an appliance',
 	                                 formatter_class = argparse.ArgumentDefaultsHelpFormatter)
 	parser.add_argument('--console', '-C', help = 'Take input from STDIN console', action='store_true')
 	parser.add_argument('--cmd', '-c', help = 'The command line for tcpdump', default = 'sudo tcpdump -n -XX')
 	parser.add_argument('--interface', '-i', help = 'Network interface to listen to (if not specified in --cmd)', default = 'wlan0')
+	parser.add_argument('--finput', '-in', help = 'input file to with tcpdump content; default: - (STDIN)', default = '-')
 	parser.add_argument('--output', '-o', help = 'output file to save to; default: - (STDOUT)', default = '-')
 	parser.add_argument('--netmask', '-m', help = 'only capture LAN packets (srcIP & dstIP must have the same network address), e.g., 24 means 255.255.255.0', type=int, default=0)
 	parser.add_argument('--to-port', '-tp', help = 'only capture packets from the specified port', type=int, default=0)
 	parser.add_argument('--from-port', '-fp', help = 'only capture packets to the specified port', type=int, default=0)
 	parser.add_argument('--to-ip', '-ti', help = 'only capture packets from the specified IP', default='')
 	parser.add_argument('--from-ip', '-fi', help = 'only capture packets to the specified IP', default='')
+	parser.add_argument('--chunk-size', '-s', help = 'chunk size for sending TCP packets', type=int, default=999999999)
 	# nargs='?': optional positional argument; action='append': multiple instances of the arg; type=; default=
 	opt = parser.parse_args()
 	globals().update(vars(opt))
 
-	# data,info = parse_packet(b'''17:05:19.631471 IP 10.42.0.56.58846 > 10.42.0.118.1883: Flags [P.], seq 2187042920:2187043110, ack 3328138612, win 65535, length 190
+	# data,info = parse_tcp(b'''17:05:19.631471 IP 10.42.0.56.58846 > 10.42.0.118.1883: Flags [P.], seq 2187042920:2187043110, ack 3328138612, win 65535, length 190
 	# 0x0000:  c8ff 7782 04fc a057 e3b8 1a27 0800 4500  ..w....W...'..E.
 	# 0x0010:  00e6 7e40 4000 4006 a6d0 0a2a 0038 0a2a  ..~@@.@....*.8.*
 	# 0x0020:  0076 e5de 075b 825b a068 c65f 5d74 5018  .v...[.[.h._]tP.
@@ -87,39 +129,49 @@ if __name__ == "__main__":
 	# 0x00e0:  332d 3037 2d31 3954 3039 3a30 353a 3139  3-07-19T09:05:19
 	# 0x00f0:  5a22 0a7d                                Z".}''')
 
-	if console:
-		pkt = sys.stdin.buffer.read()
-		data, info = parse_packet(pkt)
-	else:
+	fp = Open(output, 'w')
+
+	if console:	# paste in mode
+		pkts = split_packets(Open(finput, 'rb').read())
+		if len(pkts) > 1:
+			header = True
+			for ii, pkt in enumerate(pkts):
+				L1 = pkt[0].decode()
+				if ' IP ' not in L1 or ' Flags ' not in L1 or L1.endswith('length 0'):
+					continue
+				obj = parse_tcp(pkt)
+				if obj == None: continue
+				if not header and to_ip and to_port and obj['from_ip']==to_ip and obj['from_port']==to_port:
+					print(len(obj['data']), file=fp)
+					continue
+				if apply_filter(obj): continue
+				if header:
+					header = False
+					print({'protocol':'TCP', 'IP':obj['to_ip'], 'PORT':obj['to_port']}, file=fp)
+				print_split(obj['data'], chunk_size, fp)
+				# print(obj['data'], file=fp)
+		else:
+			obj = parse_tcp(pkts[0])
+			print({'IP':obj['to_ip'], 'PORT':obj['to_port'], 'data': obj['data']}, file=fp)
+			print({'protocol':'TCP', 'IP':obj['to_ip'], 'PORT':obj['to_port'], 'data': obj['data']}, file=sys.stderr)
+
+	else:	# spawn process mode
 		if '-i ' not in cmd and '--interface' not in cmd:
 			cmd += f' -i {interface}'
-
-		intmask = eval(format((0xffffffff>>netmask)^0xffffffff, '#032b'))
-
-		data = b''
 
 		with subprocess.Popen(cmd.split(), stdout=subprocess.PIPE) as P:
 			while True:
 				try:
 					pkt = get_packet()
-					data, info = parse_packet(pkt)
-					if from_ip and info['from_ip']!=from_ip:
-						continue
-					if to_ip and info['to_ip']!=to_ip:
-						continue
-					if from_port and info['from_port']!=from_port:
-						continue
-					if to_port and info['to_port']!=to_port:
-						continue
-					if netmask and info['srcIPint']&intmask != info['dstIPint']&intmask:
-						continue
-					break
+					obj = parse_tcp(pkt)
+					if apply_filter(obj):
+						break
 				except:
 					continue
 			P.kill()
 	
-	with Open(output, 'w') as fp:
-		print({'IP':info['to_ip'], 'PORT':info['to_port'], 'data': data}, file=fp)
+			print({'IP':obj['to_ip'], 'PORT':obj['to_port'], 'data': obj['data']}, file=fp)
+			print({'protocol':'TCP', 'IP':obj['to_ip'], 'PORT':obj['to_port'], 'data': obj['data']}, file=sys.stderr)
 
-	print({'protocol':'TCP', 'IP':info['to_ip'], 'PORT':info['to_port'], 'data': data}, file=sys.stderr)
+	fp.close()
 
