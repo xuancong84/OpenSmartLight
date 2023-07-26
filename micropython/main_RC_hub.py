@@ -327,11 +327,8 @@ def send_cap(fn):
 				if 'data' in obj:
 					s.sendall(obj['data'])
 			elif L.startswith(b'b'):
-				a = eval(L)
+				s.sendall(eval(L))
 				del L
-				gc.collect()
-				s.sendall(a)
-				del a
 			elif L.isdigit():
 				s.recv(int(L)*2)
 			gc.collect()
