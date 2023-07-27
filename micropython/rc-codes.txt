@@ -40,3 +40,6 @@ _KF	进入用餐模式	['LFN', 'DLS']
 _CW	退出用餐模式	['LFF', 'DLS']
 ALLN	客厅全部灯开启	['DLS', 'SLS', 'PLS', 'S1N', 'S2N', 'S3N']
 ALLF	客厅全部灯关闭	['DLS', 'SLS', 'PLS', 'S1F', 'S2F', 'S3F']
+RCB	扫地机开启	'http://18.139.106.135:8883/ecovacs/T8/clean'
+RCS	扫地机暂停	'http://18.139.106.135:8883/ecovacs/T8/pause'
+RCR	扫地机返回	'http://18.139.106.135:8883/ecovacs/T8/return-to-charge'

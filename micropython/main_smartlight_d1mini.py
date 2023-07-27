@@ -78,8 +78,6 @@ tm_last_timesync = 0
 tm_last_debugon = 0
 tm_last_savehist = 0
 
-
-
 def getTimeString(tm=None):
 	tm = tm or time.localtime(time.time()+3600*saved['timezone'])
 	return '%02d:%02d:%02d'%(tm[3],tm[4],tm[5])
