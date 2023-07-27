@@ -342,7 +342,7 @@ def execRC(s):
 	if type(s)==bytes:
 		s = s.decode()
 	prt(f'execRC:{str(s)}')
-	if s is None: return
+	if s is None: return 'OK'
 	try:
 		if type(s)==list:
 			res = []
@@ -355,10 +355,7 @@ def execRC(s):
 				url.get(s).close()
 			else:
 				code = get_rc_code(s)
-				if code is not None:
-					return execRC(code)
-				else:
-					return execRC(eval(s))
+				return execRC(eval(s) if code==None else code)
 		elif type(s)==dict:
 			p = s.get('protocol', 'RF433')
 			prt(p, s)
@@ -377,7 +374,7 @@ def execRC(s):
 	except Exception as e:
 		prt(e)
 		return str(e)
-	return 'Unknown command'
+	return f'Unknown command {str(s)}'
 
 def Exec(cmd):
 	try:
@@ -398,6 +395,7 @@ class MWebServer:
 			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
 			( "/reboot", "GET", lambda *_: self.set_cmd('reboot') ),
 			( "/rc_record", "GET", lambda *_: str(rc.recv()) ),
+			( "/rc_run", "GET", lambda cli, *arg: execRC(cli.GetRequestQueryString())),
 			( "/rc_exec", "POST", lambda cli, *arg: execRC(cli.ReadRequestContent())),
 			( "/rc_save", "POST", lambda clie, resp: save_file('rc-codes.txt', clie.YieldRequestContent()) ),
 			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile('rc-codes.txt') ),
