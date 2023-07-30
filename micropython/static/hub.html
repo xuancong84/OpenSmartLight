@@ -139,11 +139,12 @@ input {font-size:15px;}
 
 <body>
 	<h2>OpenSmartNode (Remote Control Hub)
-		<button onclick="window.location.href='/file.html'" title="Go to file transfer page" class="bb">File Transfer ...</button> 
+		<button onclick="window.location.href='/file.html'" title="Go to file transfer page" class="bb">File Transfer ...</button>
 		<button onclick="window.location.href='/wifi.html'" title="Go to WiFi settings page" class="bb">Wifi Settings ...</button>
 	</h2>
 	<h3><span>Logging:</span><label class="toggle"><input id='cb_debug' type="checkbox" onchange='set_ckbox(this)'>
 		<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;
+		<button onclick="window.location.href='/log.txt'" class="bb">View Log File</button> &nbsp;
 		Server Time: <span id="tm"></span>
 	</h3>
 	<h3>Remote Control Mapping Table</h3>
@@ -209,8 +210,13 @@ input {font-size:15px;}
 			alert(err);
 		}
 	}
-	function record(rid) {
-		getById('R'+rid).children[3].textContent = GET('/rc_record');
+	function recordRF(rid) {
+		if(confirm("Please hold down the remote controller button and click OK to record:"))
+			getById('R'+rid).children[3].textContent = GET('/rf_record');
+	}
+	function recordIR(rid) {
+		if(confirm("Please press the remote controller button 3 times within 3 seconds after clicking OK:"))
+			getById('R'+rid).children[3].textContent = GET('/ir_record');
 	}
 	function emit(rid) {
 		var v = getById('R'+rid).children[3].textContent;
@@ -241,7 +247,8 @@ input {font-size:15px;}
 <td contenteditable="true" class="content_editable"></td>
 <td contenteditable="true" class="content_editable"></td>
 <td style="text-align:center">
-	<input type='button' onclick='record(${rid})' value='Record' title="Hold the button on your remote controller and click RECORD">
+	<input type='button' onclick='recordRF(${rid})' value='Record-RF' title="Record 433MHz remote controller signal">
+	<input type='button' onclick='recordIR(${rid})' value='Record-IR' title="Record infrared remote controller signal">
 	<input type='button' onclick='emit(${rid})' value='Send' title="Execute this command">
 	<input type='button' onclick='deleteRow(${rid})' value='Delete' title="Delete this row">
 </td>`;
