@@ -7,9 +7,12 @@ from microWebSrv import MicroWebSrv as MWS
 from machine import Pin, UART
 gc.collect()
 
-PIN_RC_IN = 5
-PIN_RC_OUT = 4
+PIN_RF_IN = 5
+PIN_RF_OUT = 4
+PIN_IR_IN = 16
+PIN_IR_OUT = 14
 DEBUG = True
+RCFILE = 'rc-codes.txt'
 LOGFILE = 'static/log.txt'
 timezone = 8
 
@@ -100,26 +103,22 @@ def start_wifi():
 
 
 class RC():
-	def __init__(self, rx_pin, tx_pin=None):  # Typically ~15 frames
-		self.rx_pin = Pin(rx_pin, Pin.IN, Pin.PULL_UP)
-		self.tx_pin = self.rx_pin if tx_pin is None else Pin(tx_pin, Pin.OUT)
-		self.tx_pin(0)	# turn off radio
-		self.data = {}
+	def __init__(self, rx_pin, tx_pin, nedges, nrepeat, min_nframes, gap_tol, proto={}):  # Typically ~15 frames
+		self.rx_pin = None if rx_pin==None else Pin(rx_pin, Pin.IN, Pin.PULL_UP)
+		self.tx_pin = None if tx_pin==None else Pin(tx_pin, Pin.OUT)
+		if self.tx_pin != None:
+			self.tx_pin(0)	# turn off radio
+		self.nedges = nedges
+		self.nrepeat = nrepeat
+		self.min_nframes = min_nframes
+		self.gap_tol = gap_tol
+		self.proto = proto
 		gc.collect()
 
-	# View list of pulse lengths: prt(receiver['on'])
-	def __getitem__(self, key):
-		return self.data.get(key, (None, None))
-
-	def __delitem__(self, key):  # Key deletion: del receiver['on']
-		del self.data[key]
-
-	def keys(self):
-		return self.data.keys()
-
-	def recv(self, key=None, nedges=800):
-		gc.collect()
+	def recv(self):
 		prt('Receiving radio data ...')
+		gc.collect()
+		nedges = self.nedges
 		p = self.rx_pin
 		arr = array('I',  [0]*nedges)
 
@@ -135,8 +134,11 @@ class RC():
 		machine.enable_irq(st_irq)
 		# ** End of time critical **
 
-		if x < nedges-1:
+		if x <= self.min_nframes*2:
 			return 'No signal received'
+		nedges = x
+		arr = arr[:nedges]
+		gc.collect()
 
         # Compute diffs
 		for x in range(nedges-1, 0, -1):
@@ -144,9 +146,9 @@ class RC():
 		arr[0] = 0
 
 		# Extract segments
-		gap = round(max(arr)*0.8)
+		gap = round(max(arr)*self.gap_tol)
 		gap_pos = [i for i,v in enumerate(arr) if v>=gap]
-		if len(gap_pos) < 6:
+		if len(gap_pos) < self.min_nframes:
 			return 'Too few frames'
 		segs = [arr[gap_pos[i-1]:gap_pos[i]] for i in range(1, len(gap_pos))]
 		prt(f'init level={init_level}')
@@ -163,7 +165,7 @@ class RC():
 		segs = [seg for seg in segs if len(seg)==len_most]
 		N_new = len(segs)
 
-		if N_new < 5:
+		if N_new < self.min_nframes:
 			return 'Too few selected frames'
 		
 		if N_old != N_new:
@@ -175,30 +177,25 @@ class RC():
 		del segs
 		prt('Capture quality {:5.1f} (0: perfect)'.format(sum(std)/len(std)))
 		ret = {'init_level':init_level, 'data':list(map(round, m))}
+		ret.update(self.proto)
 	
-		if key != None:
-			self.data[key] = ret
-			prt(f'Key "{key}" stored.')
 		return ret
 
-
-	def send(self, key, repeat=5):
+	def send(self, obj):
 		gc.collect()
 
 		try:
-			obj = key if type(key)==dict else self.data.get(key, eval(key if type(key)==str else key.decode()))
 			init_level, arr = obj['init_level'], obj['data']
 		except Exception as e:
-			prt(f'key={key}')
 			prt(e)
 			return str(e)
 		
-		prt('Sending radio data ...')
+		prt('Sending RC data ...')
 		p = self.tx_pin
 
 		# ** Time critical **
 		st_irq = machine.disable_irq()
-		for i in range(repeat):
+		for i in range(self.nrepeat):
 			level = init_level
 			p(level)
 			tm_til = ticks_us()
@@ -213,13 +210,24 @@ class RC():
 		p(0)	# turn off radio
 		return 'OK'
 
+# For RF 433MHz remote controller
+class RF433RC(RC):
+	def __init__(self, rx_pin=None, tx_pin=None, nedges=800, nrepeat=5, min_nframes=5, gap_tol=0.8):
+		super().__init__(rx_pin, tx_pin, nedges, nrepeat, min_nframes, gap_tol, proto={'protocol':'RF433'})
+
+# For infrared remote controller
+class IRRC(RC):
+	def __init__(self, rx_pin=None, tx_pin=None, nedges=600, nrepeat=1, min_nframes=3, gap_tol=0.5):
+		super().__init__(rx_pin, tx_pin, nedges, nrepeat, min_nframes, gap_tol, proto={'protocol':'IRRC'})
+
 
 # Globals
-rc = RC(PIN_RC_IN, PIN_RC_OUT)
+rfc = RF433RC(PIN_RF_IN, PIN_RF_OUT)
+irc = IRRC(PIN_IR_IN, PIN_IR_OUT)
 
 def get_rc_code(key):
 	try:
-		with open('rc-codes.txt') as fp:
+		with open(RCFILE) as fp:
 			for L in fp:
 				gc.collect()
 				its = L.split('\t')
@@ -360,7 +368,9 @@ def execRC(s):
 			p = s.get('protocol', 'RF433')
 			prt(p, s)
 			if p=='RF433':
-				return rc.send(s)
+				return rfc.send(s)
+			elif p=='IRRC':
+				return irc.send(s)
 			elif p=='TCP':
 				return send_tcp(s)
 			elif p=='UDP':
@@ -394,11 +404,12 @@ class MWebServer:
 			( "/wifi_save", "POST", lambda clie, resp: save_file('secret.py', clie.YieldRequestContent()) ),
 			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
 			( "/reboot", "GET", lambda *_: self.set_cmd('reboot') ),
-			( "/rc_record", "GET", lambda *_: str(rc.recv()) ),
+			( "/rf_record", "GET", lambda *_: str(rfc.recv()) ),
+			( "/ir_record", "GET", lambda *_: str(irc.recv()) ),
 			( "/rc_run", "GET", lambda cli, *arg: execRC(cli.GetRequestQueryString())),
 			( "/rc_exec", "POST", lambda cli, *arg: execRC(cli.ReadRequestContent())),
-			( "/rc_save", "POST", lambda clie, resp: save_file('rc-codes.txt', clie.YieldRequestContent()) ),
-			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile('rc-codes.txt') ),
+			( "/rc_save", "POST", lambda clie, resp: save_file(RCFILE, clie.YieldRequestContent()) ),
+			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile(RCFILE) ),
 			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseFile(list_files()) ),
 			( "/delete_files", "GET", lambda clie, resp: deleteFile(clie.GetRequestQueryString()) ),
 			( "/get_file", "GET", lambda clie, resp: resp.WriteResponseFileAttachment(clie.GetRequestQueryString()) ),
