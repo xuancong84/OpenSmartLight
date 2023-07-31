@@ -142,7 +142,7 @@ input {font-size:15px;}
 		<button onclick="window.location.href='/file.html'" title="Go to file transfer page" class="bb">File Transfer ...</button>
 		<button onclick="window.location.href='/wifi.html'" title="Go to WiFi settings page" class="bb">Wifi Settings ...</button>
 	</h2>
-	<h3><span>Logging:</span><label class="toggle"><input id='cb_debug' type="checkbox" onchange='set_ckbox(this)'>
+	<h3><span>Logging:</span><label class="toggle"><input id='cb_log' type="checkbox" onchange='set_ckbox(this)'>
 		<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;
 		<button onclick="window.location.href='/log.txt'" class="bb">View Log File</button> &nbsp;
 		Server Time: <span id="tm"></span>
@@ -180,7 +180,7 @@ input {font-size:15px;}
 	var rid = 0;
 	var drag_rid;
 	function set_ckbox(obj){
-		alert(GET('/setv?DEBUG='+(obj.checked?'True':'False')));
+		alert(GET('/setv?SAVELOG='+(obj.checked?'True':'False')));
 	}
 	function save() {
 		var N = tb.rows.length - 2;
@@ -191,7 +191,7 @@ input {font-size:15px;}
 	}
 	function update(){
 		getById('tm').textContent = GET('/getv?getFullDateTime()');
-		getById('cb_debug').checked = GET('/getv?str(DEBUG)')=='True';
+		getById('cb_log').checked = GET('/getv?str(SAVELOG)')=='True';
 	}
 	function load() {
 		try {
@@ -215,7 +215,7 @@ input {font-size:15px;}
 			getById('R'+rid).children[3].textContent = GET('/rf_record');
 	}
 	function recordIR(rid) {
-		if(confirm("Please press the remote controller button 3 times within 3 seconds after clicking OK:"))
+		if(confirm("Please press the remote controller button at least 3 times within 3 seconds after clicking OK:"))
 			getById('R'+rid).children[3].textContent = GET('/ir_record');
 	}
 	function emit(rid) {

@@ -9,9 +9,10 @@ gc.collect()
 
 PIN_RF_IN = 5
 PIN_RF_OUT = 4
-PIN_IR_IN = 16
-PIN_IR_OUT = 14
-DEBUG = True
+PIN_IR_IN = 14
+PIN_IR_OUT = 12
+DEBUG = False
+SAVELOG = False
 RCFILE = 'rc-codes.txt'
 LOGFILE = 'static/log.txt'
 timezone = 8
@@ -48,15 +49,15 @@ def prt(*args, **kwarg):
 	if DEBUG:
 		print(getFullDateTime(), end=' ')
 		print(*args, **kwarg)
-		if LOGFILE:
-			try:
-				if os.stat(LOGFILE)[6]>1000000:
-					os.remove(LOGFILE)
-			except:
-				pass
-			with open(LOGFILE, 'a') as fp:
-				print(getFullDateTime(), end=' ', file=fp)
-				print(*args, **kwarg, file=fp)
+	if SAVELOG and LOGFILE:
+		try:
+			if os.stat(LOGFILE)[6]>1000000:
+				os.remove(LOGFILE)
+		except:
+			pass
+		with open(LOGFILE, 'a') as fp:
+			print(getFullDateTime(), end=' ', file=fp)
+			print(*args, **kwarg, file=fp)
 
 def connect_wifi():
 	global wifi
@@ -103,7 +104,7 @@ def start_wifi():
 
 
 class RC():
-	def __init__(self, rx_pin, tx_pin, nedges, nrepeat, min_nframes, gap_tol, proto={}):  # Typically ~15 frames
+	def __init__(self, rx_pin, tx_pin, nedges, nrepeat, min_nframes, gap_tol, recv_dur, proto={}):  # Typically ~15 frames
 		self.rx_pin = None if rx_pin==None else Pin(rx_pin, Pin.IN, Pin.PULL_UP)
 		self.tx_pin = None if tx_pin==None else Pin(tx_pin, Pin.OUT)
 		if self.tx_pin != None:
@@ -112,19 +113,22 @@ class RC():
 		self.nrepeat = nrepeat
 		self.min_nframes = min_nframes
 		self.gap_tol = gap_tol
+		self.recv_dur = recv_dur
 		self.proto = proto
 		gc.collect()
 
 	def recv(self):
-		prt('Receiving radio data ...')
+		prt('Receiving RC data ...')
 		gc.collect()
 		nedges = self.nedges
 		p = self.rx_pin
 		arr = array('I',  [0]*nedges)
 
 		# ** Time critical **
+		cur_freq = machine.freq()
+		machine.freq(160000000)
 		st_irq = machine.disable_irq()
-		tm_til = ticks_us()+3000000
+		tm_til = ticks_us()+self.recv_dur
 		init_level = v = p()
 		for x in range(nedges):
 			while v == p() and ticks_us()<tm_til: pass
@@ -132,6 +136,7 @@ class RC():
 			if arr[x]>tm_til: break
 			v = p()
 		machine.enable_irq(st_irq)
+		machine.freq(cur_freq)
 		# ** End of time critical **
 
 		if x <= self.min_nframes*2:
@@ -144,35 +149,39 @@ class RC():
 		for x in range(nedges-1, 0, -1):
 			arr[x] = ticks_diff(arr[x], arr[x-1])
 		arr[0] = 0
+		arr[0] = max(arr)
 
 		# Extract segments
-		gap = round(max(arr)*self.gap_tol)
-		gap_pos = [i for i,v in enumerate(arr) if v>=gap]
+		gap = round(arr[0]*self.gap_tol)
+		gap_pos = [0]+[i for i,v in enumerate(arr) if v>=gap]+[nedges]
 		if len(gap_pos) < self.min_nframes:
-			return 'Too few frames'
+			return f'Too few frames {len(gap_pos)}'
 		segs = [arr[gap_pos[i-1]:gap_pos[i]] for i in range(1, len(gap_pos))]
-		prt(f'init level={init_level}')
-		init_level = 1-init_level if (gap_pos[0]&1) else init_level
 		del arr
 
 		lengths = [len(x) for x in segs]
+		prt(f'Received data size = {nedges}, segment lengths: {lengths}') #DEBUG
 
 		# Select segments with most common frame length
 		cnter = {x:lengths.count(x) for x in set(lengths)}
 		cnt_max = max(cnter.values())
 		len_most = [i for i,j in cnter.items() if j==cnt_max][0]
 		N_old = len(segs)
+		seg0id = [ii for ii,seg in enumerate(segs) if len(seg)==len_most][0]
 		segs = [seg for seg in segs if len(seg)==len_most]
+		init_level = 1-init_level if (gap_pos[seg0id]&1) else init_level
 		N_new = len(segs)
 
 		if N_new < self.min_nframes:
-			return 'Too few selected frames'
+			return f'Too few selected frames: {N_new}'
 		
 		if N_old != N_new:
-			prt('Deleted {} frames of wrong length'.format(N_old - N_new))
+			prt('Deleted {} frames of different length'.format(N_old - N_new))
 
 		prt(f'Averaging {N_new} frames')
-		m = [sum(x)/N_new for x in zip(*segs)]	# mean
+		m = [sum(x)/N_new for x in zip(*segs)]	# compute mean
+		for seg in segs:	# ignore STD due to gaps difference, clam gap duration to 0.2 sec
+			m[0] = seg[0] = min(m[0], 100000)
 		std = [sqrt(sum([(y - m[i])**2 for y in x])/N_new) for i, x in enumerate(zip(*segs))]
 		del segs
 		prt('Capture quality {:5.1f} (0: perfect)'.format(sum(std)/len(std)))
@@ -182,6 +191,9 @@ class RC():
 		return ret
 
 	def send(self, obj):
+		if 'fPWM' in obj:
+			return self.sendPWM(obj)
+		
 		gc.collect()
 
 		try:
@@ -210,20 +222,48 @@ class RC():
 		p(0)	# turn off radio
 		return 'OK'
 
+	def sendPWM(self, obj):
+		gc.collect()
+
+		try:
+			init_level, arr, fPWM = obj['init_level'], obj['data'], int(obj['fPWM'])
+		except Exception as e:
+			prt(e)
+			return str(e)
+		
+		prt('Sending PWM data ...')
+		cur_freq = machine.freq()
+		machine.freq(160000000)
+		p = machine.PWM(self.tx_pin, fPWM, 0)
+
+		# ** Time critical **
+		for i in range(self.nrepeat):
+			level = init_level<<9
+			p.duty(level)
+			while not self.tx_pin():pass
+			tm_til = ticks_us()
+			for dt in arr:
+				tm_til += dt
+				level = 512-level
+				while ticks_us()<tm_til: pass
+				p.duty(level)
+		# ** End of time critical **
+
+		p.duty(0)	# turn off signal
+		p.deinit()
+		machine.freq(cur_freq)
+		return 'OK'
+
+
 # For RF 433MHz remote controller
 class RF433RC(RC):
-	def __init__(self, rx_pin=None, tx_pin=None, nedges=800, nrepeat=5, min_nframes=5, gap_tol=0.8):
-		super().__init__(rx_pin, tx_pin, nedges, nrepeat, min_nframes, gap_tol, proto={'protocol':'RF433'})
+	def __init__(self, rx_pin=None, tx_pin=None, nedges=800, nrepeat=5, min_nframes=5, recv_dur=3000000, gap_tol=0.8):
+		super().__init__(rx_pin, tx_pin, nedges, nrepeat, min_nframes, gap_tol, recv_dur, proto={'protocol':'RF433'})
 
 # For infrared remote controller
 class IRRC(RC):
-	def __init__(self, rx_pin=None, tx_pin=None, nedges=600, nrepeat=1, min_nframes=3, gap_tol=0.5):
-		super().__init__(rx_pin, tx_pin, nedges, nrepeat, min_nframes, gap_tol, proto={'protocol':'IRRC'})
-
-
-# Globals
-rfc = RF433RC(PIN_RF_IN, PIN_RF_OUT)
-irc = IRRC(PIN_IR_IN, PIN_IR_OUT)
+	def __init__(self, rx_pin=None, tx_pin=None, nedges=600, nrepeat=1, min_nframes=2, recv_dur=5000000, gap_tol=0.5):
+		super().__init__(rx_pin, tx_pin, nedges, nrepeat, min_nframes, gap_tol, recv_dur, proto={'protocol':'IRRC', 'fPWM':43000})
 
 def get_rc_code(key):
 	try:
@@ -469,7 +509,9 @@ class MWebServer:
 					execRC(self.cmd)
 				self.cmd = ''
 
-
+# Globals
+rfc = RF433RC(PIN_RF_IN, PIN_RF_OUT)
+irc = IRRC(PIN_IR_IN, PIN_IR_OUT)
 gc.collect()
 
 ### MAIN function

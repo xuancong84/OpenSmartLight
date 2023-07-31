@@ -21,5 +21,5 @@ mains = [f for f in os.listdir() if f.startswith('main')]
 if mains:
 	exec(f'from {mains[0].split(".")[0]} import *')
 	gc.collect()
-	if machine.Pin(12, machine.Pin.IN, machine.Pin.PULL_UP)():
+	if machine.Pin(16, machine.Pin.IN)():
 		run()
