@@ -1,26 +1,18 @@
 import os, sys, esp, gc, uping, network, random
 import machine, time, ntptime, select, socket
-from microdot import *
+from microWebSrv import MicroWebSrv as MWS
+from machine import Pin, UART
+
 gc.collect()
 
-# Global objects
-ap_if = network.WLAN(network.AP_IF)
-sta_if = network.WLAN(network.STA_IF)
-
-# Load credentials if present
-try:
-	import secret as cred
-except:
-	class dummy: pass
-	cred = dummy()
-
 # constant definitions
-PIN_LED_BUILTIN = machine.Pin(2, machine.Pin.OUT)
-PIN_CONTROL_OUTPUT = machine.Pin(4, machine.Pin.OUT)
-PIN_MOTION_SENSOR = machine.Pin(0, machine.Pin.OUT)
-PIN_LED_MASTER = machine.Pin(5, machine.Pin.OUT)
-PIN_LED_ADJ = machine.Pin(14, machine.Pin.OUT)
-PIN_AMBIENT_PULLUP = machine.Pin(13, machine.Pin.IN, machine.Pin.PULL_UP)
+PIN_LED_BUILTIN = Pin(2, machine.Pin.OUT)
+PIN_LED_BUILTIN(0)
+PIN_CONTROL_OUTPUT = Pin(4, machine.Pin.OUT)
+PIN_MOTION_SENSOR = Pin(0, machine.Pin.OUT)
+PIN_LED_MASTER = Pin(5, machine.Pin.OUT)
+PIN_LED_ADJ = Pin(14, machine.Pin.OUT)
+PIN_AMBIENT_PULLUP = Pin(13, machine.Pin.IN, machine.Pin.PULL_UP)
 PIN_AMBIENT_INPUT = machine.ADC(0)
 SENSOR_LOG_MAX = 120
 LOGFILE_MAX_SIZE = 200000
@@ -28,6 +20,11 @@ LOGFILE_MAX_NUM = 8
 WIFI_NAME = "OpenSmartLight"
 UDP_PORT = 18888      # for LAN broadcast and inform own existence
 TEST_ALIVE = 1000000
+DEBUG = False
+SAVELOG = False
+RCFILE = 'rc-codes.txt'
+LOGFILE = 'static/log.txt'
+wifi = {}
 
 # Saved parameters
 saved = {
@@ -98,6 +95,20 @@ def getBoardInfo():
 	s = os.statvfs('/')
 	return f"FreeHeap: {esp.freemem()}; FlashSize: {esp.flash_size()}; Speed: {machine.freq()}; File system size (bytes): {s[3]*s[0]}/{s[2]*s[0]}";
 
+def prt(*args, **kwarg):
+	if DEBUG:
+		print(getFullDateTime(), end=' ')
+		print(*args, **kwarg)
+	if SAVELOG and LOGFILE:
+		try:
+			if os.stat(LOGFILE)[6]>1000000:
+				os.remove(LOGFILE)
+		except:
+			pass
+		with open(LOGFILE, 'a') as fp:
+			print(getFullDateTime(), end=' ', file=fp)
+			print(*args, **kwarg, file=fp)
+
 def open_logfile_auto_rotate():
 	global fp_hist
 	if fp_hist==None:
@@ -138,61 +149,150 @@ def initNTP():
 		success=False
 	log_event(f"Synchronize time {'succeeded' if success else 'failed'} at {getFullDateTime()}")
 
-def hotspot():
-	rand_ip = f'{random.getrandbits(16)%240+10}.0.0.1'
-	ap_if.active(True)
-	ap_if.ifconfig((rand_ip, '255.255.255.0', rand_ip, rand_ip))
-	ap_if.config(ssid='ESP-AP', authmode=network.AUTH_OPEN)
-	return False
-
-def initWifi():
-	g_nodeList.clear()
-
-	if not saved['wifi_ssid']:
-		return hotspot()
-
-	print("Connecting to WiFi ...", end='', flush=True)
-
-	# Configure static IP address
-	sta_if.active(True)
-	sta_if.ifconfig([saved['wifi_'+i] for i in ['IP','subnet','gateway','DNS']])
-	sta_if.connect(saved['wifi_ssid'],saved['wifi_password'])
-
-	for i in range(60):
-		if sta_if.isconnected():
-			break
-		time.sleep(1)
-		print(".", end='', flush=True)
-	
+def connect_wifi():
+	global wifi
+	sta_if = network.WLAN(network.STA_IF)
 	if sta_if.isconnected():
-		ap_if.active(False)
-		log_event(f"Connected to WIFI, SSID={saved['wifi_ssid']}, IP={sta_if.ifconfig()[0]}")
-	else:
-		sta_if.active(False)
-		log_event("Failed to connect to WIFI, SSID="+saved['wifi_ssid'])
-		return hotspot()
-	
-	return True
+		sta_if.disconnect()
+		time.sleep(1)
+	try:
+		cred = eval(open('secret.py').read())
+		sta_if.active(True)
+		WIFI_IP, WIFI_SUBNET, WIFI_GATEWAY, WIFI_DNS = [cred.get(v, '') for v in ['WIFI_IP', 'WIFI_SUBNET', 'WIFI_GATEWAY', 'WIFI_DNS']]
+		if WIFI_IP and WIFI_SUBNET and WIFI_GATEWAY and WIFI_DNS:
+			sta_if.ifconfig((WIFI_IP, WIFI_SUBNET, WIFI_GATEWAY, WIFI_DNS))
+		sta_if.connect(cred['WIFI_SSID'], cred['WIFI_PASSWD'])
+		x = 0
+		while x<30 and not sta_if.isconnected():
+			time.sleep(2)
+			prt('.', end='')
+			x += 1
+		wifi.update({'mode':'wifi', 'config':sta_if.ifconfig()})
+		return sta_if.isconnected()
+	except Exception as e:
+		prt(e)
+		return False
+
+def create_hotspot():
+	global wifi
+	ap_if = network.WLAN(network.AP_IF)
+	if ap_if.active():
+		wifi.update({'mode':'hotspot', 'config':ap_if.ifconfig()})
+		return
+	ap_if.active(True)
+	IP = f'192.168.{min(250, random.getrandbits(8))}.1'
+	ap_if.ifconfig((IP, '255.255.255.0', IP, IP))
+	ap_if.config(ssid='ESP-AP', authmode=network.AUTH_OPEN)
+	wifi.update({'mode':'hotspot', 'config':ap_if.ifconfig()})
+
+def start_wifi():
+	if not connect_wifi():
+		create_hotspot()
+		return wifi['config'][0]
+	ntptime.settime()
+	return ''
 
 def deleteALL():
 	for fn in os.listdir():
 		if fn.endswith(".log"):
 			os.remove(fn)
 
-app = Microdot()
+def get_rc_code(key):
+	try:
+		with open(RCFILE) as fp:
+			for L in fp:
+				gc.collect()
+				its = L.split('\t')
+				if key == its[0]:
+					return eval(its[2])
+	except Exception as e:
+		prt(e)
+	return None
 
-@app.route('/')
-def index(request):
-	return send_file('/static/server_html.h')
+def save_file(fn, gen):
+	try:
+		with open(fn, 'wb') as fp:
+			for L in gen:
+				fp.write(L)
+				gc.collect()
+		return 'Save OK'
+	except Exception as e:
+		prt(e)
+		return str(e)
+	
+def list_files(path=''):
+	yield f'{path}/\t\n'
+	for f in os.listdir(path):
+		ff = path+'/'+f
+		try:
+			os.listdir(ff)
+			yield from list_files(ff)
+		except:
+			yield f'{ff}\t{os.stat(ff)[6]}\n'
 
+def isDir(path):
+	try:
+		os.listdir(path)
+		return True
+	except:
+		return False
 
-class WebServer:
-	def __init__(self, app: Microdot, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
-		self.app = app
-		self.sock_web = app.run(host=host, port=port, loop_forever=False, max_conn=max_conn)
+@MWS.Route('/move_file', 'POST')
+def move_file(clie, resp):
+	try:
+		src, dst = clie.ReadRequestContent().decode().split('\n')[:2]
+		if isDir(dst):
+			dst += src.rstrip('/').split('/')[-1]
+		os.rename(src, dst)
+		return f'OK, moved {src} to {dst}'
+	except Exception as e:
+		prt(e)
+		return str(e)
+
+def deleteFile(path):
+	try:
+		os.rmdir(path) if isDir(path) else os.remove(path)
+		return 'Delete OK'
+	except Exception as e:
+		return str(e)
+
+def Exec(cmd):
+	try:
+		exec(cmd, globals(), globals())
+		return 'OK'
+	except Exception as e:
+		return str(e)
+
+class MWebServer:
+	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
+		self.cmd = ''
+		routeHandlers = [
+			( "/", "GET", lambda clie, resp: resp.WriteResponseFile('/static/smartlight.html') ),
+			( "/setv", "GET", lambda clie, resp: Exec(clie.GetRequestQueryString()) ),
+			( "/getv", "GET", lambda clie, resp: eval(clie.GetRequestQueryString(), globals(), globals()) ),
+			( "/wifi_restart", "GET", lambda *_: self.set_cmd('restartWifi') ),
+			( "/wifi_save", "POST", lambda clie, resp: save_file('secret.py', clie.YieldRequestContent()) ),
+			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
+			( "/reboot", "GET", lambda *_: self.set_cmd('reboot') ),
+			( "/rc_run", "GET", lambda cli, *arg: execRC(cli.GetRequestQueryString())),
+			( "/rc_exec", "POST", lambda cli, *arg: execRC(cli.ReadRequestContent())),
+			( "/rc_save", "POST", lambda clie, resp: save_file(RCFILE, clie.YieldRequestContent()) ),
+			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile(RCFILE) ),
+			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseFile(list_files()) ),
+			( "/delete_files", "GET", lambda clie, resp: deleteFile(clie.GetRequestQueryString()) ),
+			( "/get_file", "GET", lambda clie, resp: resp.WriteResponseFileAttachment(clie.GetRequestQueryString()) ),
+			( "/upload_file", "POST", lambda clie, resp: save_file(clie.GetRequestQueryString(), clie.YieldRequestContent()) ),
+		]
+		self.app = MWS(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
+		self.sock_web = self.app.run(max_conn=max_conn, loop_forever=False)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
-		self.sock_map = {self.sock_web: self.app.run_once}
+		UART(0, 115200, tx=Pin(15), rx=Pin(13))	# swap UART0 to alternative ports to avoid interference from CH340
+		self.poll.register(sys.stdin, select.POLLIN)
+		self.sock_map = {
+			id(self.sock_web): self.app.run_once, 
+			id(sys.stdin): self.handleRC,
+		}
 		self.cpIP = captivePortalIP
 
 		if captivePortalIP:
@@ -200,9 +300,20 @@ class WebServer:
 			self.sock_dns.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			self.sock_dns.bind((captivePortalIP, 53))
 			self.poll.register(self.sock_dns, select.POLLIN)
-			self.sock_map[self.sock_dns] = self.handleDNS
+			self.sock_map[id(self.sock_dns)] = self.handleDNS
 		else:
 			self.sock_dns = None
+
+	def handleRC(self):
+		key = sys.stdin.readline().strip()
+		prt(f'RX received {key}')
+		code = get_rc_code(key)
+		execRC(code)
+
+	def set_cmd(self, vn):
+		prt(f'Setting cmd to :{vn}')
+		self.cmd = vn
+		return 'OK'
 
 	def handleDNS(self):
 		data, sender = self.sock_dns.recvfrom(512)
@@ -214,22 +325,28 @@ class WebServer:
 	def run(self):
 		while True:
 			for tp in self.poll.poll():
-				self.sock_map[tp[0]]()
+				self.sock_map[id(tp[0])]()
 				gc.collect()
+				time.sleep(0.1)
+				if self.cmd=='reboot':
+					machine.reset()
+				elif self.cmd=='restartWifi':
+					start_wifi()
+				elif self.cmd:
+					execRC(self.cmd)
+				self.cmd = ''
 
+# Globals
+gc.collect()
 
-# SETUP
-PIN_LED_BUILTIN.off()
-open_logfile_auto_rotate()
-config_loaded = load_config()
-log_event("Config file loaded" if config_loaded else "Config file NOT loaded")
-initWifi()
-PIN_LED_BUILTIN.on()
-if ap_if.active():
-	server = WebServer(app, host=ap_if.ifconfig()[0], captivePortalIP=ap_if.ifconfig()[0])
-else:
-	server = WebServer(app, host=sta_if.ifconfig()[0], captivePortalIP='')
-
-# LOOP
-print('Starting main server ...')
-server.run()
+### MAIN function
+def run():
+	try:
+		cpIP = start_wifi()
+		prt(wifi)
+		server = MWebServer(captivePortalIP=cpIP)
+		PIN_LED_BUILTIN(1)
+		server.run()
+	except Exception as e:
+		UART(0, 115200, tx=Pin(1), rx=Pin(3))
+		prt(e)
