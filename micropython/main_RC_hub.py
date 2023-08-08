@@ -437,7 +437,8 @@ class MWebServer:
 	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
 		self.cmd = ''
 		routeHandlers = [
-			( "/", "GET", lambda *_: f'Hello world!' ),
+			( "/", "GET", lambda clie, resp: resp.WriteResponseFile('/static/hub.html') ),
+			( "/hello", "GET", lambda *_: f'Hello world!' ),
 			( "/setv", "GET", lambda clie, resp: Exec(clie.GetRequestQueryString()) ),
 			( "/getv", "GET", lambda clie, resp: eval(clie.GetRequestQueryString(), globals(), globals()) ),
 			( "/wifi_restart", "GET", lambda *_: self.set_cmd('restartWifi') ),
