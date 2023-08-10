@@ -2,6 +2,7 @@ import gc, machine
 from machine import Pin
 from time import ticks_us, ticks_diff
 from math import sqrt
+from array import array
 
 class RC():
 	def __init__(self, rx_pin, tx_pin, nedges, nrepeat, min_nframes, gap_tol, recv_dur, proto={}):  # Typically ~15 frames
@@ -18,7 +19,7 @@ class RC():
 		gc.collect()
 
 	def recv(self):
-		prt('Receiving RC data ...')
+		#prt('Receiving RC data ...')
 		gc.collect()
 		nedges = self.nedges
 		p = self.rx_pin
@@ -60,7 +61,7 @@ class RC():
 		del arr
 
 		lengths = [len(x) for x in segs]
-		prt(f'Received data size = {nedges}, segment lengths: {lengths}') #DEBUG
+		#prt(f'Received data size = {nedges}, segment lengths: {lengths}') #DEBUG
 
 		# Select segments with most common frame length
 		cnter = {x:lengths.count(x) for x in set(lengths)}
@@ -75,16 +76,16 @@ class RC():
 		if N_new < self.min_nframes:
 			return f'Too few selected frames: {N_new}'
 		
-		if N_old != N_new:
-			prt('Deleted {} frames of different length'.format(N_old - N_new))
+		# if N_old != N_new:
+			#prt('Deleted {} frames of different length'.format(N_old - N_new))
 
-		prt(f'Averaging {N_new} frames')
+		#prt(f'Averaging {N_new} frames')
 		m = [sum(x)/N_new for x in zip(*segs)]	# compute mean
 		for seg in segs:	# ignore STD due to gaps difference, clam gap duration to 0.2 sec
 			m[0] = seg[0] = min(m[0], 100000)
 		std = [sqrt(sum([(y - m[i])**2 for y in x])/N_new) for i, x in enumerate(zip(*segs))]
 		del segs
-		prt('Capture quality {:5.1f} (0: perfect)'.format(sum(std)/len(std)))
+		#prt('Capture quality {:5.1f} (0: perfect)'.format(sum(std)/len(std)))
 		ret = {'init_level':init_level, 'data':list(map(round, m))}
 		ret.update(self.proto)
 	
@@ -99,10 +100,10 @@ class RC():
 		try:
 			init_level, arr = obj['init_level'], obj['data']
 		except Exception as e:
-			prt(e)
+			#prt(e)
 			return str(e)
 		
-		prt('Sending RC data ...')
+		#prt('Sending RC data ...')
 		p = self.tx_pin
 
 		# ** Time critical **
@@ -128,10 +129,10 @@ class RC():
 		try:
 			init_level, arr, fPWM = obj['init_level'], obj['data'], int(obj['fPWM'])
 		except Exception as e:
-			prt(e)
+			#prt(e)
 			return str(e)
 		
-		prt('Sending PWM data ...')
+		#prt('Sending PWM data ...')
 		cur_freq = machine.freq()
 		machine.freq(160000000)
 		p = machine.PWM(self.tx_pin, fPWM, 0)

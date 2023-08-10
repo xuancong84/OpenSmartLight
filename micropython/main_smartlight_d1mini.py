@@ -268,8 +268,8 @@ class MWebServer:
 		self.cmd = ''
 		routeHandlers = [
 			( "/", "GET", lambda clie, resp: resp.WriteResponseFile('/static/smartlight.html') ),
-			( "/setv", "GET", lambda clie, resp: Exec(clie.GetRequestQueryString()) ),
-			( "/getv", "GET", lambda clie, resp: eval(clie.GetRequestQueryString(), globals(), globals()) ),
+			( "/exec", "GET", lambda clie, resp: Exec(clie.GetRequestQueryString()) ),
+			( "/eval", "GET", lambda clie, resp: eval(clie.GetRequestQueryString(), globals(), globals()) ),
 			( "/wifi_restart", "GET", lambda *_: self.set_cmd('restartWifi') ),
 			( "/wifi_save", "POST", lambda clie, resp: save_file('secret.py', clie.YieldRequestContent()) ),
 			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
