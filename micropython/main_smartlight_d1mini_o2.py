@@ -7,10 +7,10 @@ from microWebSrv import MicroWebSrv as MWS
 from machine import Pin, UART
 gc.collect()
 
-PIN_RF_IN = 5
-PIN_RF_OUT = 4
-PIN_IR_IN = 14
-PIN_IR_OUT = 12
+PIN_RF_IN = None
+PIN_RF_OUT = None
+PIN_IR_IN = None
+PIN_IR_OUT = None
 DEBUG = False
 SAVELOG = False
 RCFILE = 'rc-codes.txt'
