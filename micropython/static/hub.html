@@ -180,18 +180,18 @@ input {font-size:15px;}
 	var rid = 0;
 	var drag_rid;
 	function set_ckbox(obj){
-		alert(GET('/setv?SAVELOG='+(obj.checked?'True':'False')));
+		alert(GET('/exec?SAVELOG='+(obj.checked?'True':'False')));
 	}
 	function save() {
 		var N = tb.rows.length - 2;
 		var ret = '';
 		for (var n = 1; n <= N; ++n)
-			ret += [1, 2, 3].map(x => tb.rows[n].children[x].innerText).join('\t') + '\n';
+			ret += [1, 2, 3].map(x => tb.rows[n].children[x].textContent).join('\t') + '\n';
 		alert(GET('/rc_save', 'POST', ret));
 	}
 	function update(){
-		getById('tm').textContent = GET('/getv?getFullDateTime()');
-		getById('cb_log').checked = GET('/getv?str(SAVELOG)')=='True';
+		getById('tm').textContent = GET('/eval?getFullDateTime()');
+		getById('cb_log').checked = GET('/eval?str(SAVELOG)')=='True';
 	}
 	function load() {
 		try {
@@ -204,7 +204,7 @@ input {font-size:15px;}
 				var its = line.split('\t');
 				var row = add_new_row();
 				for (var x = 0; x < 3; x++)
-					row.children[x+1].innerText = its[x];
+					row.children[x+1].textContent = its[x];
 			}
 		} catch (err) {
 			alert(err);
