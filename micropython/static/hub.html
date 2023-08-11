@@ -164,7 +164,7 @@ input {font-size:15px;}
 	<p>
 		<button onclick="save()" title="Save remote control mappings" class="bb">Save Table</button>&nbsp;
 		<button onclick="load()" title="Load remote control mappings" class="bb">Load Table</button>&nbsp;
-		<button onclick="GET('/rc_del_all')" title="Clear all mappings, this does not delete from storage" class="bb">Clear All</button>&nbsp;
+		<button onclick="clear_all()" title="Clear all mappings, this does not delete from storage" class="bb">Clear All</button>&nbsp;
 		<button onclick="GET('/reboot')" class="bb">Reboot</button>
 	</p>
 
@@ -193,13 +193,16 @@ input {font-size:15px;}
 		getById('tm').textContent = GET('/eval?getFullDateTime()');
 		getById('cb_log').checked = GET('/eval?str(SAVELOG)')=='True';
 	}
+	function clear_all(){
+		while (tb.rows.length > 2) tb.deleteRow(1);
+	}
 	function load() {
 		try {
 			update();
 			var txt = GET('/rc_load').trim();
 			if(!txt) return;
 			var lines = txt.split('\n');
-			while (tb.rows.length > 2) tb.deleteRow(1);
+			clear_all();
 			for (var line of lines) {
 				var its = line.split('\t');
 				var row = add_new_row();

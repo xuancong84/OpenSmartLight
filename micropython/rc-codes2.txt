@@ -1,0 +1,11 @@
+__init__	系统初始化	[exec('g.out1,g.out2,g.LED,g.LED_adj,g.MS,g.S2N,g.SP,g.S1N=Pin(12, Pin.OUT),Pin(4, Pin.OUT),Pin(5, Pin.OUT),Pin(14, Pin.OUT),Pin(15, Pin.OUT),Pin(0, Pin.IN),Pin(2, Pin.OUT),Pin(13,Pin.OUT)'), '[g.out1(1 if machine.reset_cause()==0 else 0), g.out2(1 if machine.reset_cause()==0 else 0), g.LED(0), g.LED_adj(0), g.MS(0), g.SP(0), g.S1N(0)]', Exec('PIN_IR_OUT=2') ]
+L1N	1号打开	g.out1(1)
+L1F	1号关闭	g.out1(0)
+L1T	1号开关	g.out1(1-g.out1())
+L2N	2号打开	g.out2(1)
+L2F	2号关闭	g.out2(0)
+LEDN	LED开启	g.LED(1)
+LEDF	LED关闭	g.LED(0)
+MSN	传感器开启	g.MS(1)
+MSF	传感器关闭	g.MS(0)
+MLC	音乐灯换色	{'protocol': 'IRRC', 'data': [9000, 4500, 619, 534, 606, 538, 602, 531, 600, 544, 602, 534, 600, 531, 600, 546, 600, 1645, 600, 1647, 604, 1649, 600, 1645, 602, 1649, 600, 1649, 600, 1645, 602, 1649, 600, 538, 600, 536, 602, 1649, 604, 1643, 602, 536, 604, 533, 604, 533, 602, 538, 600, 538, 600, 1647, 602, 536, 602, 536, 602, 1647, 600, 1649, 600, 1649, 600, 1649, 602, 1644, 600], 'init_level': 1, 'fPWM': 43500}
