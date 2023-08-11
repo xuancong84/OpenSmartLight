@@ -4,31 +4,27 @@ from array import array
 from time import ticks_us, ticks_diff
 from math import sqrt
 from microWebSrv import MicroWebSrv as MWS
-from machine import Pin, UART
+from machine import Pin, UART, PWM, ADC
 gc.collect()
+
+# namespace for global variable
+class dummy:pass
+g = dummy()
 
 PIN_RF_IN = None
 PIN_RF_OUT = None
 PIN_IR_IN = None
 PIN_IR_OUT = None
+PIN_EXT_IN = None
+A0 = ADC(0)
 DEBUG = False
 SAVELOG = False
 RCFILE = 'rc-codes.txt'
 LOGFILE = 'static/log.txt'
 timezone = 8
 
-LED = Pin(2, Pin.OUT)
-LED(0)
-
-class dummy:pass
-g = dummy()
-
-def flashLED(intv=0.25):
-	for i in range(3):
-		LED(0)
-		time.sleep(intv)
-		LED(1)
-		time.sleep(intv)
+if DEBUG:
+	Pin(2, Pin.OUT)(0)
 
 wifi = {}
 
@@ -106,11 +102,8 @@ def start_wifi():
 	return ''
 
 def build_rc():
-	g.rc_set = set()
-	for L in open(RCFILE):
-		its = L.split('\t')
-		g.rc_set.add(its[0])
-		gc.collect()
+	g.rc_set = set([L.split('\t')[0] for L in open(RCFILE)])
+	gc.collect()
 
 def get_rc_code(key):
 	if key not in g.rc_set:
@@ -317,12 +310,12 @@ class MWebServer:
 		self.sock_web = self.app.run(max_conn=max_conn, loop_forever=False)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
-		UART(0, 115200, tx=Pin(15), rx=Pin(13))	# swap UART0 to alternative ports to avoid interference from CH340
-		self.poll.register(sys.stdin, select.POLLIN)
-		self.sock_map = {
-			id(self.sock_web): self.app.run_once, 
-			id(sys.stdin): self.handleRC,
-		}
+		if PIN_EXT_IN == 13:
+			UART(0, 115200, tx=Pin(15), rx=Pin(13))	# swap UART0 to alternative ports to avoid interference from CH340
+		self.sock_map = {id(self.sock_web): self.app.run_once}
+		if PIN_EXT_IN != None:
+			self.poll.register(sys.stdin, select.POLLIN)
+			self.sock_map[id(sys.stdin)] = self.handleRC
 		self.cpIP = captivePortalIP
 
 		if captivePortalIP:
@@ -339,7 +332,6 @@ class MWebServer:
 		prt(f'RX received {key}')
 		code = get_rc_code(key)
 		execRC(code)
-		flashLED(0.1)
 
 	def set_cmd(self, vn):
 		prt(f'Setting cmd to :{vn}')
@@ -368,6 +360,10 @@ class MWebServer:
 				self.cmd = ''
 
 # Globals
+build_rc()
+if '__init__' in g.rc_set:
+	execRC('__init__')
+
 if PIN_RF_IN!=None or PIN_RF_OUT!=None or PIN_IR_IN!=None or PIN_IR_OUT!=None:
 	from lib_RC import *
 if PIN_RF_IN!=None or PIN_RF_OUT!=None:
@@ -382,11 +378,10 @@ def run():
 		cpIP = start_wifi()
 		prt(wifi)
 		server = MWebServer(captivePortalIP=cpIP)
-		build_rc()
-		if '__init__' in g.rc_set:
-			execRC('__init__')
-		LED(1)
+		if DEBUG:
+			Pin(2, Pin.OUT)(1)
 		server.run()
 	except Exception as e:
-		UART(0, 115200, tx=Pin(1), rx=Pin(3))
+		if PIN_EXT_IN==13:
+			UART(0, 115200, tx=Pin(1), rx=Pin(3))
 		prt(e)
