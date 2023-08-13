@@ -102,11 +102,11 @@ def start_wifi():
 	return ''
 
 def build_rc():
-	g.rc_set = set([L.split('\t')[0] for L in open(RCFILE)])
+	g.rc_set = ' '+' '.join([L.split('\t')[0] for L in open(RCFILE)])+' '
 	gc.collect()
 
 def get_rc_code(key):
-	if key not in g.rc_set:
+	if f' {key} ' not in g.rc_set:
 		return None
 	try:
 		with open(RCFILE) as fp:
@@ -171,6 +171,7 @@ def deleteFile(path):
 def send_tcp(obj):
 	try:
 		s = socket.socket()
+		s.settimeout(3)
 		s.connect((obj['IP'], obj['PORT']))
 		s.sendall(obj['data'])
 		s.recv(obj.get('recv_size', 256))
@@ -207,14 +208,15 @@ def send_wol(obj):
 
 def send_cap(fn):
 	s = None
-	with open(fn, 'rb') as fp:
-		for L in fp:
+	for L in open(fn, 'rb'):
+		try:
 			L = L.strip()
 			if L.startswith(b'{'):
 				obj = eval(L)
 				del L
 				gc.collect()
 				s = socket.socket()
+				s.settimeout(3)
 				s.connect((obj['IP'], obj['PORT']))
 				if 'data' in obj:
 					s.sendall(obj['data'])
@@ -224,6 +226,8 @@ def send_cap(fn):
 			elif L.isdigit():
 				s.recv(int(L)*2)
 			gc.collect()
+		except:
+			pass
 	try:
 		s.close()
 	except Exception as e:
@@ -361,7 +365,7 @@ class MWebServer:
 
 # Globals
 build_rc()
-if '__init__' in g.rc_set:
+if ' __init__ ' in g.rc_set:
 	execRC('__init__')
 
 if PIN_RF_IN!=None or PIN_RF_OUT!=None or PIN_IR_IN!=None or PIN_IR_OUT!=None:
