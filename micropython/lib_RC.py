@@ -1,15 +1,16 @@
 import gc, machine
 from machine import Pin
-from time import ticks_us, ticks_diff
+from time import ticks_us, ticks_diff, sleep
 from math import sqrt
 from array import array
 
 class RC():
 	def __init__(self, rx_pin, tx_pin, nedges, nrepeat, min_nframes, gap_tol, recv_dur, proto={}):  # Typically ~15 frames
-		self.rx_pin = None if rx_pin==None else Pin(rx_pin, Pin.IN, Pin.PULL_UP)
-		self.tx_pin = None if tx_pin==None else Pin(tx_pin, Pin.OUT)
+		# negative PIN number means inverted output, HIGH=unpowered, LOW=powered
+		self.rx_pin, self.rx_inv = (None, False) if rx_pin==None else (Pin(abs(rx_pin), Pin.IN, Pin.PULL_UP), rx_pin<0)
+		self.tx_pin, self.tx_inv = (None, False) if tx_pin==None else (Pin(abs(tx_pin), Pin.OUT), tx_pin<0)
 		if self.tx_pin != None:
-			self.tx_pin(0)	# turn off radio
+			self.tx_pin(self.tx_inv)	# turn off radio
 		self.nedges = nedges
 		self.nrepeat = nrepeat
 		self.min_nframes = min_nframes
@@ -28,6 +29,7 @@ class RC():
 		# ** Time critical **
 		cur_freq = machine.freq()
 		machine.freq(160000000)
+		sleep(0.1)
 		st_irq = machine.disable_irq()
 		tm_til = ticks_us()+self.recv_dur
 		init_level = v = p()
@@ -109,7 +111,7 @@ class RC():
 		# ** Time critical **
 		st_irq = machine.disable_irq()
 		for i in range(self.nrepeat):
-			level = init_level
+			level = init_level^self.tx_inv
 			p(level)
 			tm_til = ticks_us()
 			for dt in arr:
@@ -120,7 +122,7 @@ class RC():
 		machine.enable_irq(st_irq)
 		# ** End of time critical **
 
-		p(0)	# turn off radio
+		p(self.tx_inv)	# turn off radio
 		return 'OK'
 
 	def sendPWM(self, obj):
@@ -135,23 +137,26 @@ class RC():
 		#prt('Sending PWM data ...')
 		cur_freq = machine.freq()
 		machine.freq(160000000)
-		p = machine.PWM(self.tx_pin, fPWM, 0)
+		sleep(0.1)	# must wait for frequency to stablize, or will fail randomly
+		zero = self.tx_inv*1023
+		p = machine.PWM(self.tx_pin, fPWM, zero)
 
 		# ** Time critical **
 		for i in range(self.nrepeat):
-			level = init_level<<9
+			level = 512 if init_level else zero
 			p.duty(level)
 			while not self.tx_pin():pass
 			tm_til = ticks_us()
 			for dt in arr:
 				tm_til += dt
-				level = 512-level
+				level = zero if level==512 else 512
 				while ticks_us()<tm_til: pass
 				p.duty(level)
 		# ** End of time critical **
 
-		p.duty(0)	# turn off signal
+		p.duty(zero)	# turn off signal
 		p.deinit()
+		self.tx_pin(self.tx_inv)
 		machine.freq(cur_freq)
 		return 'OK'
 
