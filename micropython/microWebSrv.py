@@ -311,7 +311,7 @@ class MicroWebSrv :
 									else :
 										ret = routeHandler(self, response)
 									if type(ret)==str:
-										response.WriteResponseOk(content=ret, headers=None, contentType="text/html", contentCharset="UTF-8")
+										response.WriteResponseOk(content=ret, headers=None, contentType="text/plain", contentCharset="UTF-8")
 								except Exception as ex :
 									print(f'MicroWebSrv handler exception:\r\n  - In route {self._method} {self._resPath}\r\n  - {ex}')
 									raise ex

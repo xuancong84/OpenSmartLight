@@ -206,9 +206,9 @@ def send_wol(obj):
 		prt(e)
 		return str(e)
 
-def send_cap(fn):
+def send_cap(obj):
 	s = None
-	for L in open(fn, 'rb'):
+	for L in open(obj['filename'], 'rb'):
 		try:
 			L = L.strip()
 			if L.startswith(b'{'):
@@ -265,14 +265,12 @@ def execRC(s):
 				return send_udp(s)
 			elif p=='WOL':
 				return send_wol(s)
-			elif p=='FILE':
-				return send_cap(s['filename'])
-			else:
-				return 'Unknown protocol'
+			elif p=='CAP':
+				return send_cap(s)
 	except Exception as e:
 		prt(e)
 		return str(e)
-	return f'Unknown command {str(s)}'
+	return str(s)
 
 def Exec(cmd):
 	try:
@@ -368,7 +366,7 @@ build_rc()
 if ' __init__ ' in g.rc_set:
 	execRC('__init__')
 
-if PIN_RF_IN!=None or PIN_RF_OUT!=None or PIN_IR_IN!=None or PIN_IR_OUT!=None:
+if [PIN_RF_IN, PIN_RF_OUT, PIN_IR_IN, PIN_IR_OUT].count(None) != 4:
 	from lib_RC import *
 if PIN_RF_IN!=None or PIN_RF_OUT!=None:
 	rfc = RF433RC(PIN_RF_IN, PIN_RF_OUT)
