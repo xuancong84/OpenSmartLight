@@ -15,7 +15,8 @@ PIN_RF_IN = None
 PIN_RF_OUT = None
 PIN_IR_IN = None
 PIN_IR_OUT = None
-PIN_EXT_IN = None
+PIN_ASR_IN = None	# generic ASR chip sending UART output upon voice commands
+PIN_LD1115H = None	# HLK-LD1115H motion sensor
 A0 = ADC(0)
 DEBUG = False
 SAVELOG = False
@@ -51,7 +52,7 @@ def prt(*args, **kwarg):
 	if SAVELOG and LOGFILE:
 		try:
 			if os.stat(LOGFILE)[6]>1000000:
-				os.remove(LOGFILE)
+				os.rename(LOGFILE, LOGFILE+'.old')
 		except:
 			pass
 		with open(LOGFILE, 'a') as fp:
@@ -168,72 +169,6 @@ def deleteFile(path):
 	except Exception as e:
 		return str(e)
 
-def send_tcp(obj):
-	try:
-		s = socket.socket()
-		s.settimeout(3)
-		s.connect((obj['IP'], obj['PORT']))
-		s.sendall(obj['data'])
-		s.recv(obj.get('recv_size', 256))
-		s.close()
-		return f'OK, sent {len(obj["data"])} bytes'
-	except Exception as e:
-		prt(e)
-		return str(e)
-
-def send_udp(obj):
-	try:
-		s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		nsent = s.sendto(obj['data'], (obj['IP'], obj['PORT']))
-		s.close()
-		return f'OK, sent {nsent} bytes'
-	except Exception as e:
-		prt(e)
-		return str(e)
-	
-def send_wol(obj):
-	try:
-		mac = obj['data']
-		if len(mac) == 17:
-			mac = mac.replace(mac[2], "")
-		elif len(mac) != 12:
-			return "Incorrect MAC address format"
-		s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		nsent = s.sendto(bytes.fromhex("F"*12 + mac*16), (obj.get('IP', '255.255.255.255'), obj.get('PORT', 9)))
-		s.close()
-		return f'OK, sent {nsent} bytes'
-	except Exception as e:
-		prt(e)
-		return str(e)
-
-def send_cap(obj):
-	s = None
-	for L in open(obj['filename'], 'rb'):
-		try:
-			L = L.strip()
-			if L.startswith(b'{'):
-				obj = eval(L)
-				del L
-				gc.collect()
-				s = socket.socket()
-				s.settimeout(3)
-				s.connect((obj['IP'], obj['PORT']))
-				if 'data' in obj:
-					s.sendall(obj['data'])
-			elif L.startswith(b'b'):
-				s.sendall(eval(L))
-				del L
-			elif L.isdigit():
-				s.recv(int(L)*2)
-			gc.collect()
-		except:
-			pass
-	try:
-		s.close()
-	except Exception as e:
-		return str(e)
-
-
 def execRC(s):
 	if type(s)==bytes:
 		s = s.decode()
@@ -312,12 +247,16 @@ class MWebServer:
 		self.sock_web = self.app.run(max_conn=max_conn, loop_forever=False)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
-		if PIN_EXT_IN == 13:
+		if PIN_ASR_IN == 13:
 			UART(0, 115200, tx=Pin(15), rx=Pin(13))	# swap UART0 to alternative ports to avoid interference from CH340
 		self.sock_map = {id(self.sock_web): self.app.run_once}
-		if PIN_EXT_IN != None:
+		if PIN_ASR_IN != None:
 			self.poll.register(sys.stdin, select.POLLIN)
-			self.sock_map[id(sys.stdin)] = self.handleRC
+			self.sock_map[id(sys.stdin)] = self.handleASR
+		elif PIN_LD1115H != None:
+			self.ld1115h = LD1115H(PIN_LD1115H)
+			self.poll.register(sys.stdin, select.POLLIN)
+			self.sock_map[id(sys.stdin)] = self.ld1115h.handle_UART
 		self.cpIP = captivePortalIP
 
 		if captivePortalIP:
@@ -329,7 +268,7 @@ class MWebServer:
 		else:
 			self.sock_dns = None
 
-	def handleRC(self):
+	def handleASR(self):
 		key = sys.stdin.readline().strip()
 		prt(f'RX received {key}')
 		code = get_rc_code(key)
@@ -366,6 +305,10 @@ build_rc()
 if ' __init__ ' in g.rc_set:
 	execRC('__init__')
 
+if PIN_ASR_IN != None:
+	from lib_TCPIP import *
+if PIN_LD1115H != None:
+	from lib_LD1115H import *
 if [PIN_RF_IN, PIN_RF_OUT, PIN_IR_IN, PIN_IR_OUT].count(None) != 4:
 	from lib_RC import *
 if PIN_RF_IN!=None or PIN_RF_OUT!=None:
@@ -384,6 +327,6 @@ def run():
 			Pin(2, Pin.OUT)(1)
 		server.run()
 	except Exception as e:
-		if PIN_EXT_IN==13:
+		if PIN_ASR_IN==13:
 			UART(0, 115200, tx=Pin(1), rx=Pin(3))
 		prt(e)
