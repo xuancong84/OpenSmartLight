@@ -58,7 +58,7 @@ def prt(*args, **kwarg):
 	if SAVELOG and LOGFILE:
 		try:
 			if os.stat(LOGFILE)[6]>1000000:
-				os.remove(LOGFILE)
+				os.rename(LOGFILE, LOGFILE+'.old')
 		except:
 			pass
 		with open(LOGFILE, 'a') as fp:
