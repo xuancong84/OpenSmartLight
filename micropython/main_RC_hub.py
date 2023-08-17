@@ -15,7 +15,7 @@ PIN_RF_IN = 5
 PIN_RF_OUT = 4
 PIN_IR_IN = 14
 PIN_IR_OUT = 12
-PIN_EXT_IN = 13
+PIN_ASR_IN = 13
 A0 = ADC(0)
 DEBUG = False
 SAVELOG = False
@@ -321,10 +321,10 @@ class MWebServer:
 		self.sock_web = self.app.run(max_conn=max_conn, loop_forever=False)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
-		if PIN_EXT_IN == 13:
+		if PIN_ASR_IN == 13 or PIN_LD1115H == 13:
 			UART(0, 115200, tx=Pin(15), rx=Pin(13))	# swap UART0 to alternative ports to avoid interference from CH340
 		self.sock_map = {id(self.sock_web): self.app.run_once}
-		if PIN_EXT_IN != None:
+		if PIN_ASR_IN != None:
 			self.poll.register(sys.stdin, select.POLLIN)
 			self.sock_map[id(sys.stdin)] = self.handleRC
 		self.cpIP = captivePortalIP
@@ -393,6 +393,6 @@ def run():
 		LED(1)
 		server.run()
 	except Exception as e:
-		if PIN_EXT_IN==13:
+		if PIN_ASR_IN==13:
 			UART(0, 115200, tx=Pin(1), rx=Pin(3))
 		prt(e)

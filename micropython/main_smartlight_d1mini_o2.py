@@ -1,4 +1,4 @@
-import os, sys, gc, machine, network, socket, select, time, random, ntptime
+import os, sys, gc, machine, network, socket, select, time, random
 import urequests as url
 from array import array
 from time import ticks_us, ticks_diff
@@ -7,57 +7,31 @@ from microWebSrv import MicroWebSrv as MWS
 from machine import Pin, UART, PWM, ADC
 gc.collect()
 
-# namespace for global variable
-class dummy:pass
-g = dummy()
 
+# Global variables
 PIN_RF_IN = None
 PIN_RF_OUT = None
 PIN_IR_IN = None
 PIN_IR_OUT = None
 PIN_ASR_IN = None	# generic ASR chip sending UART output upon voice commands
 PIN_LD1115H = None	# HLK-LD1115H motion sensor
-A0 = ADC(0)
-DEBUG = False
-SAVELOG = False
 RCFILE = 'rc-codes.txt'
-LOGFILE = 'static/log.txt'
-timezone = 8
+
+# For analog sensors
+PIN_COMMON_PULLUP = None
+PIN_PHOTORES_GND = None
+PIN_THERMAL_GND = None
+A0 = ADC(0)
+
+# Namespace for global variable
+import lib_common as g
+from lib_common import *
 
 if DEBUG:
 	Pin(2, Pin.OUT)(0)
 
 wifi = {}
 
-def getTimeString(tm=None):
-	tm = tm or time.localtime(time.time()+3600*timezone)
-	return '%02d:%02d:%02d'%(tm[3],tm[4],tm[5])
-
-def getDateString(tm, showDay=True):
-	ds = "%04d-%02d-%02d"%(tm[0],tm[1],tm[2])
-	return ds if showDay else ds[:-3]
-
-weekDays=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-def getWeekdayString(tm):
-	return weekDays[tm[6]]
-
-def getFullDateTime():
-	tm = time.localtime(time.time()+3600*timezone)
-	return getDateString(tm)+" ("+getWeekdayString(tm)+") "+getTimeString(tm)
-
-def prt(*args, **kwarg):
-	if DEBUG:
-		print(getFullDateTime(), end=' ')
-		print(*args, **kwarg)
-	if SAVELOG and LOGFILE:
-		try:
-			if os.stat(LOGFILE)[6]>1000000:
-				os.rename(LOGFILE, LOGFILE+'.old')
-		except:
-			pass
-		with open(LOGFILE, 'a') as fp:
-			print(getFullDateTime(), end=' ', file=fp)
-			print(*args, **kwarg, file=fp)
 
 def connect_wifi():
 	global wifi
@@ -99,7 +73,7 @@ def start_wifi():
 	if not connect_wifi():
 		create_hotspot()
 		return wifi['config'][0]
-	ntptime.settime()
+	setNTP()
 	return ''
 
 def build_rc():
@@ -247,7 +221,8 @@ class MWebServer:
 		self.sock_web = self.app.run(max_conn=max_conn, loop_forever=False)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
-		if PIN_ASR_IN == 13:
+		self.poll_tmout = -1
+		if PIN_ASR_IN == 13 or PIN_LD1115H == 13:
 			UART(0, 115200, tx=Pin(15), rx=Pin(13))	# swap UART0 to alternative ports to avoid interference from CH340
 		self.sock_map = {id(self.sock_web): self.app.run_once}
 		if PIN_ASR_IN != None:
@@ -255,8 +230,9 @@ class MWebServer:
 			self.sock_map[id(sys.stdin)] = self.handleASR
 		elif PIN_LD1115H != None:
 			self.ld1115h = LD1115H(PIN_LD1115H)
+			self.poll_tmout = 1000
 			self.poll.register(sys.stdin, select.POLLIN)
-			self.sock_map[id(sys.stdin)] = self.ld1115h.handle_UART
+			self.sock_map[id(sys.stdin)] = self.ld1115h.handleUART
 		self.cpIP = captivePortalIP
 
 		if captivePortalIP:
@@ -288,7 +264,10 @@ class MWebServer:
 
 	def run(self):
 		while True:
-			for tp in self.poll.poll():
+			tps = self.poll.poll(self.poll_tmout)
+			if not tps:
+				self.ld1115h.run1()
+			for tp in tps:
 				self.sock_map[id(tp[0])]()
 				gc.collect()
 				time.sleep(0.1)
@@ -315,6 +294,12 @@ if PIN_RF_IN!=None or PIN_RF_OUT!=None:
 	rfc = RF433RC(PIN_RF_IN, PIN_RF_OUT)
 if PIN_IR_IN!=None or PIN_IR_OUT!=None:
 	irc = IRRC(PIN_IR_IN, PIN_IR_OUT)
+if PIN_COMMON_PULLUP != None:
+	Pin(PIN_COMMON_PULLUP, Pin.IN, Pin.PULL_UP)
+if PIN_PHOTORES_GND != None:
+	Pin(PIN_PHOTORES_GND, Pin.IN)
+if PIN_THERMAL_GND != None:
+	Pin(PIN_THERMAL_GND, Pin.IN)
 gc.collect()
 
 ### MAIN function

@@ -64,4 +64,5 @@ MPR	继续播放蓝牙音乐	'http://192.168.50.32:8883/resume'
 LLN	客厅灯带开启	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': b';#\x00\x00\x00\x00\x00\x00\x002\x00\x00\x90'}
 LLF	客厅灯带关闭	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': b';$\x00\x00\x00\x00\x00\x00\x002\x00\x00\x91'}
 LLC	客厅灯带换色	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': bytes(g.Cmsg+[sum(g.Cmsg)&0xff])}, Exec('g.C=(1 if g.C+1>=8 else g.C+1);g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]')
+LLT	客厅灯带不断变色	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': b'8%\x012\x90'}
 __init__	系统初始化	exec('g.DL=g.SL=g.PL=0'), Exec('PIN_IR_IN=PIN_IR_OUT=None'), Exec("g.C=1;g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]")

@@ -180,7 +180,7 @@ input {font-size:15px;}
 	var rid = 0;
 	var drag_rid;
 	function set_ckbox(obj){
-		alert(GET('/exec?SAVELOG='+(obj.checked?'True':'False')));
+		alert(GET('/exec?g.SAVELOG='+(obj.checked?'True':'False')));
 	}
 	function save() {
 		var N = tb.rows.length - 2;
