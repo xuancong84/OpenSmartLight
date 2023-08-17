@@ -178,7 +178,7 @@ def deleteFile(path):
 def send_tcp(obj):
 	try:
 		s = socket.socket()
-		s.settimeout(3)
+		s.settimeout(5)
 		s.connect((obj['IP'], obj['PORT']))
 		s.sendall(obj['data'])
 		s.recv(obj.get('recv_size', 256))
@@ -213,9 +213,9 @@ def send_wol(obj):
 		prt(e)
 		return str(e)
 
-def send_cap(fn):
+def send_cap(obj):
 	s = None
-	for L in open(fn, 'rb'):
+	for L in open(obj['filename'], 'rb'):
 		try:
 			L = L.strip()
 			if L.startswith(b'{'):
@@ -272,8 +272,8 @@ def execRC(s):
 				return send_udp(s)
 			elif p=='WOL':
 				return send_wol(s)
-			elif p=='FILE':
-				return send_cap(s['filename'])
+			elif p=='CAP':
+				return send_cap(s)
 			else:
 				return 'Unknown protocol'
 	except Exception as e:
