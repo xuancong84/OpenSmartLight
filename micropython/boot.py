@@ -25,13 +25,20 @@ else:
 
 mains = [f for f in os.listdir() if f.startswith('main')]
 
-if mains:
+if not mains:
+	sys.exit()
+
+try:
 	gc.collect()
 	exec(f'from {mains[0].split(".")[0]} import *')
 	gc.collect()
 	p16 = Pin(16, Pin.OUT)
 	p16(1)
 	time.sleep(0.1)
-	if False and Pin(16, Pin.IN)():
-		run()
-		machine.reset()
+	if True or not Pin(16, Pin.IN)():
+		sys.exit()
+	run()
+	machine.reset()
+except Exception as e:
+	machine.UART(0, 115200, tx=Pin(1), rx=Pin(3))
+	print(e)
