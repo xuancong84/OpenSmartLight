@@ -174,6 +174,13 @@ def deleteFile(path):
 		return 'Delete OK'
 	except Exception as e:
 		return str(e)
+	
+def mkdir(path):
+	try:
+		os.mkdir(path)
+		return 'OK'
+	except Exception as e:
+		return str(e)
 
 def send_tcp(obj):
 	try:
@@ -314,6 +321,7 @@ class MWebServer:
 			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile(RCFILE) ),
 			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseFile(list_files()) ),
 			( "/delete_files", "GET", lambda clie, resp: deleteFile(clie.GetRequestQueryString()) ),
+			( "/mkdir", "GET", lambda clie, resp: mkdir(clie.GetRequestQueryString()) ),
 			( "/get_file", "GET", lambda clie, resp: resp.WriteResponseFileAttachment(clie.GetRequestQueryString()) ),
 			( "/upload_file", "POST", lambda clie, resp: save_file(clie.GetRequestQueryString(), clie.YieldRequestContent()) ),
 		]
