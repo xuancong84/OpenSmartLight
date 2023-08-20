@@ -185,8 +185,14 @@ input {font-size:15px;}
 	function save() {
 		var N = tb.rows.length - 2;
 		var ret = '';
-		for (var n = 1; n <= N; ++n)
+		for (var n = 1; n <= N; ++n){
+			for(var x of [1,2,3])
+				if(tb.rows[n].children[x].textContent.includes('\n') || tb.rows[n].children[x].textContent.includes('\r')){
+					alert(`Error: Row ${n} Column ${x} contains multiple lines`);
+					return;
+				}
 			ret += [1, 2, 3].map(x => tb.rows[n].children[x].textContent).join('\t') + '\n';
+		}
 		alert(GET('/rc_save', 'POST', ret));
 	}
 	function update(){

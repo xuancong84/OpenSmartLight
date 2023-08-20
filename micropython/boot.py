@@ -1,11 +1,20 @@
-import os, sys, machine, gc, network, time
-from machine import Pin
+from machine import Pin, reset_cause
+try:
+	L = open('rc-codes.txt').readline().split('\t')
+	if L[0]=='__preboot__':
+		exec(L[-1])
+except:
+	pass
 
+import os, sys, machine, gc, network, time
+
+gc.collect()
 ap_if = network.WLAN(network.AP_IF)
 ap_if.active(False)
 sta_if = network.WLAN(network.STA_IF)
 
-if machine.reset_cause() == machine.PWRON_RESET:
+# To enter rescue mode, create a Wifi hotspot with both SSID and password being 'RESCUE-ESP'
+if reset_cause() == machine.PWRON_RESET:
 	LED = Pin(2, Pin.OUT)
 	LED(0)
 	sta_if.active(True)
@@ -35,7 +44,7 @@ try:
 	p16 = Pin(16, Pin.OUT)
 	p16(1)
 	time.sleep(0.1)
-	if True or not Pin(16, Pin.IN)():
+	if not Pin(16, Pin.IN)():
 		sys.exit()
 	run()
 	machine.reset()
