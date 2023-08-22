@@ -10,6 +10,8 @@ import  socket
 import  gc
 import  re
 
+DEBUG = False
+
 try :
 	from microWebTemplate import MicroWebTemplate
 except :
@@ -303,7 +305,8 @@ class MicroWebSrv :
 						upg = self._getConnUpgrade()
 						if not upg :
 							routeHandler, routeArgs = self._microWebSrv.GetRouteHandler(self._resPath, self._method)
-							print(f'DB: routeHandler={routeHandler}, routeArgs={routeArgs}, _resPath={self._resPath}, method={self._method}')
+							if DEBUG:
+								print(f'DB: routeHandler={routeHandler}, routeArgs={routeArgs}, _resPath={self._resPath}, method={self._method}')
 							if routeHandler :
 								try :
 									if routeArgs is not None:
@@ -313,7 +316,8 @@ class MicroWebSrv :
 									if type(ret)==str:
 										response.WriteResponseOk(content=ret, headers=None, contentType="text/plain", contentCharset="UTF-8")
 								except Exception as ex :
-									print(f'MicroWebSrv handler exception:\r\n  - In route {self._method} {self._resPath}\r\n  - {ex}')
+									if DEBUG:
+										print(f'MicroWebSrv handler exception:\r\n  - In route {self._method} {self._resPath}\r\n  - {ex}')
 									raise ex
 							elif self._method.upper() == "GET" :
 								filepath = self._microWebSrv._physPathFromURLPath(self._resPath)
@@ -646,7 +650,8 @@ class MicroWebSrv :
 						return False
 				return True
 			except Exception as e:
-				print(e)
+				if DEBUG:
+					print(e)
 			self.WriteResponseNotFound()
 			return False
 

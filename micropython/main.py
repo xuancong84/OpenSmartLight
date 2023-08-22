@@ -1,10 +1,10 @@
-import os, sys, gc, machine, network, socket, select, time, random
+import os, sys, gc, machine, network, socket, select, time, random, esp
 import urequests as url
 from array import array
 from time import ticks_us, ticks_diff
 from math import sqrt
 from microWebSrv import MicroWebSrv as MWS
-from machine import Pin, UART, PWM, ADC, Timer
+from machine import Pin, UART, PWM, ADC
 gc.collect()
 
 
@@ -244,7 +244,7 @@ class MWebServer:
 			self.sock_map[id(sys.stdin)] = self.handleASR
 		elif PIN_LD1115H != None:
 			self.ld1115h = LD1115H(PIN_LD1115H)
-			self.poll_tmout = 1000
+			self.poll_tmout = 1
 			self.poll.register(sys.stdin, select.POLLIN)
 			self.sock_map[id(sys.stdin)] = self.ld1115h.handleUART
 		self.cpIP = captivePortalIP
@@ -279,7 +279,26 @@ class MWebServer:
 
 	def run(self):
 		while True:
-			tps = self.poll.poll(self.poll_tmout)
+			now = time.time()
+			dlist = []
+			poll_tmout = self.poll_tmout
+			for tn,tm in g.Timers.items():
+				diff = now-tm[0]-tm[1]
+				if diff>=0:
+					try:
+						tm[3]()
+					except Exception as e:
+						prt(e)
+					if tm[2]:
+						tm[0] = now
+					else:
+						dlist += [tn]
+					poll_tmout = tm[1] if poll_tmout<0 else min(poll_tmout, tm[1])
+				else:
+					poll_tmout = abs(diff) if poll_tmout<0 else min(poll_tmout, abs(diff))
+			for tn in dlist:
+				del g.Timers[tn]
+			tps = self.poll.poll(poll_tmout*1000)
 			if not tps:
 				if PIN_LD1115H!=None:
 					self.ld1115h.run1()
@@ -300,6 +319,7 @@ build_rc()
 if '__init__' in g.rc_set:
 	execRC('__init__')
 
+MWS.DEBUG = g.DEBUG
 if PIN_DEBUG_LED==None:
 	flashLED=lambda **kw:None
 else:
@@ -336,11 +356,11 @@ def run():
 		cpIP = start_wifi()
 		prt(wifi)
 		server = MWebServer(captivePortalIP=cpIP)
-		# PeriodicTimer(12*3600, lambda t: syncNTP(), True)
 		if '__postinit__' in g.rc_set:
 			execRC('__postinit__')
 		if PIN_DEBUG_LED!=None:
 			PIN_DEBUG_LED(1)
+		SetTimer('syncNTP', 12*3600, True, syncNTP)
 		server.run()
 	except Exception as e:
 		if PIN_ASR_IN==13:

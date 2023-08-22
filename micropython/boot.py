@@ -41,10 +41,7 @@ try:
 	gc.collect()
 	exec(f'from {mains[0].split(".")[0]} import *')
 	gc.collect()
-	p16 = Pin(16, Pin.OUT)
-	p16(1)
-	time.sleep(0.1)
-	if reset_cause() != machine.PWRON_RESET:
+	if reset_cause()>4:
 		sys.exit()
 	run()
 	machine.reset()

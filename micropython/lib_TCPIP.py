@@ -1,4 +1,4 @@
-import socket
+import socket, gc
 
 def send_tcp(obj):
 	try:
