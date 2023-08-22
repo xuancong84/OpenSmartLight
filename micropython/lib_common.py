@@ -1,10 +1,11 @@
 import os, time, ntptime
+from machine import Timer
 
 DEBUG = False
 SAVELOG = False
 LOGFILE = 'static/log.txt'
 timezone = 8
-is_NTP_set = False
+last_NTP_sync = None
 
 getDateTime = lambda: time.localtime(time.time()+3600*timezone)
 
@@ -24,12 +25,30 @@ def getFullDateTime():
 	tm = getDateTime()
 	return getDateString(tm)+" ("+getWeekdayString(tm)+") "+getTimeString(tm)
 
-def setNTP():
-	try:
-		ntptime.settime()
-		is_NTP_set = True
-	except:
-		pass
+def syncNTP():
+	global last_NTP_sync
+	if last_NTP_sync==None or time.time()-last_NTP_sync>24*3600:
+		try:
+			ntptime.settime()
+			last_NTP_sync = time.time()
+		except:
+			pass
+
+def PeriodicTimer(period, F, keep=False):
+	tmr = Timer(-1)
+	tmr.init(period=round(period*1000), mode=Timer.PERIODIC, callback=F)
+	if keep:
+		return tmr
+	else:
+		del tmr
+
+def OneshotTimer(period, F, keep=False):
+	tmr = Timer(-1)
+	tmr.init(period=round(period*1000), mode=Timer.ONE_SHOT, callback=F)
+	if keep:
+		return tmr
+	else:
+		del tmr
 
 def prt(*args, **kwarg):
 	if DEBUG:
