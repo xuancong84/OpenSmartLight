@@ -4,8 +4,8 @@ from machine import Timer
 DEBUG = False
 SAVELOG = False
 LOGFILE = 'static/log.txt'
+Timers = {}	# {'timer-name': [last-stamp-sec, period-in-sec, True (is periodic or oneshot), callback_func]}
 timezone = 8
-last_NTP_sync = None
 
 getDateTime = lambda: time.localtime(time.time()+3600*timezone)
 
@@ -26,29 +26,30 @@ def getFullDateTime():
 	return getDateString(tm)+" ("+getWeekdayString(tm)+") "+getTimeString(tm)
 
 def syncNTP():
-	global last_NTP_sync
-	if last_NTP_sync==None or time.time()-last_NTP_sync>24*3600:
-		try:
-			ntptime.settime()
-			last_NTP_sync = time.time()
-		except:
-			pass
+	try:
+		t = time.time()
+		ntptime.settime()
+		t = time.time()-t
+		for tmr in Timers:
+			tmr[0] += t
+	except:
+		pass
 
-def PeriodicTimer(period, F, keep=False):
+# On ESP8266, virtual timers with large periods (> a few seconds) will cause system crash upon receiving HTTP request
+def FastTimer(period, F, keep=False):
+	assert period<2000
 	tmr = Timer(-1)
-	tmr.init(period=round(period*1000), mode=Timer.PERIODIC, callback=F)
+	tmr.init(period=period, mode=Timer.PERIODIC, callback=F)
 	if keep:
 		return tmr
 	else:
 		del tmr
 
-def OneshotTimer(period, F, keep=False):
-	tmr = Timer(-1)
-	tmr.init(period=round(period*1000), mode=Timer.ONE_SHOT, callback=F)
-	if keep:
-		return tmr
-	else:
-		del tmr
+def SetTimer(name, period, repeat, F):
+	Timers[name] = [time.time(), period, repeat, F]
+
+def DelTimer(name):
+	Timers.pop(name, None)
 
 def prt(*args, **kwarg):
 	if DEBUG:
