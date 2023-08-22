@@ -4,7 +4,7 @@ from array import array
 from time import ticks_us, ticks_diff
 from math import sqrt
 from microWebSrv import MicroWebSrv as MWS
-from machine import Pin, UART, PWM, ADC
+from machine import Pin, UART, PWM, ADC, Timer
 gc.collect()
 
 
@@ -15,6 +15,7 @@ PIN_IR_IN = None
 PIN_IR_OUT = None
 PIN_ASR_IN = None	# generic ASR chip sending UART output upon voice commands
 PIN_LD1115H = None	# HLK-LD1115H motion sensor
+PIN_DEBUG_LED = None	# For debug blinking
 RCFILE = 'rc-codes.txt'
 
 # For analog sensors
@@ -27,11 +28,7 @@ A0 = ADC(0)
 import lib_common as g
 from lib_common import *
 
-if DEBUG:
-	Pin(2, Pin.OUT)(0)
-
 wifi = {}
-
 
 def connect_wifi():
 	global wifi
@@ -73,10 +70,12 @@ def start_wifi():
 	if not connect_wifi():
 		create_hotspot()
 		return wifi['config'][0]
-	setNTP()
+	syncNTP()
 	return ''
 
 def build_rc():
+	if not isFile(RCFILE):
+		open(RCFILE, 'w').close()
 	g.rc_set = ' '+' '.join([L.split('\t')[0] for L in open(RCFILE)])+' '
 	gc.collect()
 
@@ -120,6 +119,13 @@ def list_files(path=''):
 def isDir(path):
 	try:
 		os.listdir(path)
+		return True
+	except:
+		return False
+	
+def isFile(fn):
+	try:
+		open(fn).close()
 		return True
 	except:
 		return False
@@ -257,6 +263,7 @@ class MWebServer:
 		prt(f'RX received {key}')
 		code = get_rc_code(key)
 		execRC(code)
+		flashLED()
 
 	def set_cmd(self, vn):
 		prt(f'Setting cmd to :{vn}')
@@ -274,7 +281,8 @@ class MWebServer:
 		while True:
 			tps = self.poll.poll(self.poll_tmout)
 			if not tps:
-				self.ld1115h.run1()
+				if PIN_LD1115H!=None:
+					self.ld1115h.run1()
 			for tp in tps:
 				self.sock_map[id(tp[0])]()
 				gc.collect()
@@ -289,8 +297,20 @@ class MWebServer:
 
 # Globals
 build_rc()
-if ' __init__ ' in g.rc_set:
+if '__init__' in g.rc_set:
 	execRC('__init__')
+
+if PIN_DEBUG_LED==None:
+	flashLED=lambda **kw:None
+else:
+	PIN_DEBUG_LED=Pin(PIN_DEBUG_LED, Pin.OUT)
+	PIN_DEBUG_LED(0)
+	def flashLED(intv=0.25, N=3):
+		for i in range(N):
+			PIN_DEBUG_LED(0)
+			time.sleep(intv)
+			PIN_DEBUG_LED(1)
+			time.sleep(intv)
 
 if PIN_ASR_IN != None:
 	from lib_TCPIP import *
@@ -316,8 +336,11 @@ def run():
 		cpIP = start_wifi()
 		prt(wifi)
 		server = MWebServer(captivePortalIP=cpIP)
-		if DEBUG:
-			Pin(2, Pin.OUT)(1)
+		# PeriodicTimer(12*3600, lambda t: syncNTP(), True)
+		if '__postinit__' in g.rc_set:
+			execRC('__postinit__')
+		if PIN_DEBUG_LED!=None:
+			PIN_DEBUG_LED(1)
 		server.run()
 	except Exception as e:
 		if PIN_ASR_IN==13:

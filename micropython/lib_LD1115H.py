@@ -180,6 +180,3 @@ class LD1115H:
 			if self.lux_level>self.P['DARK_TH_HIGH']:
 				self.set_sensor(True)
 				self.is_dark_mode = True
-
-
-

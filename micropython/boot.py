@@ -1,7 +1,7 @@
 from machine import Pin, reset_cause
 try:
 	L = open('rc-codes.txt').readline().split('\t')
-	if L[0]=='__preboot__':
+	if L[0]=='__preinit__':
 		exec(L[-1])
 except:
 	pass
@@ -44,7 +44,7 @@ try:
 	p16 = Pin(16, Pin.OUT)
 	p16(1)
 	time.sleep(0.1)
-	if not Pin(16, Pin.IN)():
+	if reset_cause() != machine.PWRON_RESET:
 		sys.exit()
 	run()
 	machine.reset()
