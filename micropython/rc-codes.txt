@@ -43,7 +43,7 @@ LTVF	客厅电视机关闭	{'protocol': 'CAP', 'filename': 'livingTVoff.tcp'}
 MTVN	主人房电视机开启	{'protocol': 'WOL', 'data': '74:e6:b8:20:1d:db'}
 MTVF	主人房电视机关闭	{'protocol': 'CAP', 'filename': 'masterTVoff.tcp'}
 _KF	进入用餐模式	['LFN', 'DLN']
-_CW	退出用餐模式	['LFF', 'DLF']
+_CW	退出用餐模式	['LFF', 'DLF', 'DFS']
 ALLN	客厅全部灯开启	['DLN', 'SLN', 'PLN', 'MLN', 'S1N', 'S2N', 'S3N']
 ALLF	客厅全部灯关闭	['DLF', 'SLF', 'PLF', 'MLF', 'S1F', 'S2F', 'S3F']
 RCB	扫地机开启	'http://18.139.106.135:8883/ecovacs/T8/clean'
@@ -65,4 +65,5 @@ LLN	客厅灯带开启	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 
 LLF	客厅灯带关闭	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': b';$\x00\x00\x00\x00\x00\x00\x002\x00\x00\x91'}
 LLC	客厅灯带换色	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': bytes(g.Cmsg+[sum(g.Cmsg)&0xff])}, Exec('g.C=(1 if g.C+1>=8 else g.C+1);g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]')
 LLT	客厅灯带不断变色	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': b'8%\x012\x90'}
-__init__	系统初始化	exec('g.DL=g.SL=g.PL=0'), Exec('PIN_IR_IN=PIN_IR_OUT=None'), Exec("g.C=1;g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]")
+__init__	系统初始化	exec('g.DL=g.SL=g.PL=0'), Exec('PIN_RF_IN = 5;PIN_RF_OUT = 4;PIN_ASR_IN = 13;PIN_IR_IN=14;PIN_DEBUG_LED=2'), Exec("g.C=1;g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]")
+__postinit__	后期初始化	SetTimer('pianoFan', 300, True, lambda: execRC('PFF' if '08:00:00'<getTimeString()<'22:00:00' else ''))
