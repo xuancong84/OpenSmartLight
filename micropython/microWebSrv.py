@@ -450,8 +450,8 @@ class MicroWebSrv :
 
 		# ------------------------------------------------------------------------
 
-		def GetRequestQueryString(self) :
-			return self._queryString
+		def GetRequestQueryString(self, unquote=False) :
+			return MicroWebSrv._unquote(self._queryString) if unquote else self._queryString
 
 		# ------------------------------------------------------------------------
 

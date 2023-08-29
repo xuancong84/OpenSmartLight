@@ -9,19 +9,19 @@ gc.collect()
 
 
 # Global variables
-PIN_RF_IN = None
-PIN_RF_OUT = None
-PIN_IR_IN = None
-PIN_IR_OUT = None
-PIN_ASR_IN = None	# generic ASR chip sending UART output upon voice commands
-PIN_LD1115H = None	# HLK-LD1115H motion sensor
-PIN_DEBUG_LED = None	# For debug blinking
+PIN_RF_IN = None	# GPIO5 tested working
+PIN_RF_OUT = None	# GPIO4 tested working
+PIN_IR_IN = None	# GPIO14 tested working
+PIN_IR_OUT = None	# GPIO12 tested working
+PIN_ASR_IN = None	# GPIO 13 or 3: generic ASR chip sending UART output upon voice commands
+PIN_LD1115H = None	# GPIO 13 or 3: HLK-LD1115H motion sensor
+PIN_DEBUG_LED = None	# only GPIO 2 or None: for debug blinking
 RCFILE = 'rc-codes.txt'
 
 # For analog sensors
-PIN_COMMON_PULLUP = None
-PIN_PHOTORES_GND = None
-PIN_THERMAL_GND = None
+PIN_COMMON_PULLUP = None	# GPIO12 tested working
+PIN_PHOTORES_GND = None		# GPIO13 tested working
+PIN_THERMAL_GND = None		# GPIO14 tested working
 A0 = ADC(0)
 
 # Namespace for global variable
@@ -213,8 +213,8 @@ class MWebServer:
 		routeHandlers = [
 			( "/", "GET", lambda clie, resp: resp.WriteResponseFile('/static/hub.html', "text/html") ),
 			( "/hello", "GET", lambda *_: f'Hello world!' ),
-			( "/exec", "GET", lambda clie, resp: Exec(clie.GetRequestQueryString()) ),
-			( "/eval", "GET", lambda clie, resp: Eval(clie.GetRequestQueryString()) ),
+			( "/exec", "GET", lambda clie, resp: Exec(MWS._unquote(clie.GetRequestQueryString())) ),
+			( "/eval", "GET", lambda clie, resp: Eval(MWS._unquote(clie.GetRequestQueryString())) ),
 			( "/wifi_restart", "GET", lambda *_: self.set_cmd('restartWifi') ),
 			( "/wifi_save", "POST", lambda clie, resp: save_file('secret.py', clie.YieldRequestContent()) ),
 			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
@@ -325,7 +325,7 @@ if PIN_DEBUG_LED==None:
 else:
 	PIN_DEBUG_LED=Pin(PIN_DEBUG_LED, Pin.OUT)
 	PIN_DEBUG_LED(0)
-	def flashLED(intv=0.25, N=3):
+	def flashLED(intv=0.2, N=3):
 		for i in range(N):
 			PIN_DEBUG_LED(0)
 			time.sleep(intv)
