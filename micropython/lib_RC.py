@@ -168,5 +168,5 @@ class RF433RC(RC):
 
 # For infrared remote controller
 class IRRC(RC):
-	def __init__(self, rx_pin=None, tx_pin=None, nedges=600, nrepeat=1, min_nframes=2, recv_dur=5000000, gap_tol=0.5):
+	def __init__(self, rx_pin=None, tx_pin=None, nedges=600, nrepeat=1, min_nframes=1, recv_dur=5000000, gap_tol=0.5):
 		super().__init__(rx_pin, tx_pin, nedges, nrepeat, min_nframes, gap_tol, recv_dur, proto={'protocol':'IRRC', 'fPWM':43000})
