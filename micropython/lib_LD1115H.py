@@ -5,6 +5,7 @@ from math import sqrt
 from array import array
 from select import select
 from lib_common import *
+from microWebSrv import MicroWebSrv as MWS
 
 gc.collect()
 
@@ -24,17 +25,14 @@ default_params = {
 	'midnight_stops': ["07:00", "07:00", "07:00", "07:00", "07:00", "07:00", "07:00"]
 }
 
-def digitalWrite(pin, val):
-	if pin != None:
-		pin(val)
-
-def analogWrite(pin, val):
-	if pin != None:
-		pin.duty(val)
+digitalWrite = lambda pin, val: pin(val) if pin else None
+digitalRead = lambda pin: pin() if pin else None
+analogWrite = lambda pin, val: pin.duty(val) if pin else None
+analogRead = lambda pin: pin.duty() if pin else None
 
 # For 24GHz microwave micro-motion sensor HLK-LD1115H
 class LD1115H:
-	def __init__(self, sensor_pwr_pin, ctrl_output_pin, led_master_pin=None, led_level_pin=None,
+	def __init__(self, mws:MWS, ctrl_output_pin=None, sensor_pwr_pin=None, led_master_pin=None, led_level_pin=None,
 	    	F_read_lux=None, F_read_thermal=None, params=default_params):  # Typically ~15 frames
 		self.sensor_pwr_pin = None if sensor_pwr_pin==None else Pin(sensor_pwr_pin, Pin.OUT)
 		self.ctrl_output_pin = None if ctrl_output_pin==None else Pin(ctrl_output_pin, Pin.OUT)
@@ -43,19 +41,32 @@ class LD1115H:
 		self.F_read_lux = F_read_lux
 		self.F_read_thermal = F_read_thermal
 
-		self.sensor_log = ''
 		self.P = params
-		self.logging = False
 		self.tm_last_ambient = time()
-		self.is_smartlight_on = False
-		self.ctrl_output = False
-		self.sensor_pwr = False
-		self.led_master = False
-
-		self.is_dark_mode = False
 		self.elapse = 0
+
+		# status
+		self.is_smartlight_on = False
+		self.is_dark_mode = False
 		self.lux_level = 0
+		self.logging = False
+		self.sensor_log = ''
+
+		mws.add_route('/ms_getParams', 'GET', lambda clie, resp: resp.WriteResponseJsonOk(self.P))
 		gc.collect()
+
+	def status(self):
+		return {
+			'is_smartlight_on': self.is_smartlight_on,
+			'is_dark_mode': self.is_dark_mode,
+			'ctrl_output': digitalRead(self.ctrl_output_pin),
+			'sensor_pwr': digitalRead(self.sensor_pwr_pin),
+			'led_master': digitalRead(self.led_master_pin),
+			'led_level': analogRead(self.led_level_pin),
+			'lux_level': self.lux_level,
+			'logging': self.logging,
+			'sensor_log': self.sensor_log if self.logging else ''
+			}
 
 	def is_midnight(self):
 		tm = getDateTime()
@@ -70,21 +81,18 @@ class LD1115H:
 	
 	def set_output(self, state):
 		digitalWrite(self.ctrl_output_pin, state)
-		self.ctrl_output = state
 		prt("light on" if state else "light off")
 
 	def set_sensor(self, state):
 		digitalWrite(self.sensor_pwr_pin, state)
-		self.sensor_pwr = state
 		prt("sensor on" if state else "sensor off")
 
 	def set_onboard_led(self, state):
 		digitalWrite(self.led_master_pin, state)
-		self.led_master = state
 		prt("Onboard LED =", "On" if state else "Off")
 	
 	def glide_onboard_led(self, state):
-		if self.led_master_pin==None: return
+		if not self.led_master_pin: return
 
 		prt("glide LED on" if state else "glide LED off")
 		GLIDE_TIME = self.P['GLIDE_TIME']
@@ -109,8 +117,6 @@ class LD1115H:
 				analogWrite(self.led_level_pin, level)
 			digitalWrite(self.led_master_pin, 0)
 			analogWrite(self.led_level_pin, 0)
-		self.led_master = state
-		self.led_level = level
 
 	def smartlight_on(self):
 		prt("smartlight on")

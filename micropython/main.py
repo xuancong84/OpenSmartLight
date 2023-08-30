@@ -207,11 +207,19 @@ def Eval(cmd):
 	except Exception as e:
 		return str(e)
 
-class MWebServer:
+class WebServer:
 	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
 		self.cmd = ''
 		routeHandlers = [
 			( "/", "GET", lambda clie, resp: resp.WriteResponseFile('/static/hub.html', "text/html") ),
+			( "/status", "GET", lambda clie, resp: resp.WriteResponseJsonOk({
+				'datetime': getFullDateTime(),
+				'g.timezone': timezone,
+				'g.DEBUG': DEBUG,
+				'g.SAVELOG': SAVELOG,
+				'g.LOGFILE': LOGFILE,
+				'LD1115H': g.ld1115h.status() if hasattr(g, 'ld1115h') else None,
+				}) ),
 			( "/hello", "GET", lambda *_: f'Hello world!' ),
 			( "/exec", "GET", lambda clie, resp: Exec(MWS._unquote(clie.GetRequestQueryString())) ),
 			( "/eval", "GET", lambda clie, resp: Eval(MWS._unquote(clie.GetRequestQueryString())) ),
@@ -231,22 +239,22 @@ class MWebServer:
 			( "/get_file", "GET", lambda clie, resp: resp.WriteResponseFileAttachment(clie.GetRequestQueryString()) ),
 			( "/upload_file", "POST", lambda clie, resp: save_file(clie.GetRequestQueryString(), clie.YieldRequestContent()) ),
 		]
-		self.app = MWS(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
-		self.sock_web = self.app.run(max_conn=max_conn, loop_forever=False)
+		self.mws = MWS(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
+		self.sock_web = self.mws.run(max_conn=max_conn, loop_forever=False)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
 		self.poll_tmout = -1
 		if PIN_ASR_IN == 13 or PIN_LD1115H == 13:
 			UART(0, 115200, tx=Pin(15), rx=Pin(13))	# swap UART0 to alternative ports to avoid interference from CH340
-		self.sock_map = {id(self.sock_web): self.app.run_once}
+		self.sock_map = {id(self.sock_web): self.mws.run_once}
 		if PIN_ASR_IN != None:
 			self.poll.register(sys.stdin, select.POLLIN)
 			self.sock_map[id(sys.stdin)] = self.handleASR
 		elif PIN_LD1115H != None:
-			self.ld1115h = LD1115H(PIN_LD1115H)
+			g.ld1115h = LD1115H(self.mws, PIN_LD1115H)
 			self.poll_tmout = 1
 			self.poll.register(sys.stdin, select.POLLIN)
-			self.sock_map[id(sys.stdin)] = self.ld1115h.handleUART
+			self.sock_map[id(sys.stdin)] = g.ld1115h.handleUART
 		self.cpIP = captivePortalIP
 
 		if captivePortalIP:
@@ -301,7 +309,7 @@ class MWebServer:
 			tps = self.poll.poll(poll_tmout*1000)
 			if not tps:
 				if PIN_LD1115H!=None:
-					self.ld1115h.run1()
+					g.ld1115h.run1()
 			for tp in tps:
 				self.sock_map[id(tp[0])]()
 				gc.collect()
@@ -355,13 +363,13 @@ def run():
 	try:
 		cpIP = start_wifi()
 		prt(wifi)
-		server = MWebServer(captivePortalIP=cpIP)
+		g.server = WebServer(captivePortalIP=cpIP)
 		if '__postinit__' in g.rc_set:
 			execRC('__postinit__')
 		if PIN_DEBUG_LED!=None:
 			PIN_DEBUG_LED(1)
 		SetTimer('syncNTP', 12*3600, True, syncNTP)
-		server.run()
+		g.server.run()
 	except Exception as e:
 		if PIN_ASR_IN==13:
 			UART(0, 115200, tx=Pin(1), rx=Pin(3))
