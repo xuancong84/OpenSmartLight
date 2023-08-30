@@ -1,7 +1,7 @@
 import os, time, ntptime
 from machine import Timer
 
-DEBUG = False
+DEBUG = True
 SAVELOG = False
 LOGFILE = 'static/log.txt'
 Timers = {}	# {'timer-name': [last-stamp-sec, period-in-sec, True (is periodic or oneshot), callback_func]}

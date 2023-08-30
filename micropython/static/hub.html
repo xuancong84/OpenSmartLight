@@ -6,6 +6,47 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>OpenSmartNode</title>
 	<style>
+.toast {
+  visibility: hidden;
+  min-width: 250px;
+  margin-left: -125px;
+  background-color: #333;
+  color: #fff;
+  text-align: center;
+  border-radius: 2px;
+  padding: 16px;
+  position: fixed;
+  z-index: 1;
+  left: 50%;
+  bottom: 30px;
+  font-size: 17px;
+}
+
+.toast.show {
+  visibility: visible;
+  -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
+  animation: fadein 0.5s, fadeout 0.5s 2.5s;
+}
+
+@-webkit-keyframes fadein {
+  from {bottom: 0; opacity: 0;} 
+  to {bottom: 30px; opacity: 1;}
+}
+
+@keyframes fadein {
+  from {bottom: 0; opacity: 0;}
+  to {bottom: 30px; opacity: 1;}
+}
+
+@-webkit-keyframes fadeout {
+  from {bottom: 30px; opacity: 1;} 
+  to {bottom: 0; opacity: 0;}
+}
+
+@keyframes fadeout {
+  from {bottom: 30px; opacity: 1;}
+  to {bottom: 0; opacity: 0;}
+}
 .content_editable {
     white-space: pre-wrap;       /* css-3 */
     white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
@@ -142,10 +183,14 @@ input {font-size:15px;}
 		<button onclick="window.location.href='/file.html'" title="Go to file transfer page" class="bb">File Transfer ...</button>
 		<button onclick="window.location.href='/wifi.html'" title="Go to WiFi settings page" class="bb">Wifi Settings ...</button>
 	</h2>
-	<h3><span>Logging:</span><label class="toggle"><input id='cb_log' type="checkbox" onchange='set_ckbox(this)'>
+	<h3 id="STATUS_BOX" style="display: inline-block; border: 1px solid; padding: 2px; width: 48%; resize: both; overflow: auto;">
+		<span>Keep updating:</span><label class="toggle"><input type="checkbox" onchange='set_active(this.checked)'>
 		<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;
-		<button onclick="window.location.href='/log.txt'" class="bb">View Log File</button> &nbsp;
-		Server Time: <span id="tm"></span>
+		<span>Server Time:</span> <span id="datetime"></span>
+		<button id='view_log' onclick="window.location.href='/log.txt'" class="bb">View Log File</button> &nbsp;
+	</h3>
+	<h3 id="PARAMS_BOX" style="display: inline-block; border: 1px solid; padding: 2px; width: 48%; resize: both; overflow: auto;">
+		<span>Parameters:</span>
 	</h3>
 	<h3>Remote Control Mapping Table</h3>
 	<table id="rc-table" style="width:100%">
@@ -169,19 +214,47 @@ input {font-size:15px;}
 	</p>
 
 <script>
-	var xmlHttp = new XMLHttpRequest();
 	function getById(id_str) { return document.getElementById(id_str); }
-	function GET(url, method = 'GET', data = null) {
-		xmlHttp.open(method, url, false);
+	var timer = null;
+	var snackbar = getById('snackbar');
+	function GET(url, onOkay=null, onFail=null) {
+		var xmlHttp = new XMLHttpRequest();
+		xmlHttp.open('GET', url, onOkay!=null||onFail!=null);
+		if(onOkay!=null) xmlHttp.onload = onOkay;
+		if(onFail!=null) xmlHttp.onerror = onFail;
+		xmlHttp.send(null);
+		return xmlHttp.responseText;
+	}
+	function POST(url, data = null, onOkay=null, onFail=null){
+		var xmlHttp = new XMLHttpRequest();
+		xmlHttp.open('POST', url, onOkay!=null||onFail!=null);
+		if(onOkay!=null) xmlHttp.onload = onOkay;
+		if(onFail!=null) xmlHttp.onerror = onFail;
 		xmlHttp.send(data);
 		return xmlHttp.responseText;
+	}
+	function toast(msg) {
+		var randint = Math.round(Math.random()*10000);
+		document.body.innerHTML += `<div id='toast${randint}' class='toast show'>${msg}</div>`;
+		setTimeout(function(){ getById(`toast${randint}`).remove() }, 3000);
+	}
+	function set_value2(id, value){
+		GET('set_value?'+id+'='+value, ()=>{toast("<font color=green><b>Value set successfully!</b></font>")},
+			()=>{toast("<font color=red><b>Set value failed!</b></font>")});
+	}
+	function set_value(obj){ set_value2(obj.id, obj.value); }
+	function set_active(state){
+		if(state){
+			if(timer==null) timer=setInterval(update, 1000);
+		}else{
+			if(timer!=null) {clearInterval(timer); timer=null;}
+		}
 	}
 	var tb = getById('rc-table');
 	var rid = 0;
 	var drag_rid;
-	function set_ckbox(obj){
-		alert(GET('/exec?g.SAVELOG='+(obj.checked?'True':'False')));
-	}
+	var G = {};
+	function set_ckbox(obj){ alert(GET(`/exec?${obj.id}=${obj.checked?'True':'False'}`)); }
 	function save() {
 		var N = tb.rows.length - 2;
 		var ret = '';
@@ -195,16 +268,38 @@ input {font-size:15px;}
 		}
 		alert(GET('/rc_save', 'POST', ret));
 	}
-	function update(){
-		getById('tm').textContent = GET('/eval?getFullDateTime()');
-		getById('cb_log').checked = GET('/eval?str(SAVELOG)')=='True';
+	function set_fields(){
+		try{G = JSON.parse(this.responseText)} catch(e){return}
+		var box = getById(this.responseXML.endsWith('getParams')?"STATUS_BOX":"PARAMS_BOX");
+		for (const [k,v] of Object.entries(G)) {
+			var obj = getById(k);
+			if(obj==null){
+				if(typeof v=="boolean"){
+					box.innerHTML += `<span>${k}:</span><label class="toggle"><input id="${k}" type="checkbox" onchange='set_ckbox(this)'>
+		<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF" ${v?"checked":""}></span></label> &nbsp;`
+				}else{
+					box.innerHTML += `<span>${k}:</span><input id="${k}" type="text" onblur='set_value(this)'>&nbsp;`
+				}
+			}else{
+				if(v==null)obj.style.display="none";
+				else{
+				 	obj.style.display="inline";
+					if(obj.type && obj.type === 'checkbox')
+						obj.checked = v;
+					else
+						obj.textContent = v;
+				}
+			}
+		}
 	}
 	function clear_all(){
 		while (tb.rows.length > 2) tb.deleteRow(1);
 	}
+	function update(){
+		GET('/status', set_fields);
+	}
 	function load() {
 		try {
-			update();
 			var txt = GET('/rc_load').trim();
 			if(!txt) return;
 			var lines = txt.split('\n');
@@ -218,6 +313,7 @@ input {font-size:15px;}
 		} catch (err) {
 			alert(err);
 		}
+		update(true);
 	}
 	function recordRF(rid) {
 		if(confirm("Please hold down the remote controller button and click OK to record:"))
