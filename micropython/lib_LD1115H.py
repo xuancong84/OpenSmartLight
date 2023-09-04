@@ -1,29 +1,12 @@
-import os, sys, gc
+import os, sys, gc, select
 from machine import Pin, PWM, ADC
-from time import sleep, time, sleep_ms
+from time import sleep, sleep_ms
 from math import sqrt
 from array import array
-from select import select
 from lib_common import *
 from microWebSrv import MicroWebSrv as MWS
 
 gc.collect()
-
-default_params = {
-	'DARK_TH_LOW': 960,
-	'DARK_TH_HIGH': 990,
-	'DELAY_ON_MOV': 30000,
-	'DELAY_ON_OCC': 20000,
-	'OCC_TRIG_TH': 65530,
-	'OCC_CONT_TH': 600,
-	'MOV_TRIG_TH': 400,
-	'MOV_CONT_TH': 250,
-	'LED_BEGIN': 100,
-	'LED_END': 125,
-	'GLIDE_TIME': 800,
-	'midnight_starts': ["23:00", "23:00", "23:00", "23:00", "00:00", "00:00", "23:00"],
-	'midnight_stops': ["07:00", "07:00", "07:00", "07:00", "07:00", "07:00", "07:00"]
-}
 
 digitalWrite = lambda pin, val: pin(val) if pin else None
 digitalRead = lambda pin: pin() if pin else None
@@ -33,16 +16,16 @@ analogRead = lambda pin: pin.duty() if pin else None
 # For 24GHz microwave micro-motion sensor HLK-LD1115H
 class LD1115H:
 	def __init__(self, mws:MWS, ctrl_output_pin=None, sensor_pwr_pin=None, led_master_pin=None, led_level_pin=None,
-	    	F_read_lux=None, F_read_thermal=None, params=default_params):  # Typically ~15 frames
+	    	F_read_lux=None, F_read_thermal=None):  # Typically ~15 frames
 		self.sensor_pwr_pin = None if sensor_pwr_pin==None else Pin(sensor_pwr_pin, Pin.OUT)
 		self.ctrl_output_pin = None if ctrl_output_pin==None else Pin(ctrl_output_pin, Pin.OUT)
 		self.led_master_pin = None if led_master_pin==None else Pin(led_master_pin, Pin.OUT)
 		self.led_level_pin = None if led_level_pin==None else PWM(Pin(led_level_pin), 1000, 0)
-		self.F_read_lux = F_read_lux
-		self.F_read_thermal = F_read_thermal
+		self.F_read_lux = F_read_lux or (lambda: 0)
+		self.F_read_thermal = F_read_thermal or (lambda: 0)
 
-		self.P = params
-		self.tm_last_ambient = time()
+		self.load_params()
+		self.tm_last_ambient = time.time()
 		self.elapse = 0
 
 		# status
@@ -52,9 +35,50 @@ class LD1115H:
 		self.logging = False
 		self.sensor_log = ''
 
-		mws.add_route('/ms_getParams', 'GET', lambda clie, resp: resp.WriteResponseJsonOk(self.P))
+		mws.add_route('/ms_getParams', 'GET', lambda clie, resp: resp.WriteResponseJSONOk(self.P))
+		mws.add_route('/ms_setParams', 'GET', lambda clie, resp: self.setParams(clie.GetRequestQueryParams()))
+		mws.add_route('/ms_save', 'GET', lambda *_: self.save_params())
+		mws.add_route('/ms_load', 'GET', lambda *_: self.load_params())
 		gc.collect()
 
+	def load_params(self):
+		try:
+			self.P = eval(open('LD1115H.conf').read())
+			return 'OK'
+		except:
+			self.P = {
+				'DARK_TH_LOW': 960,
+				'DARK_TH_HIGH': 990,
+				'DELAY_ON_MOV': 30000,
+				'DELAY_ON_OCC': 20000,
+				'OCC_TRIG_TH': 65530,
+				'OCC_CONT_TH': 600,
+				'MOV_TRIG_TH': 400,
+				'MOV_CONT_TH': 250,
+				'LED_BEGIN': 100,
+				'LED_END': 125,
+				'GLIDE_TIME': 800,
+				'midnight_starts': ["23:00", "23:00", "23:00", "23:00", "00:00", "00:00", "23:00"],
+				'midnight_stops': ["07:00", "07:00", "07:00", "07:00", "07:00", "07:00", "07:00"]
+			}
+			return 'Load default OK'
+
+	def save_params(self):
+		try:
+			with open('LD1115H.conf', 'w') as fp:
+				fp.write(str(self.P))
+			return 'OK'
+		except Exception as e:
+			return str(e)
+
+	def setParams(self, params:dict):
+		try:
+			for k,v in params.items():
+				self.P[k] = v.split(',') if k.startswith('midnight_') else type(self.P[k])(v)
+			return 'OK'
+		except Exception as e:
+			return str(e)
+		
 	def status(self):
 		return {
 			'is_smartlight_on': self.is_smartlight_on,
@@ -132,7 +156,7 @@ class LD1115H:
 	def handleUART(self):
 		s_mask = 0
 
-		while select([sys.stdin], [], [], 0)[0]:
+		while select.select([sys.stdin], [], [], 0)[0]:
 			L = sys.stdin.readline().strip()
 
 			# append sensor log
@@ -159,7 +183,7 @@ class LD1115H:
 		self.run1(s_mask)
 
 	def run1(self, s_mask=0):
-		millis = round(time()*1000)
+		millis = round(time.time()*1000)
 
 		# Update ambient level
 		if self.F_read_lux and millis-self.tm_last_ambient>=1000:

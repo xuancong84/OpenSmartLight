@@ -15,6 +15,12 @@
 - `__init__` contains codes that are executed after main code is loaded, but before object creation (which depends on PIN assignment) and connecting to Wifi. You can put PIN definitions and initialization here.
 - `__postinit__` contains codes that are executed after Wifi is connected, just before entering the main loop. You can put your Timers here (ESP8266 crashes if you define Timers before connecting to Wifi).
 
+## Timers:
+You can define timers to schedule tasks periodically or at some specific time in the future
+- Use `SetTimer(name:str, period_in_sec, repeat:bool, F_callback)` to create a timer with *name*
+- Use `DelTimer(name:str)` to delete the timer with *name*
+- Use `FastTimer(period_in_ms:int, F_callback, keep=False)` to create a sub-second periodic timer that repeat the user function rapidly (On ESP8266, virtual timers with large periods (> 2 seconds) will cause system crash upon receiving HTTP request)
+
 # OpenSmartLight (C/C++ deprecated)
 Open-source smart-light sensor module for ceiling lighting control
 
