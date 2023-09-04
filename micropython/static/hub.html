@@ -10,7 +10,7 @@
   visibility: hidden;
   min-width: 250px;
   margin-left: -125px;
-  background-color: #333;
+  background-color: #777;
   color: #fff;
   text-align: center;
   border-radius: 2px;
@@ -91,8 +91,6 @@ button:focus:not(:active) {box-shadow: rgba(40, 170, 255, 0.25) 0 0 0 .125em;}
 
 table, th, td {border: 1px solid;}
 th {padding-left: 5px; padding-right: 5px;}
-input[type=number] {width: 80px;}
-input[type=text],input[type=password] {width: 125px;}
 h3 {margin-bottom:10px;}
 input {font-size:15px;}
 .bb { font-weight: bold; }
@@ -180,17 +178,19 @@ input {font-size:15px;}
 
 <body>
 	<h2>OpenSmartNode (Remote Control Hub)
-		<button onclick="window.location.href='/file.html'" title="Go to file transfer page" class="bb">File Transfer ...</button>
-		<button onclick="window.location.href='/wifi.html'" title="Go to WiFi settings page" class="bb">Wifi Settings ...</button>
+		<button onclick="window.open('/file.html', '_blank')" title="Go to file transfer page" class="bb">File Transfer ...</button>
+		<button onclick="window.open('/wifi.html', '_blank')" title="Go to WiFi settings page" class="bb">Wifi Settings ...</button>
 	</h2>
-	<h3 id="STATUS_BOX" style="display: inline-block; border: 1px solid; padding: 2px; width: 48%; resize: both; overflow: auto;">
-		<span>Keep updating:</span><label class="toggle"><input type="checkbox" onchange='set_active(this.checked)'>
+	<h3 id="STATUS_BOX" style="display: inline-block; border: 1px solid; padding: 2px; width: 98%; resize: both; overflow: auto; vertical-align: top;">
+		<span>Status: </span>&nbsp; <span>Keep updating: </span><label class="toggle"><input type="checkbox" onchange='set_active(this)'>
 		<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;
 		<span>Server Time:</span> <span id="datetime"></span>
-		<button id='view_log' onclick="window.location.href='/log.txt'" class="bb">View Log File</button> &nbsp;
+		<button id='view_log' onclick="window.open('/log.txt','_blank')" class="bb">View Log File</button> &nbsp;
 	</h3>
-	<h3 id="PARAMS_BOX" style="display: inline-block; border: 1px solid; padding: 2px; width: 48%; resize: both; overflow: auto;">
-		<span>Parameters:</span>
+	<h3 id="PARAMS_BOX" style="display: none; border: 1px solid; padding: 2px; width: 48%; resize: both; overflow: auto; vertical-align: top;">
+		<span>Parameters: </span> &nbsp;
+		<button onclick="alert(GET('/ms_save'))" title="Save parameter settings to storage" class="bb">SAVE</button> &nbsp;
+		<button onclick="alert(GET('/ms_load'));update(2)" title="Load parameter settings from storage" class="bb">LOAD</button> &nbsp;
 	</h3>
 	<h3>Remote Control Mapping Table</h3>
 	<table id="rc-table" style="width:100%">
@@ -235,16 +235,20 @@ input {font-size:15px;}
 	}
 	function toast(msg) {
 		var randint = Math.round(Math.random()*10000);
-		document.body.innerHTML += `<div id='toast${randint}' class='toast show'>${msg}</div>`;
+		var e = document.createElement('div');
+		e.id = `toast${randint}`;
+		e.className = 'toast show';
+		e.innerHTML = msg;
+		document.body.appendChild(e);
 		setTimeout(function(){ getById(`toast${randint}`).remove() }, 3000);
 	}
-	function set_value2(id, value){
-		GET('set_value?'+id+'='+value, ()=>{toast("<font color=green><b>Value set successfully!</b></font>")},
+	function set_value2(id, value, prefix='exec'){
+		GET(`/${prefix}?${id}=${value}`, ()=>{toast("<font color=lime><b>Value set successfully!</b></font>")},
 			()=>{toast("<font color=red><b>Set value failed!</b></font>")});
 	}
-	function set_value(obj){ set_value2(obj.id, obj.value); }
-	function set_active(state){
-		if(state){
+	function set_value(obj, prefix='exec'){ set_value2(obj.id, obj.value, prefix); }
+	function set_active(cb){
+		if(cb.checked){
 			if(timer==null) timer=setInterval(update, 1000);
 		}else{
 			if(timer!=null) {clearInterval(timer); timer=null;}
@@ -254,7 +258,8 @@ input {font-size:15px;}
 	var rid = 0;
 	var drag_rid;
 	var G = {};
-	function set_ckbox(obj){ alert(GET(`/exec?${obj.id}=${obj.checked?'True':'False'}`)); }
+	var hasLD1115H = false;
+	function set_ckbox(obj, prefix='exec'){ alert(GET(`/${prefix}?${obj.id}=${obj.checked?'True':'False'}`)); }
 	function save() {
 		var N = tb.rows.length - 2;
 		var ret = '';
@@ -266,37 +271,56 @@ input {font-size:15px;}
 				}
 			ret += [1, 2, 3].map(x => tb.rows[n].children[x].textContent).join('\t') + '\n';
 		}
-		alert(GET('/rc_save', 'POST', ret));
+		alert(POST('/rc_save', ret));
 	}
-	function set_fields(){
-		try{G = JSON.parse(this.responseText)} catch(e){return}
-		var box = getById(this.responseXML.endsWith('getParams')?"STATUS_BOX":"PARAMS_BOX");
-		for (const [k,v] of Object.entries(G)) {
+	function set_fields2(box, OBJ){
+		var prefix = box.id=='PARAMS_BOX'?'ms_setParams':'exec';
+		for (const [k,v] of Object.entries(OBJ).sort()) {
 			var obj = getById(k);
 			if(obj==null){
+				if(v==null) continue;
 				if(typeof v=="boolean"){
-					box.innerHTML += `<span>${k}:</span><label class="toggle"><input id="${k}" type="checkbox" onchange='set_ckbox(this)'>
-		<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF" ${v?"checked":""}></span></label> &nbsp;`
+					box.innerHTML += `<span>${k}: </span> <label class="toggle"><input id="${k}" type="checkbox" onchange='set_ckbox(this, "${prefix}")' ${v?"checked":""}>
+		<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;&nbsp;`
+				}else if(v.constructor == Object){ // is a dictionary
+					box.innerHTML += `<span class="expand" id="${k}">${k}: { </span>`;
+					set_fields2(box, v, prefix);
+					box.innerHTML += `<span>}</span> &nbsp;`;
 				}else{
-					box.innerHTML += `<span>${k}:</span><input id="${k}" type="text" onblur='set_value(this)'>&nbsp;`
+					box.innerHTML += `<span>${k}:</span><input id="${k}" type="${typeof v=="number"?"number":"text"}" size=1 value="${v}" onblur='set_value(this, "${prefix}")'> &nbsp;`;
+					var obj = getById(k);
+					obj.style.width = obj.scrollWidth + (typeof v=="number"?20:0) + 'px';
 				}
 			}else{
 				if(v==null)obj.style.display="none";
 				else{
 				 	obj.style.display="inline";
-					if(obj.type && obj.type === 'checkbox')
-						obj.checked = v;
+					if(obj.tagName=='INPUT'){
+						if(obj.type == 'checkbox') obj.checked = v;
+						else obj.value = v;
+					}else if(obj.classList.contains('expand'))
+						set_fields2(box, v, prefix);
 					else
 						obj.textContent = v;
 				}
 			}
 		}
 	}
+	function set_fields(){
+		try{G = JSON.parse(this.responseText)} catch(e){return}
+		var box = getById(this.responseURL.endsWith('getParams')?"PARAMS_BOX":"STATUS_BOX");
+		set_fields2(box, G);
+	}
 	function clear_all(){
 		while (tb.rows.length > 2) tb.deleteRow(1);
 	}
-	function update(){
-		GET('/status', set_fields);
+	function update(mask=1){
+		if(mask&1) GET('/status', set_fields);
+		if((mask&2) && hasLD1115H){
+			getById('STATUS_BOX').style.width = getById('PARAMS_BOX').style.width = '48%';
+			getById('PARAMS_BOX').style.display = 'inline-block';
+			GET('/ms_getParams', set_fields);
+		}
 	}
 	function load() {
 		try {
@@ -309,11 +333,13 @@ input {font-size:15px;}
 				var row = add_new_row();
 				for (var x = 0; x < 3; x++)
 					row.children[x+1].textContent = its[x];
+				if(line.includes('PIN_LD1115H'))
+					hasLD1115H = true;
 			}
 		} catch (err) {
 			alert(err);
 		}
-		update(true);
+		update(3);
 	}
 	function recordRF(rid) {
 		if(confirm("Please hold down the remote controller button and click OK to record:"))
@@ -325,7 +351,7 @@ input {font-size:15px;}
 	}
 	function emit(rid) {
 		var v = getById('R'+rid).children[3].textContent;
-		alert(GET('/rc_exec', 'POST', v));
+		alert(POST('/rc_exec', v));
 	}
 	function deleteRow(rid) {
 		getById('R' + rid).remove();
