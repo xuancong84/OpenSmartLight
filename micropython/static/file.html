@@ -61,7 +61,7 @@ input {font-size:15px;}
 			for (var line of lines){
 				var row = add_new_row();
 				[row.children[0].textContent, row.children[1].textContent] = line.split('\t');
-				row.children[2].children[3].style.display = row.children[0].textContent.endsWith('/')?"visible":"none";
+				row.children[2].children[row.children[0].textContent.endsWith('/')?0:1].style.display = "none";
 			}
 		} catch (err) {
 			alert(err);
@@ -147,9 +147,9 @@ input {font-size:15px;}
 		row.innerHTML = `<td class="ptr" draggable=true ondragstart="drag_rid=${rid}" ondragover="preventDefaults(event)"></td> <td></td>
 <td style="text-align:center">
 	<input type='button' onclick='download(${rid})' value='Download' title="Download this file/folder">
+	<input type='button' onclick='mkdir(${rid})' value='mkdir' title="Create a new folder under this folder">
 	<input type='button' onclick='rename(${rid})' value='Rename' title="Rename this file/folder">
 	<input type='button' onclick='deleteFile(${rid})' value='Delete' title="Delete this file/folder">
-	<input type='button' onclick='mkdir(${rid})' value='mkdir' title="Create a new folder under this folder" style="display:visible">
 </td>`;
 		rid++;
 		var obj = row.children[0];

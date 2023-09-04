@@ -162,7 +162,7 @@ def execRC(s):
 	prt(f'execRC:{str(s)}')
 	if s is None: return 'OK'
 	try:
-		if type(s) in [list, tuple, set]:
+		if type(s) == list:
 			res = []
 			for i in s:
 				res += [execRC(i)]
@@ -212,7 +212,7 @@ class WebServer:
 		self.cmd = ''
 		routeHandlers = [
 			( "/", "GET", lambda clie, resp: resp.WriteResponseFile('/static/hub.html', "text/html") ),
-			( "/status", "GET", lambda clie, resp: resp.WriteResponseJsonOk({
+			( "/status", "GET", lambda clie, resp: resp.WriteResponseJSONOk({
 				'datetime': getFullDateTime(),
 				'g.timezone': timezone,
 				'g.DEBUG': DEBUG,
@@ -221,23 +221,23 @@ class WebServer:
 				'LD1115H': g.ld1115h.status() if hasattr(g, 'ld1115h') else None,
 				}) ),
 			( "/hello", "GET", lambda *_: f'Hello world!' ),
-			( "/exec", "GET", lambda clie, resp: Exec(MWS._unquote(clie.GetRequestQueryString())) ),
-			( "/eval", "GET", lambda clie, resp: Eval(MWS._unquote(clie.GetRequestQueryString())) ),
+			( "/exec", "GET", lambda clie, resp: Exec(clie.GetRequestQueryString(True)) ),
+			( "/eval", "GET", lambda clie, resp: Eval(clie.GetRequestQueryString(True)) ),
 			( "/wifi_restart", "GET", lambda *_: self.set_cmd('restartWifi') ),
 			( "/wifi_save", "POST", lambda clie, resp: save_file('secret.py', clie.YieldRequestContent()) ),
 			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
 			( "/reboot", "GET", lambda *_: self.set_cmd('reboot') ),
 			( "/rf_record", "GET", lambda *_: str(rfc.recv()) ),
 			( "/ir_record", "GET", lambda *_: str(irc.recv()) ),
-			( "/rc_run", "GET", lambda cli, *arg: execRC(cli.GetRequestQueryString())),
+			( "/rc_run", "GET", lambda cli, *arg: execRC(cli.GetRequestQueryString(True))),
 			( "/rc_exec", "POST", lambda cli, *arg: execRC(cli.ReadRequestContent())),
 			( "/rc_save", "POST", lambda clie, resp: save_file(RCFILE, clie.YieldRequestContent()) ),
 			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile(RCFILE) ),
 			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseFile(list_files()) ),
-			( "/delete_files", "GET", lambda clie, resp: deleteFile(clie.GetRequestQueryString()) ),
-			( "/mkdir", "GET", lambda clie, resp: mkdir(clie.GetRequestQueryString()) ),
-			( "/get_file", "GET", lambda clie, resp: resp.WriteResponseFileAttachment(clie.GetRequestQueryString()) ),
-			( "/upload_file", "POST", lambda clie, resp: save_file(clie.GetRequestQueryString(), clie.YieldRequestContent()) ),
+			( "/delete_files", "GET", lambda clie, resp: deleteFile(clie.GetRequestQueryString(True)) ),
+			( "/mkdir", "GET", lambda clie, resp: mkdir(clie.GetRequestQueryString(True)) ),
+			( "/get_file", "GET", lambda clie, resp: resp.WriteResponseFileAttachment(clie.GetRequestQueryString(True)) ),
+			( "/upload_file", "POST", lambda clie, resp: save_file(clie.GetRequestQueryString(True), clie.YieldRequestContent()) ),
 		]
 		self.mws = MWS(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
 		self.sock_web = self.mws.run(max_conn=max_conn, loop_forever=False)
@@ -371,6 +371,5 @@ def run():
 		SetTimer('syncNTP', 12*3600, True, syncNTP)
 		g.server.run()
 	except Exception as e:
-		if PIN_ASR_IN==13:
-			UART(0, 115200, tx=Pin(1), rx=Pin(3))
-		prt(e)
+		machine.UART(0, 115200, tx=Pin(1), rx=Pin(3))
+		sys.print_exception(e)

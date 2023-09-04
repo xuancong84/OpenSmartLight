@@ -22,14 +22,14 @@ if reset_cause() == machine.PWRON_RESET:
 else:
 	sta_if.active(False)
 
-try:
-	from main import *
-	gc.collect()
+# try:
+from main import *
+gc.collect()
 
-	if reset_cause()>4:
-		sys.exit()
-	run()
-	machine.reset()
-except Exception as e:
-	machine.UART(0, 115200, tx=Pin(1), rx=Pin(3))
-	print(e)
+if reset_cause()>4:
+	sys.exit()
+run()
+machine.reset()
+# except Exception as e:
+# 	machine.UART(0, 115200, tx=Pin(1), rx=Pin(3))
+# 	sys.print_exception(e)
