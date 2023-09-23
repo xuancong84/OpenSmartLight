@@ -1,5 +1,5 @@
 __preboot__	早期初始化	x=reset_cause()==0;Pin(12, Pin.OUT)(x);Pin(4, Pin.OUT)(x)
-__init__	系统初始化	[exec('g.out1,g.out2,g.LED,g.LED_adj,g.MS,g.S2N,g.SP,g.S1N=Pin(12, Pin.OUT),Pin(4, Pin.OUT),Pin(5, Pin.OUT),Pin(14, Pin.OUT),Pin(15, Pin.OUT),Pin(0, Pin.OUT),Pin(2, Pin.OUT),Pin(13,Pin.OUT)'), '[g.LED(0), g.LED_adj(0), g.MS(0), g.SP(1), g.S1N(1),g.S2N(1)]', Exec('PIN_IR_OUT=-13')]
+__init__	系统初始化	(exec('g.out1,g.out2,g.LED,g.LED_adj,g.MS,g.S2N,g.SP,g.S1N=Pin(12, Pin.OUT),Pin(4, Pin.OUT),Pin(5, Pin.OUT),Pin(14, Pin.OUT),Pin(15, Pin.OUT),Pin(0, Pin.OUT),Pin(2, Pin.OUT),Pin(13,Pin.OUT)'), '(g.LED(0), g.LED_adj(0), g.MS(0), g.SP(1), g.S1N(1),g.S2N(1))', Exec('PIN_IR_OUT=-13'))
 L1N	1号打开	g.out1(1)
 L1F	1号关闭	g.out1(0)
 L1T	1号开关	g.out1(1-g.out1())
