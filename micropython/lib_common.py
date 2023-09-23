@@ -1,11 +1,12 @@
 import os, time, ntptime
-from machine import Timer
+from machine import Timer, ADC
 
 DEBUG = True
 SAVELOG = False
 LOGFILE = 'static/log.txt'
 Timers = {}	# {'timer-name': [last-stamp-sec, period-in-sec, True (is periodic or oneshot), callback_func]}
 timezone = 8
+A0 = ADC(0)
 
 getDateTime = lambda: time.localtime(time.time()+3600*timezone)
 
@@ -34,6 +35,14 @@ def syncNTP():
 			tmr[0] += t
 	except:
 		pass
+
+# Compare time string, whether dt is in between dt1 and dt2
+# If dt1==dt2 => range=0, always false
+# If dt1='00:00*' && dt2='24:00*' => range=24hrs, always true
+def isTimeInBetween(dt, dt1, dt2):
+	if not dt1 or not dt2 or dt1==dt2:
+		return False
+	return (dt>=dt1 and dt<=dt2) if dt2 > dt1 else (dt>=dt1 or dt<=dt2)
 
 # On ESP8266, virtual timers with large periods (> a few seconds) will cause system crash upon receiving HTTP request
 def FastTimer(period, F, keep=False):

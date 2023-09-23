@@ -18,12 +18,6 @@ PIN_LD1115H = None	# GPIO 13 or 3: HLK-LD1115H motion sensor
 PIN_DEBUG_LED = None	# only GPIO 2 or None: for debug blinking
 RCFILE = 'rc-codes.txt'
 
-# For analog sensors
-PIN_COMMON_PULLUP = None	# GPIO12 tested working
-PIN_PHOTORES_GND = None		# GPIO13 tested working
-PIN_THERMAL_GND = None		# GPIO14 tested working
-A0 = ADC(0)
-
 # Namespace for global variable
 import lib_common as g
 from lib_common import *
@@ -218,7 +212,7 @@ class WebServer:
 				'g.DEBUG': DEBUG,
 				'g.SAVELOG': SAVELOG,
 				'g.LOGFILE': LOGFILE,
-				'LD1115H': g.ld1115h.status() if hasattr(g, 'ld1115h') else None,
+				'LD1115H': g.LD1115H.status() if hasattr(g, 'LD1115H') else None,
 				}) ),
 			( "/hello", "GET", lambda *_: f'Hello world!' ),
 			( "/exec", "GET", lambda clie, resp: Exec(clie.GetRequestQueryString(True)) ),
@@ -251,10 +245,10 @@ class WebServer:
 			self.poll.register(sys.stdin, select.POLLIN)
 			self.sock_map[id(sys.stdin)] = self.handleASR
 		elif PIN_LD1115H != None:
-			g.ld1115h = LD1115H(self.mws, PIN_LD1115H)
+			g.LD1115H = LD1115H(self.mws)
 			self.poll_tmout = 1
 			self.poll.register(sys.stdin, select.POLLIN)
-			self.sock_map[id(sys.stdin)] = g.ld1115h.handleUART
+			self.sock_map[id(sys.stdin)] = g.LD1115H.handleUART
 		self.cpIP = captivePortalIP
 
 		if captivePortalIP:
@@ -307,9 +301,6 @@ class WebServer:
 			for tn in dlist:
 				del g.Timers[tn]
 			tps = self.poll.poll(poll_tmout*1000)
-			if not tps:
-				if PIN_LD1115H!=None:
-					g.ld1115h.run1()
 			for tp in tps:
 				self.sock_map[id(tp[0])]()
 				gc.collect()
@@ -321,6 +312,8 @@ class WebServer:
 				elif self.cmd:
 					execRC(self.cmd)
 				self.cmd = ''
+			if PIN_LD1115H!=None:
+				g.LD1115H.run1()
 
 # Globals
 build_rc()
@@ -350,12 +343,7 @@ if PIN_RF_IN!=None or PIN_RF_OUT!=None:
 	rfc = RF433RC(PIN_RF_IN, PIN_RF_OUT)
 if PIN_IR_IN!=None or PIN_IR_OUT!=None:
 	irc = IRRC(PIN_IR_IN, PIN_IR_OUT)
-if PIN_COMMON_PULLUP != None:
-	Pin(PIN_COMMON_PULLUP, Pin.IN, Pin.PULL_UP)
-if PIN_PHOTORES_GND != None:
-	Pin(PIN_PHOTORES_GND, Pin.IN)
-if PIN_THERMAL_GND != None:
-	Pin(PIN_THERMAL_GND, Pin.IN)
+
 gc.collect()
 
 ### MAIN function

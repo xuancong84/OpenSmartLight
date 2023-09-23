@@ -141,7 +141,6 @@ input {font-size:15px;}
 }
 .toggle .labels {
   position: absolute;
-  top: 4px;
   left: 0;
   width: 100%;
   height: 100%;
@@ -181,17 +180,22 @@ input {font-size:15px;}
 		<button onclick="window.open('/file.html', '_blank')" title="Go to file transfer page" class="bb">File Transfer ...</button>
 		<button onclick="window.open('/wifi.html', '_blank')" title="Go to WiFi settings page" class="bb">Wifi Settings ...</button>
 	</h2>
-	<h3 id="STATUS_BOX" style="display: inline-block; border: 1px solid; padding: 2px; width: 98%; resize: both; overflow: auto; vertical-align: top;">
-		<span>Status: </span>&nbsp; <span>Keep updating: </span><label class="toggle"><input type="checkbox" onchange='set_active(this)'>
-		<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;
-		<span>Server Time:</span> <span id="datetime"></span>
-		<button id='view_log' onclick="window.open('/log.txt','_blank')" class="bb">View Log File</button> &nbsp;
-	</h3>
-	<h3 id="PARAMS_BOX" style="display: none; border: 1px solid; padding: 2px; width: 48%; resize: both; overflow: auto; vertical-align: top;">
-		<span>Parameters: </span> &nbsp;
-		<button onclick="alert(GET('/ms_save'))" title="Save parameter settings to storage" class="bb">SAVE</button> &nbsp;
-		<button onclick="alert(GET('/ms_load'));update(2)" title="Load parameter settings from storage" class="bb">LOAD</button> &nbsp;
-	</h3>
+	<span style="display: flex;">
+		<span style="width: 90%; margin:10px;">
+			<h3 id="STATUS_BOX" style="display: inline-block; border: 1px solid; padding: 2px; width: 100%; resize: both; overflow: auto; margin:auto; line-height: 150%;">
+				<span>Status: </span>&nbsp; <span>Keep updating: </span><label class="toggle"><input id="keepUpdating" type="checkbox" onchange='set_active(this)'>
+				<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;
+				<span>Server Time:</span> <span id="datetime"></span> &nbsp;
+				<button id='view_log' onclick="window.open('/log.txt','_blank')" class="bb">View Log File</button> &nbsp;
+			</h3>
+			<h3 id="PARAMS_BOX" style="display: none; border: 1px solid; padding: 2px; width: 100%; resize: both; overflow: auto; margin:auto; line-height: 150%;">
+				<span>Parameters: </span> &nbsp;
+				<button onclick="GET('/ms_save',toast,toast)" title="Save parameter settings to storage" class="bb">SAVE</button> &nbsp;
+				<button onclick="GET('/ms_load',toast,toast);update(2)" title="Load parameter settings from storage" class="bb">LOAD</button> &nbsp;
+			</h3>
+		</span>
+		<span style="width:10%; margin:10px"><textarea id="g.LD1115H.sensor_log" rows=10 cols=16 style="display: none;" readonly></textarea></span>
+	</span>
 	<h3>Remote Control Mapping Table</h3>
 	<table id="rc-table" style="width:100%">
 		<tr>
@@ -216,7 +220,9 @@ input {font-size:15px;}
 <script>
 	function getById(id_str) { return document.getElementById(id_str); }
 	var timer = null;
+	var requesting = false;
 	var snackbar = getById('snackbar');
+	var keepUpdating = getById('keepUpdating');
 	function GET(url, onOkay=null, onFail=null) {
 		var xmlHttp = new XMLHttpRequest();
 		xmlHttp.open('GET', url, onOkay!=null||onFail!=null);
@@ -234,6 +240,8 @@ input {font-size:15px;}
 		return xmlHttp.responseText;
 	}
 	function toast(msg) {
+		if(typeof msg != 'string')
+			msg = msg.target.responseText || (msg.target.statusText+' '+msg.target.status);
 		var randint = Math.round(Math.random()*10000);
 		var e = document.createElement('div');
 		e.id = `toast${randint}`;
@@ -242,11 +250,12 @@ input {font-size:15px;}
 		document.body.appendChild(e);
 		setTimeout(function(){ getById(`toast${randint}`).remove() }, 3000);
 	}
-	function set_value2(id, value, prefix='exec'){
-		GET(`/${prefix}?${id}=${value}`, ()=>{toast("<font color=lime><b>Value set successfully!</b></font>")},
+	function set_value2(id, value, cmd='exec'){
+		if(id.startsWith('F_')) value='"'+value+'"'
+		GET(`/${cmd}?${id}=${value}`, (xhr)=>{toast("<font color=lime><b>Value set successfully!</b></font>")},
 			()=>{toast("<font color=red><b>Set value failed!</b></font>")});
 	}
-	function set_value(obj, prefix='exec'){ set_value2(obj.id, obj.value, prefix); }
+	function set_value(obj, cmd='exec'){ set_value2(obj.id, obj.value, cmd); }
 	function set_active(cb){
 		if(cb.checked){
 			if(timer==null) timer=setInterval(update, 1000);
@@ -259,7 +268,7 @@ input {font-size:15px;}
 	var drag_rid;
 	var G = {};
 	var hasLD1115H = false;
-	function set_ckbox(obj, prefix='exec'){ alert(GET(`/${prefix}?${obj.id}=${obj.checked?'True':'False'}`)); }
+	function set_ckbox(obj, cmd='exec'){ GET(`/${cmd}?${obj.id}=${obj.checked?'True':'False'}`, toast, toast); }
 	function save() {
 		var N = tb.rows.length - 2;
 		var ret = '';
@@ -271,35 +280,36 @@ input {font-size:15px;}
 				}
 			ret += [1, 2, 3].map(x => tb.rows[n].children[x].textContent).join('\t') + '\n';
 		}
-		alert(POST('/rc_save', ret));
+		POST('/rc_save', ret, toast, toast);
 	}
-	function set_fields2(box, OBJ){
-		var prefix = box.id=='PARAMS_BOX'?'ms_setParams':'exec';
+	function set_fields2(box, OBJ, prefix0=''){
+		var cmd = box.id=='PARAMS_BOX'?'ms_setParams':'exec';
+		var prefix = box.id=='PARAMS_BOX'?'':prefix0;
 		for (const [k,v] of Object.entries(OBJ).sort()) {
-			var obj = getById(k);
+			var obj = getById(prefix0+k);
 			if(obj==null){
 				if(v==null) continue;
 				if(typeof v=="boolean"){
-					box.innerHTML += `<span>${k}: </span> <label class="toggle"><input id="${k}" type="checkbox" onchange='set_ckbox(this, "${prefix}")' ${v?"checked":""}>
+					box.innerHTML += `<span>${k}: </span> <label class="toggle"><input id="${prefix}${k}" type="checkbox" onchange='set_ckbox(this, "${cmd}")' ${v?"checked":""}>
 		<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;&nbsp;`
 				}else if(v.constructor == Object){ // is a dictionary
-					box.innerHTML += `<span class="expand" id="${k}">${k}: { </span>`;
-					set_fields2(box, v, prefix);
+					box.innerHTML += `<span class="expand" id="${prefix}${k}">${k}: { </span>`;
+					set_fields2(box, v, `g.${k}.`);
 					box.innerHTML += `<span>}</span> &nbsp;`;
 				}else{
-					box.innerHTML += `<span>${k}:</span><input id="${k}" type="${typeof v=="number"?"number":"text"}" size=1 value="${v}" onblur='set_value(this, "${prefix}")'> &nbsp;`;
-					var obj = getById(k);
+					box.innerHTML += `<span>${k}:</span><input id="${prefix}${k}" type="${typeof v=="number"?"number":"text"}" size=1 value="${v}" onblur='set_value(this, "${cmd}")'> &nbsp;`;
+					var obj = getById(prefix+k);
 					obj.style.width = obj.scrollWidth + (typeof v=="number"?20:0) + 'px';
 				}
 			}else{
 				if(v==null)obj.style.display="none";
 				else{
 				 	obj.style.display="inline";
-					if(obj.tagName=='INPUT'){
+					if(obj.tagName=='INPUT' || obj.tagName=='TEXTAREA'){
 						if(obj.type == 'checkbox') obj.checked = v;
 						else obj.value = v;
 					}else if(obj.classList.contains('expand'))
-						set_fields2(box, v, prefix);
+						set_fields2(box, v, `g.${k}.`);
 					else
 						obj.textContent = v;
 				}
@@ -307,6 +317,7 @@ input {font-size:15px;}
 		}
 	}
 	function set_fields(){
+		requesting = false;
 		try{G = JSON.parse(this.responseText)} catch(e){return}
 		var box = getById(this.responseURL.endsWith('getParams')?"PARAMS_BOX":"STATUS_BOX");
 		set_fields2(box, G);
@@ -315,11 +326,12 @@ input {font-size:15px;}
 		while (tb.rows.length > 2) tb.deleteRow(1);
 	}
 	function update(mask=1){
-		if(mask&1) GET('/status', set_fields);
+		if(requesting) return;
+		requesting = true;
+		if(mask&1) GET('/status', set_fields, ()=>{keepUpdating.checked=requesting=false; set_active(keepUpdating)});
 		if((mask&2) && hasLD1115H){
-			getById('STATUS_BOX').style.width = getById('PARAMS_BOX').style.width = '48%';
 			getById('PARAMS_BOX').style.display = 'inline-block';
-			GET('/ms_getParams', set_fields);
+			GET('/ms_getParams', set_fields, ()=>{keepUpdating.checked=requesting=false; set_active(keepUpdating)});
 		}
 	}
 	function load() {
