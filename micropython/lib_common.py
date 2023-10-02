@@ -1,12 +1,18 @@
 import os, time, ntptime
-from machine import Timer, ADC
+from machine import Timer, ADC, Pin, PWM
 
-DEBUG = True
+DEBUG = False
+SMART_CTRL = True
 SAVELOG = False
 LOGFILE = 'static/log.txt'
 Timers = {}	# {'timer-name': [last-stamp-sec, period-in-sec, True (is periodic or oneshot), callback_func]}
 timezone = 8
 A0 = ADC(0)
+
+digitalWrite = lambda pin, val: Pin(pin, Pin.OUT)(val) if type(pin)==int else None
+digitalRead = lambda pin: Pin(pin, Pin.OUT)() if type(pin)==int else None
+analogWrite = lambda pin, val: PWM(Pin(pin), freq=1000, duty=val) if type(pin)==int else None
+analogRead = lambda pin: PWM(Pin(pin)).duty() if type(pin)==int else None
 
 getDateTime = lambda: time.localtime(time.time()+3600*timezone)
 
