@@ -186,6 +186,9 @@ input {font-size:15px;}
 				<span>Status: </span>&nbsp; <span>Keep updating: </span><label class="toggle"><input id="keepUpdating" type="checkbox" onchange='set_active(this)'>
 				<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;
 				<span>Server Time:</span> <span id="datetime"></span> &nbsp;
+				<span>heap_free:</span> <input id="heap_free" type="text" size="2" readonly> &nbsp;
+				<span>stack_free:</span> <input id="stack_free" type="text" size="2" readonly> &nbsp;
+				<span>flash_size:</span> <input id="flash_size" type="text" size="4" readonly> &nbsp;
 				<button id='view_log' onclick="window.open('/log.txt','_blank')" class="bb">View Log File</button> &nbsp;
 			</h3>
 			<h3 id="PARAMS_BOX" style="display: none; border: 1px solid; padding: 2px; width: 100%; resize: both; overflow: auto; margin:auto; line-height: 150%;">

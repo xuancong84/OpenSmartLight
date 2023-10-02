@@ -1,32 +1,31 @@
 from machine import Pin, reset_cause
 
 try:	# initialize
-	L = open('rc-codes.txt').readline().split('\t')
-	if L[0]=='__preinit__':
-		exec(L[-1])
-	del L
+	with open('rc-codes.txt') as fp:
+		L = fp.readline().split('\t')
+		if L[0]=='__preinit__':
+			exec(L[-1])
+		del L
 except:
 	pass
 
 import sys, machine, gc, network
 gc.collect()
 
-ap_if = network.WLAN(network.AP_IF)
-ap_if.active(False)
-sta_if = network.WLAN(network.STA_IF)
+network.WLAN(network.AP_IF).active(False)
 
 # To enter rescue mode, create a Wifi hotspot with both SSID and password being 'RESCUE-ESP'
 if reset_cause() == machine.PWRON_RESET:
-	import update
-	update.rescue()
-else:
-	sta_if.active(False)
+	import rescue
+	rescue.rescue()
+	import lib_common as g
+	g.SMART_CTRL = False
 
 # try:
 from main import *
 gc.collect()
 
-if reset_cause()>4:
+if isFile('debug') and reset_cause()>4:
 	sys.exit()
 run()
 machine.reset()

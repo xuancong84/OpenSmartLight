@@ -1,10 +1,11 @@
-import os, sys, esp, machine, time
+import os, sys, esp, machine, time, network
 from machine import Pin
 
 
-def rescue(sta_if):
+def rescue():
 	LED = Pin(2, Pin.OUT)
 	LED(0)
+	sta_if = network.WLAN(network.STA_IF)
 	sta_if.active(True)
 	if b'RESCUE-ESP' in [i[0] for i in sta_if.scan()]:
 		sta_if.connect('RESCUE-ESP', 'RESCUE-ESP')
@@ -17,3 +18,4 @@ def rescue(sta_if):
 		webrepl.start()
 		Pin(2, Pin.IN)
 		sys.exit()
+		

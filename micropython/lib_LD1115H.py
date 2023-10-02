@@ -7,10 +7,6 @@ from lib_common import *
 from microWebSrv import MicroWebSrv as MWS
 
 gc.collect()
-digitalWrite = lambda pin, val: Pin(pin, Pin.OUT)(val) if type(pin)==int else None
-digitalRead = lambda pin: Pin(pin, Pin.OUT)() if type(pin)==int else None
-analogWrite = lambda pin, val: PWM(Pin(led_level_pin), freq=1000, duty=val) if type(pin)==int else None
-analogRead = lambda pin: PWM(Pin(led_level_pin)).duty() if type(pin)==int else None
 
 # None (=>null): the control will not be shown; to disable, set to empty string
 def dft_eval(s, dft):

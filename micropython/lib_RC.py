@@ -7,8 +7,8 @@ from array import array
 class RC():
 	def __init__(self, rx_pin, tx_pin, nedges, nrepeat, min_nframes, gap_tol, recv_dur, proto={}):  # Typically ~15 frames
 		# negative PIN number means inverted output, HIGH=unpowered, LOW=powered
-		self.rx_pin, self.rx_inv = (None, False) if rx_pin==None else (Pin(abs(rx_pin), Pin.IN, Pin.PULL_UP), rx_pin<0)
-		self.tx_pin, self.tx_inv = (None, False) if tx_pin==None else (Pin(abs(tx_pin), Pin.OUT), tx_pin<0)
+		self.rx_pin, self.rx_inv = (None, False) if type(rx_pin)!=int else (Pin(abs(rx_pin), Pin.IN, Pin.PULL_UP), rx_pin<0)
+		self.tx_pin, self.tx_inv = (None, False) if type(tx_pin)!=int else (Pin(abs(tx_pin), Pin.OUT), tx_pin<0)
 		if self.tx_pin != None:
 			self.tx_pin(self.tx_inv)	# turn off radio
 		self.nedges = nedges
