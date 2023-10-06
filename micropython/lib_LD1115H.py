@@ -171,7 +171,7 @@ class LD1115H:
 
 			# parse sensor UART output
 			try:
-				its = L.split()
+				its = L.replace(',', ' ').split()
 				cmd, val = its[0], int(its[-1])
 				if cmd == 'mov' and val>=self.P['MOV_CONT_TH']:
 					s_mask |= 1
@@ -181,6 +181,9 @@ class LD1115H:
 					s_mask |= 4
 			except:
 				pass
+
+			# run ets for PWM
+			sleep_ms(1)
 
 		self.run1(s_mask)
 
