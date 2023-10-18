@@ -29,6 +29,11 @@ class LD1115H:
 		self.lux_level = None
 		self.thermal_level = None
 		self.sensor_log = ''
+		self.n_consec_trig = 0
+
+		# turn on motion sensor if night time, otherwise, cannot enter auto mode by powering on
+		if self.is_night():
+			self.set_sensor(True)
 
 		mws.add_route('/ms_getParams', 'GET', lambda clie, resp: resp.WriteResponseJSONOk(self.P))
 		mws.add_route('/ms_setParams', 'GET', lambda clie, resp: self.setParams(clie.GetRequestQueryParams()))
@@ -49,6 +54,7 @@ class LD1115H:
 			'LED_BEGIN': 100,
 			'LED_END': 125,
 			'GLIDE_TIME': 800,
+			'N_CONSEC_TRIG': 1,
 			'sensor_pwr_pin': '',
 			'ctrl_output_pin': '',
 			'led_master_pin': '',
@@ -178,7 +184,11 @@ class LD1115H:
 				elif cmd == 'occ' and val>=self.P['OCC_CONT_TH']:
 					s_mask |= 2
 				if (cmd == 'mov' and val>=self.P['MOV_TRIG_TH']) or (cmd == 'occ' and val>=self.P['OCC_TRIG_TH']):
-					s_mask |= 4
+					self.n_consec_trig += 1
+					if self.n_consec_trig >= self.P['N_CONSEC_TRIG']:
+						s_mask |= 4
+				else:
+					self.n_consec_trig = 0
 			except:
 				pass
 
@@ -204,7 +214,8 @@ class LD1115H:
 					self.elapse = max(self.elapse, millis + self.P['DELAY_ON_OCC'])
 				if millis > self.elapse:
 					self.smartlight_off()
-					sleep_ms(500) # wait for light sensor to stablize
+					sleep_ms(400) # wait for light sensor to stablize and refresh lux value
+					self.lux_level = dft_eval(self.P['F_read_lux'], '')
 			else:  # when light/led is off
 				if s_mask & 4:
 					self.smartlight_on()
