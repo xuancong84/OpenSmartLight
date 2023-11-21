@@ -357,7 +357,6 @@ class MicroWebSrv :
 					else :
 						response.WriteResponseError(400)
 			except Exception as e:
-				raise e
 				response.WriteResponseError(500)
 			try :
 				if self._socketfile is not self._socket:

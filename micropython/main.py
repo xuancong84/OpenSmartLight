@@ -204,7 +204,7 @@ def Eval(cmd):
 		return str(e)
 
 class WebServer:
-	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=8):
+	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=0):
 		self.cmd = ''
 		routeHandlers = [
 			( "/", "GET", lambda clie, resp: resp.WriteResponseFile('/static/hub.html', "text/html") ),
