@@ -230,7 +230,7 @@ input {font-size:15px;}
 		var xmlHttp = new XMLHttpRequest();
 		xmlHttp.open('GET', url, onOkay!=null||onFail!=null);
 		if(onOkay!=null) xmlHttp.onload = onOkay;
-		if(onFail!=null) xmlHttp.onerror = onFail;
+		if(onFail!=null) xmlHttp.onerror = xmlHttp.onabort = xmlHttp.ontimeout = onFail;
 		xmlHttp.send(null);
 		return xmlHttp.responseText;
 	}
@@ -238,7 +238,7 @@ input {font-size:15px;}
 		var xmlHttp = new XMLHttpRequest();
 		xmlHttp.open('POST', url, onOkay!=null||onFail!=null);
 		if(onOkay!=null) xmlHttp.onload = onOkay;
-		if(onFail!=null) xmlHttp.onerror = onFail;
+		if(onFail!=null) xmlHttp.onerror = xmlHttp.onabort = xmlHttp.ontimeout = onFail;
 		xmlHttp.send(data);
 		return xmlHttp.responseText;
 	}
@@ -270,7 +270,7 @@ input {font-size:15px;}
 	var rid = 0;
 	var drag_rid;
 	var G = {};
-	var hasLD1115H = false;
+	var doGetParam = false;
 	function set_ckbox(obj, cmd='exec'){ GET(`/${cmd}?${obj.id}=${obj.checked?'True':'False'}`, toast, toast); }
 	function save() {
 		var N = tb.rows.length - 2;
@@ -285,6 +285,9 @@ input {font-size:15px;}
 		}
 		POST('/rc_save', ret, toast, toast);
 	}
+	function addElem(box, html_code){
+		box.insertAdjacentHTML('beforeend', html_code);
+	}
 	function set_fields2(box, OBJ, prefix0=''){
 		var cmd = box.id=='PARAMS_BOX'?'ms_setParams':'exec';
 		var prefix = box.id=='PARAMS_BOX'?'':prefix0;
@@ -293,14 +296,14 @@ input {font-size:15px;}
 			if(obj==null){
 				if(v==null) continue;
 				if(typeof v=="boolean"){
-					box.innerHTML += `<span>${k}: </span> <label class="toggle"><input id="${prefix}${k}" type="checkbox" onchange='set_ckbox(this, "${cmd}")' ${v?"checked":""}>
-		<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;&nbsp;`
+					addElem(box, `<span>${k}: </span> <label class="toggle"><input id="${prefix}${k}" type="checkbox" onchange='set_ckbox(this, "${cmd}")' ${v?"checked":""}>
+		<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;&nbsp;`);
 				}else if(v.constructor == Object){ // is a dictionary
-					box.innerHTML += `<span class="expand" id="${prefix}${k}">${k}: { </span>`;
+					addElem(box, `<span class="expand" id="${prefix}${k}">${k}: { </span>`);
 					set_fields2(box, v, `g.${k}.`);
-					box.innerHTML += `<span>}</span> &nbsp;`;
+					addElem(box, `<span>}</span> &nbsp;`);
 				}else{
-					box.innerHTML += `<span>${k}:</span><input id="${prefix}${k}" type="${typeof v=="number"?"number":"text"}" size=1 value="${v}" onblur='set_value(this, "${cmd}")'> &nbsp;`;
+					addElem(box, `<span>${k}:</span><input id="${prefix}${k}" type="${typeof v=="number"?"number":"text"}" size=1 value="${v}" onblur='set_value(this, "${cmd}")'> &nbsp;`);
 					var obj = getById(prefix+k);
 					obj.style.width = obj.scrollWidth + (typeof v=="number"?20:0) + 'px';
 				}
@@ -324,6 +327,10 @@ input {font-size:15px;}
 		try{G = JSON.parse(this.responseText)} catch(e){return}
 		var box = getById(this.responseURL.endsWith('getParams')?"PARAMS_BOX":"STATUS_BOX");
 		set_fields2(box, G);
+		if(doGetParam && G.LD1115H!=null){
+			doGetParam = false;
+			update(2);
+		}
 	}
 	function clear_all(){
 		while (tb.rows.length > 2) tb.deleteRow(1);
@@ -331,8 +338,10 @@ input {font-size:15px;}
 	function update(mask=1){
 		if(requesting) return;
 		requesting = true;
-		if(mask&1) GET('/status', set_fields, ()=>{keepUpdating.checked=requesting=false; set_active(keepUpdating)});
-		if((mask&2) && hasLD1115H){
+		if(mask&1){
+			doGetParam = Boolean(mask&2);
+			GET('/status', set_fields, ()=>{keepUpdating.checked=requesting=false; set_active(keepUpdating)});
+		}else if(mask&2){
 			getById('PARAMS_BOX').style.display = 'inline-block';
 			GET('/ms_getParams', set_fields, ()=>{keepUpdating.checked=requesting=false; set_active(keepUpdating)});
 		}
@@ -348,8 +357,6 @@ input {font-size:15px;}
 				var row = add_new_row();
 				for (var x = 0; x < 3; x++)
 					row.children[x+1].textContent = its[x];
-				if(line.includes('PIN_LD1115H'))
-					hasLD1115H = true;
 			}
 		} catch (err) {
 			alert(err);

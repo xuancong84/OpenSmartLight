@@ -26,7 +26,7 @@ if reset_cause() == machine.PWRON_RESET:
 from main import *
 gc.collect()
 
-if isFile('debug') and reset_cause()>4:
+if isFile('debug') and reset_cause():
 	sys.exit()
 run()
 machine.reset()

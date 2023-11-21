@@ -33,14 +33,16 @@ def getFullDateTime():
 	return getDateString(tm)+" ("+getWeekdayString(tm)+") "+getTimeString(tm)
 
 def syncNTP():
-	try:
-		t = time.time()
-		ntptime.settime()
-		t = time.time()-t
-		for tmr in Timers:
-			tmr[0] += t
-	except:
-		pass
+	t = time.time()
+	for i in range(3):
+		try:
+			ntptime.settime()
+			break
+		except:
+			pass
+	t = time.time()-t
+	for tmr in Timers:
+		tmr[0] += t
 
 # Compare time string, whether dt is in between dt1 and dt2
 # If dt1==dt2 => range=0, always false
