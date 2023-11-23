@@ -163,20 +163,19 @@ class LD1115H:
 		s_mask = 0
 
 		while select.select([sys.stdin], [], [], 0)[0]:
-			L = sys.stdin.readline().strip()
-			if not L:
-				continue
-
-			# append sensor log
-			if self.logging:
-				self.sensor_log += L+'\n'
-				while len(self.sensor_log)>120:
-					p = self.sensor_log.find('\n')
-					self.sensor_log = self.sensor_log[p+1:] if p>=0 else ''
-					gc.collect()
-
-			# parse sensor UART output
 			try:
+				L = sys.stdin.readline().strip()
+				assert L
+
+				# append sensor log
+				if self.logging:
+					self.sensor_log += L+'\n'
+					while len(self.sensor_log)>120:
+						p = self.sensor_log.find('\n')
+						self.sensor_log = self.sensor_log[p+1:] if p>=0 else ''
+						gc.collect()
+
+				# parse sensor UART output
 				its = L.replace(',', ' ').split()
 				cmd, val = its[0], int(its[-1])
 				if cmd == 'mov' and val>=self.P['MOV_CONT_TH']:
