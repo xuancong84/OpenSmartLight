@@ -1,25 +1,33 @@
-# This file is executed on every boot (including wake-boot from deepsleep)
-#import esp
-#esp.osdebug(None)
-import os, machine, gc, network, time
-#os.dupterm(None, 1) # disable REPL on UART(0)
+from machine import Pin, reset_cause
 
-sta_if = network.WLAN(network.STA_IF)
-ap_if = network.WLAN(network.AP_IF)
-sta_if.active(False)
-ap_if.active(False)
+try:	# initialize
+	with open('rc-codes.txt') as fp:
+		L = fp.readline().split('\t')
+		if L[0]=='__preinit__':
+			exec(L[-1])
+		del L
+except:
+	pass
 
-if True:
-	sta_if.active(True)
-	import webrepl
-	webrepl.start()
-
+import sys, machine, gc, network
 gc.collect()
 
-mains = [f for f in os.listdir() if f.startswith('main')]
+network.WLAN(network.AP_IF).active(False)
+network.WLAN(network.STA_IF).active(False)
 
-if mains:
-	exec(f'from {mains[0].split(".")[0]} import *')
-	gc.collect()
-	if machine.Pin(9, machine.Pin.IN, machine.Pin.PULL_UP)():
-		run()
+# To enter rescue mode, create a Wifi hotspot with SSID 'RESCUE-ESP' and password 'rescue-esp'
+try:
+	open('debug').close()
+except:
+	import rescue
+	rescue.rescue()
+	del rescue
+
+# try:
+from main import *
+gc.collect()
+
+if isFile('debug') and reset_cause()!=1:
+	sys.exit()
+run()
+machine.reset()

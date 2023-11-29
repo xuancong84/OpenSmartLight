@@ -15,12 +15,13 @@ gc.collect()
 network.WLAN(network.AP_IF).active(False)
 network.WLAN(network.STA_IF).active(False)
 
-# To enter rescue mode, create a Wifi hotspot with both SSID and password being 'RESCUE-ESP'
-if reset_cause() == machine.PWRON_RESET:
+# To enter rescue mode, create a Wifi hotspot with SSID 'RESCUE-ESP' and password 'rescue-esp'
+try:
+	open('debug').close()
+except:
 	import rescue
 	rescue.rescue()
-	import lib_common as g
-	g.SMART_CTRL = False
+	del rescue
 
 # try:
 from main import *

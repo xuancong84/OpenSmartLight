@@ -72,4 +72,3 @@ SLC	沙发吊灯变色	['SLF' ,'SLN']
 BLN	阳台灯开启	'http://192.168.50.8/rc_run?L2N'
 BLF	阳台灯关闭	'http://192.168.50.8/rc_run?L2F'
 BLC	阳台灯换色	['BLF','BLN']
-		
