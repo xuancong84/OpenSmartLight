@@ -1,5 +1,6 @@
 import time, gc, bluetooth
 from micropython import const
+from lib_common import *
 
 _IRQ_CENTRAL_CONNECT = const(1)
 _IRQ_CENTRAL_DISCONNECT = const(2)
@@ -29,13 +30,12 @@ _ADV_NONCONN_IND = const(0x03)
 gc.collect()
 
 class BLEcentral:
-	def __init__(self, nbestn=5, filter_addr=b'', filter_uuid=b''):
+	def __init__(self):
 		self._ble = bluetooth.BLE()
 		self._ble.irq(self._irq)
-		self._reset()
-		self.nbestn = nbestn
-		self.filter_addr = filter_addr
-		self.filter_uuid = filter_uuid
+		self.nbestn = 10
+		self.filter_addr = ''
+		self.filter_uuid = ''
 		self.nbest = {}
 
 	def _irq(self, event, data):
@@ -71,10 +71,10 @@ class BLEcentral:
 		)
 
 	# Find a device advertising the environmental sensor service.
-	def scan(self, duration_s=0, interval_us=11250, window_us=11250, callback=None):
-		self._addr_type = None
-		self._addr = None
-		self._scan_callback = callback
+	def scan(self, duration_s=0, interval_us=11250, window_us=11250, nbestn=0, filter_addr=b'', filter_uuid=b'', **kwargs):
+		self.filter_addr = filter_addr or self.filter_addr
+		self.filter_uuid = filter_uuid or self.filter_uuid
+		self.nbestn = nbestn or self.nbestn
 		self.nbest = {}
 		self._ble.active(True)
 		self._ble.gap_scan(duration_s, interval_us, window_us, False)
@@ -83,9 +83,9 @@ class BLEcentral:
 		self._ble.gap_scan(None)
 		self._ble.active(False)
 
-	def advertise(self, data, interval_us=125000, duration_s=0.6):
+	def advertise(self, data, interval_us=125000, duration_s=0.6, connectable=False, **kwargs):
 		self._ble.active(True)
-		self._ble.gap_advertise(interval_us, adv_data=data, connectable=False)
+		self._ble.gap_advertise(interval_us, adv_data=parse_data(data), connectable=connectable)
 		time.sleep(duration_s)
 		self._ble.gap_advertise(None)
 		self._ble.active(False)
@@ -117,6 +117,19 @@ class BLEcentral:
 	def on_notify(self, callback):
 		self._notify_callback = callback
 
+g_ble = BLEcentral()
+
+def ble_task(obj: dict):
+	global g_ble
+	cmd = obj.get('cmd', 'gap_advertise')
+	try:
+		if cmd == 'gap_advertise':
+			g_ble.advertise(**obj)
+		elif cmd == 'gap_scan':
+			g_ble.scan(**obj)
+		return 'OK'
+	except Exception as e:
+		return str(e)
 
 # def main():
 # 	central = BLEcentral()

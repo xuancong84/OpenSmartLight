@@ -197,17 +197,20 @@ class BLEcentral:
 		self._notify_callback = callback
 
 
+ble = None
+
 def main():
-	central = BLEcentral()
+	global ble
+	ble = ble or BLEcentral()
 
 	while True:
 		print('BLE scan started, press Enter to stop and show results ...', end='')
-		central.nbest = {}
-		central.scan()
+		ble.nbest = {}
+		ble.scan()
 		input()
 
-		central.stop_scan()
-		nbl = sorted(list(central.nbest.items()), reverse=True, key=lambda t:t[1])
+		ble.stop_scan()
+		nbl = sorted(list(ble.nbest.items()), reverse=True, key=lambda t:t[1])
 		print('BLE scan stopped')
 
 		while True:
@@ -222,6 +225,6 @@ def main():
 				break
 
 			print(f'Sending {msg.hex()}')
-			central.advertise(msg)
+			ble.advertise(msg)
 
 gc.collect()
