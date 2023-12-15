@@ -7,12 +7,12 @@ SAVELOG = False
 LOGFILE = 'static/log.txt'
 Timers = {}	# {'timer-name': [last-stamp-sec, period-in-sec, True (is periodic or oneshot), callback_func]}
 timezone = 8
-A0 = ADC(0)
+A0, A1, A2, A3, A4 = [ADC(i) for i in range(5)]
 
-digitalWrite = lambda pin, val: Pin(pin, Pin.OUT)(val) if type(pin)==int else None
-digitalRead = lambda pin: Pin(pin, Pin.OUT)() if type(pin)==int else None
-analogWrite = lambda pin, val: PWM(Pin(pin), freq=1000, duty=val) if type(pin)==int else None
-analogRead = lambda pin: PWM(Pin(pin)).duty() if type(pin)==int else None
+digitalWrite = lambda pin, val: Pin(abs(pin), Pin.OUT)(1-val if pin<0 else val) if type(pin)==int else None
+digitalRead = lambda pin: (1-Pin(abs(pin), Pin.OUT)()) if pin<0 else Pin(abs(pin), Pin.OUT)() if type(pin)==int else None
+analogWrite = lambda pin, val: PWM(abs(pin), freq=1000, duty=(1023-val if pin<0 else val)) if type(pin)==int else None
+analogRead = lambda pin: (1023-PWM(abs(pin)).duty()) if pin<0 else PWM(abs(pin)).duty() if type(pin)==int else None
 
 getDateTime = lambda: time.localtime(time.time()+3600*timezone)
 
@@ -81,3 +81,15 @@ def prt(*args, **kwarg):
 		with open(LOGFILE, 'a') as fp:
 			print(getFullDateTime(), end=' ', file=fp)
 			print(*args, **kwarg, file=fp)
+
+def Try(fn):
+	try:
+		return fn()
+	except:
+		return None
+
+def parse_data(s):
+	if type(s)==int:
+		h = hex(s)[2:]
+		return bytes.fromhex(('0'+h) if len(h)&1 else h)
+	return s

@@ -20,7 +20,7 @@ class RC():
 		gc.collect()
 
 	def recv(self):
-		#prt('Receiving RC data ...')
+		#print('Receiving RC data ...')
 		gc.collect()
 		nedges = self.nedges
 		p = self.rx_pin
@@ -63,7 +63,7 @@ class RC():
 		del arr
 
 		lengths = [len(x) for x in segs]
-		#prt(f'Received data size = {nedges}, segment lengths: {lengths}') #DEBUG
+		# print(f'Received data size = {nedges}, segment lengths: {lengths}') #DEBUG
 
 		# Select segments with most common frame length
 		cnter = {x:lengths.count(x) for x in set(lengths)}
@@ -78,16 +78,17 @@ class RC():
 		if N_new < self.min_nframes:
 			return f'Too few selected frames: {N_new}'
 		
-		# if N_old != N_new:
-			#prt('Deleted {} frames of different length'.format(N_old - N_new))
+		# if N_old != N_new:	#DEBUG
+			# print('Deleted {} frames of different length'.format(N_old - N_new))	#DEBUG
 
-		#prt(f'Averaging {N_new} frames')
+		# print(f'Averaging {N_new} frames')	#DEBUG
 		m = [sum(x)/N_new for x in zip(*segs)]	# compute mean
 		for seg in segs:	# ignore STD due to gaps difference, clam gap duration to 0.2 sec
-			m[0] = seg[0] = min(m[0], 100000)
+			m[0] = min(m[0], 100000)
+			seg[0] = round(m[0])
 		std = [sqrt(sum([(y - m[i])**2 for y in x])/N_new) for i, x in enumerate(zip(*segs))]
 		del segs
-		#prt('Capture quality {:5.1f} (0: perfect)'.format(sum(std)/len(std)))
+		# print('Capture quality {:5.1f} (0: perfect)'.format(sum(std)/len(std)))	#DEBUG
 		ret = {'init_level':init_level, 'data':list(map(round, m))}
 		ret.update(self.proto)
 	
@@ -102,10 +103,10 @@ class RC():
 		try:
 			init_level, arr = obj['init_level'], obj['data']
 		except Exception as e:
-			#prt(e)
+			#print(e)
 			return str(e)
 		
-		#prt('Sending RC data ...')
+		#print('Sending RC data ...')
 		p = self.tx_pin
 
 		# ** Time critical **
@@ -131,10 +132,10 @@ class RC():
 		try:
 			init_level, arr, fPWM = obj['init_level'], obj['data'], int(obj['fPWM'])
 		except Exception as e:
-			#prt(e)
+			#print(e)
 			return str(e)
 		
-		#prt('Sending PWM data ...')
+		#print('Sending PWM data ...')
 		cur_freq = machine.freq()
 		machine.freq(160000000)
 		sleep(0.1)	# must wait for frequency to stablize, or will fail randomly
@@ -163,7 +164,7 @@ class RC():
 
 # For RF 433MHz remote controller
 class RF433RC(RC):
-	def __init__(self, rx_pin=None, tx_pin=None, nedges=800, nrepeat=5, min_nframes=5, recv_dur=3000000, gap_tol=0.8):
+	def __init__(self, rx_pin=None, tx_pin=None, nedges=1800, nrepeat=5, min_nframes=5, recv_dur=3000000, gap_tol=0.8):
 		super().__init__(rx_pin, tx_pin, nedges, nrepeat, min_nframes, gap_tol, recv_dur, proto={'protocol':'RF433'})
 
 # For infrared remote controller

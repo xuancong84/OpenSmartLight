@@ -1,14 +1,16 @@
 import socket, gc
+from lib_common import *
 
 def send_tcp(obj):
 	try:
 		s = socket.socket()
 		s.settimeout(3)
 		s.connect((obj['IP'], obj['PORT']))
-		s.sendall(obj['data'])
+		data = parse_data(obj['data'])
+		s.sendall(data)
 		s.recv(obj.get('recv_size', 256))
 		s.close()
-		return f'OK, sent {len(obj["data"])} bytes'
+		return f'OK, sent {len(data)} bytes'
 	except Exception as e:
 		#prt(e)
 		return str(e)
@@ -16,7 +18,7 @@ def send_tcp(obj):
 def send_udp(obj):
 	try:
 		s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		nsent = s.sendto(obj['data'], (obj['IP'], obj['PORT']))
+		nsent = s.sendto(parse_data(obj['data']), (obj['IP'], obj['PORT']))
 		s.close()
 		return f'OK, sent {nsent} bytes'
 	except Exception as e:
@@ -51,7 +53,7 @@ def send_cap(obj):
 				s.settimeout(3)
 				s.connect((obj['IP'], obj['PORT']))
 				if 'data' in obj:
-					s.sendall(obj['data'])
+					s.sendall(parse_data(obj['data']))
 			elif L.startswith(b'b'):
 				s.sendall(eval(L))
 				del L

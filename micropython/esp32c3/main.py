@@ -18,6 +18,7 @@ PIN_IR_OUT = ''	# GPIO12 tested working
 PIN_ASR_IN = ''	# GPIO 13 or 3: generic ASR chip sending UART output upon voice commands
 PIN_LD1115H = ''	# GPIO 13 or 3: HLK-LD1115H motion sensor
 PIN_DEBUG_LED = ''	# only GPIO 2 or None: for debug blinking
+use_BLE = False
 
 # Namespace for global variable
 import lib_common as g
@@ -185,6 +186,9 @@ def execRC(s):
 				return send_wol(s)
 			elif p=='CAP':
 				return send_cap(s)
+			elif p=='BLE':
+				return ble_task(s)
+
 	except Exception as e:
 		prt(e)
 		return str(e)
@@ -211,7 +215,7 @@ class WebServer:
 			( "/status", "GET", lambda clie, resp: resp.WriteResponseJSONOk({
 				'datetime': getFullDateTime(),
 				'heap_free': gc.mem_free(),
-				'stack_free': esp.freemem(),
+				'stack_free': Try(lambda: esp.freemem()),
 				'flash_size': esp.flash_size(),
 				'g.timezone': g.timezone,
 				'g.DEBUG': g.DEBUG,
@@ -251,9 +255,9 @@ class WebServer:
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
 		self.poll_tmout = -1
-		set_uart = lambda p: sys.stdin if p==20 else (UART(1, 115200, tx=0, rx=1, timeout=500, timeout_char=500) if p==1 else None)
-		uart_ASR = set_uart(PIN_ASR_IN)
-		uart_LD1115H = set_uart(PIN_LD1115H)
+		set_uart = lambda p: sys.stdin if p==20 else (UART(1, 115200, tx=0, rx=1, timeout=256, timeout_char=256) if p==1 else None)
+		self.uart_ASR = set_uart(PIN_ASR_IN)
+		self.uart_LD1115H = set_uart(PIN_LD1115H)
 		self.sock_map = {id(self.sock_web): self.mws.run_once}
 		self.cpIP = captivePortalIP
 		if captivePortalIP:
@@ -267,14 +271,14 @@ class WebServer:
 
 		if not g.SMART_CTRL:
 			return
-		if uart_ASR != None:
-			self.poll.register(uart_ASR, select.POLLIN)
-			self.sock_map[id(uart_ASR)] = self.handleASR
-		if uart_LD1115H != None:
-			g.LD1115H = LD1115H(self.mws, uart_LD1115H)
+		if self.uart_ASR != None:
+			self.poll.register(self.uart_ASR, select.POLLIN)
+			self.sock_map[id(self.uart_ASR)] = self.handleASR
+		if self.uart_LD1115H != None:
+			g.LD1115H = LD1115H(self.mws, self.uart_LD1115H)
 			self.poll_tmout = 1
-			self.poll.register(uart_LD1115H, select.POLLIN)
-			self.sock_map[id(uart_LD1115H)] = g.LD1115H.handleUART
+			self.poll.register(self.uart_LD1115H, select.POLLIN)
+			self.sock_map[id(self.uart_LD1115H)] = g.LD1115H.handleUART
 
 	def handleASR(self):
 		key = self.uart_ASR.readline().strip()
@@ -340,14 +344,16 @@ MWS.DEBUG = g.DEBUG
 if type(PIN_DEBUG_LED) != int:
 	flashLED=lambda **kw:None
 else:
-	digitalWrite(PIN_DEBUG_LED, 0)
-	def flashLED(intv=0.2, N=3):
+	digitalWrite(PIN_DEBUG_LED, 1)
+	def flashLED(intv=0.1, N=3):
 		for i in range(N):
-			digitalWrite(PIN_DEBUG_LED, 0)
-			time.sleep(intv)
 			digitalWrite(PIN_DEBUG_LED, 1)
 			time.sleep(intv)
+			digitalWrite(PIN_DEBUG_LED, 0)
+			time.sleep(intv)
 
+if use_BLE:
+	from lib_BLE import *
 if type(PIN_ASR_IN) == int:
 	from lib_TCPIP import *
 if type(PIN_LD1115H) == int:
@@ -370,9 +376,8 @@ def run():
 		if '__postinit__' in g.rc_set:
 			execRC('__postinit__')
 		if type(PIN_DEBUG_LED) == int:
-			digitalWrite(PIN_DEBUG_LED, 1)
+			digitalWrite(PIN_DEBUG_LED, 0)
 		SetTimer('syncNTP', 12*3600, True, syncNTP)
 		g.server.run()
 	except Exception as e:
-		machine.UART(0, 115200, tx=Pin(1), rx=Pin(3))
 		sys.print_exception(e)
