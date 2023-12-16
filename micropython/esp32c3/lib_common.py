@@ -1,4 +1,4 @@
-import os, time, ntptime
+import os, time, ntptime, network
 from machine import Timer, ADC, Pin, PWM
 
 DEBUG = False
@@ -15,6 +15,10 @@ analogWrite = lambda pin, val: PWM(abs(pin), freq=1000, duty=(1023-val if pin<0 
 analogRead = lambda pin: (1023-PWM(abs(pin)).duty()) if pin<0 else PWM(abs(pin)).duty() if type(pin)==int else None
 
 getDateTime = lambda: time.localtime(time.time()+3600*timezone)
+
+sta_if = network.WLAN(network.STA_IF)
+ap_if = network.WLAN(network.AP_IF)
+getActiveNIF = lambda: sta_if if sta_if.active(True) else ap_if
 
 def getTimeString(tm=None):
 	tm = tm or getDateTime()
@@ -41,8 +45,8 @@ def syncNTP():
 		except:
 			pass
 	t = time.time()-t
-	for tmr in Timers:
-		tmr[0] += t
+	for k, v in Timers.items():
+		v[0] += t
 
 # Compare time string, whether dt is in between dt1 and dt2
 # If dt1==dt2 => range=0, always false
@@ -82,14 +86,16 @@ def prt(*args, **kwarg):
 			print(getFullDateTime(), end=' ', file=fp)
 			print(*args, **kwarg, file=fp)
 
-def Try(fn):
+def Try(fn, default=None):
 	try:
 		return fn()
 	except:
-		return None
+		return default
 
 def parse_data(s):
 	if type(s)==int:
 		h = hex(s)[2:]
 		return bytes.fromhex(('0'+h) if len(h)&1 else h)
+	if type(s)==str:
+		return Try(lambda: bytes.fromhex(s), s.encode())
 	return s

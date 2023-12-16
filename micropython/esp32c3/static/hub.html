@@ -3,9 +3,34 @@
 
 <head>
 	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>OpenSmartNode</title>
 	<style>
+.dark_overlay{
+	display: none;
+	position: absolute;
+	top: 0%;
+	left: 0%;
+	width: 100%;
+	height: 100%;
+	background-color: black;
+	z-index:10;
+	-moz-opacity: 0.5;
+	opacity:.50;
+	filter: alpha(opacity=80);
+}
+.popup_content {
+	display: none;
+	position: absolute;
+	top: 15%;
+	left: 15%;
+	width: 70%;
+	height: 70%;
+	padding: 4px;
+	border: 4px solid orange;
+	background-color: white;
+	z-index:11;
+	overflow: auto;
+}
 .toast {
   visibility: hidden;
   min-width: 250px;
@@ -16,7 +41,7 @@
   border-radius: 2px;
   padding: 16px;
   position: fixed;
-  z-index: 1;
+  z-index: 100;
   left: 50%;
   bottom: 30px;
   font-size: 17px;
@@ -47,12 +72,12 @@
   from {bottom: 30px; opacity: 1;}
   to {bottom: 0; opacity: 0;}
 }
-.content_editable {
+.wrap {
     white-space: pre-wrap;       /* css-3 */
     white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
     white-space: -pre-wrap;      /* Opera 4-6 */
     white-space: -o-pre-wrap;    /* Opera 7 */
-    word-wrap: break-word;       /* Internet Explorer 5.5+ */
+    word-wrap: anywhere;       /* Internet Explorer 5.5+ */
 }
 button {
 	align-items: center;
@@ -90,7 +115,6 @@ button:hover {background-position: -20px -20px;}
 button:focus:not(:active) {box-shadow: rgba(40, 170, 255, 0.25) 0 0 0 .125em;}
 
 table, th, td {border: 1px solid;}
-th {padding-left: 5px; padding-right: 5px;}
 h3 {margin-bottom:10px;}
 input {font-size:15px;}
 .bb { font-weight: bold; }
@@ -200,13 +224,13 @@ input {font-size:15px;}
 		<span style="width:10%; margin:10px"><textarea id="g.LD1115H.sensor_log" rows=10 cols=16 style="display: none;" readonly></textarea></span>
 	</span>
 	<h3>Remote Control Mapping Table</h3>
-	<table id="rc-table" style="width:100%">
-		<tr>
-			<th style="width:10pt">SN</th>
+	<table id="rc-table" style="width:100%; table-layout:fixed; display: block">
+		<tr class="wrap">
+			<th style="width:2%">SN</th>
 			<th style="width:4%">Code</th>
 			<th style="width:8%">Description</th>
-			<th style="width:75%">Remote Controller Data</th>
-			<th style="width:12%">Actions</th>
+			<th style="width:72%">Remote Controller Data</th>
+			<th style="width:14%">Actions</th>
 		</tr>
 		<tr>
 			<td colspan="100%"><button onclick="add_new_row()">Add New Row</button></td>
@@ -220,12 +244,42 @@ input {font-size:15px;}
 		<button onclick="GET('/reboot')" class="bb">Reboot</button>
 	</p>
 
+	<div id="bleFront" class="popup_content" style="position: fixed; text-align: center">
+		<h1 onclick="closeBLE()" style="position:absolute; right:4px; top:0%; margin:0; cursor:pointer;">&#9746;</h1>
+		<h2>Capture BLE Advertise Broadcast</h2>
+		<table id="tb_ble" style="table-layout:fixed; width:100%; margin-bottom: 8px;">
+			<tr class="wrap">
+				<th style="width:5%">Rank</th>
+				<th style="width:5%" title="Signal Strength">RSSI</th>
+				<th style="width:10%" title="MAC Address or # of Addresses (if multiple)"># Address</th>
+				<th style="width:7.5%" title="Address Type">addr_type</th>
+				<th style="width:7.5%" title="Advertisement Type">adv_type</th>
+				<th style="width:50%">Data (in hex)</th>
+				<th style="width:5%" title="Number of bytes in data">Length</th>
+				<th style="width:10%">Actions</th>
+			</tr>
+		</table>
+		<div style="display: inline; vertical-align:middle">
+			<input type="checkbox" id="cb_filter" />
+			<label for="cb_filter">Filter by sender MAC</label>
+			<input type="text" id="sender_addr_filter" size=12 />
+		</div>&nbsp;&nbsp;
+		<button id="bt_scanBLE" onclick="start_ble_scan()" title="Start/Stop BLE gap_scan" class="bb">Start Scan</button>&nbsp;&nbsp;
+		<div style="display: inline; vertical-align:middle">
+			<label for="sender_addr_filter">Display Top N BLE Broadcasts:</label>
+			<input type="number" id="nbestn" value=10 size=4 />
+		</div>
+	</div>
+    <div id="bleBack" class="dark_overlay" style="position: fixed"></div>
+
+
 <script>
 	function getById(id_str) { return document.getElementById(id_str); }
 	var timer = null;
 	var requesting = false;
 	var snackbar = getById('snackbar');
 	var keepUpdating = getById('keepUpdating');
+	function isString(s){return typeof s === 'string' || s instanceof String;}
 	function GET(url, onOkay=null, onFail=null) {
 		var xmlHttp = new XMLHttpRequest();
 		xmlHttp.open('GET', url, onOkay!=null||onFail!=null);
@@ -243,7 +297,7 @@ input {font-size:15px;}
 		return xmlHttp.responseText;
 	}
 	function toast(msg) {
-		if(typeof msg != 'string')
+		if(!isString(msg))
 			msg = msg.target.responseText || (msg.target.statusText+' '+msg.target.status);
 		var randint = Math.round(Math.random()*10000);
 		var e = document.createElement('div');
@@ -267,6 +321,8 @@ input {font-size:15px;}
 		}
 	}
 	var tb = getById('rc-table');
+	var tb_ble = getById('tb_ble');
+	var ble_rid = null;
 	var rid = 0;
 	var drag_rid;
 	var G = {};
@@ -332,8 +388,8 @@ input {font-size:15px;}
 			update(2);
 		}
 	}
-	function clear_all(){
-		while (tb.rows.length > 2) tb.deleteRow(1);
+	function clear_all(t=tb, n=2){
+		while (t.rows.length > n) t.deleteRow(1);
 	}
 	function update(mask=1){
 		if(requesting) return;
@@ -363,17 +419,83 @@ input {font-size:15px;}
 		}
 		update(3);
 	}
+	function recordRC(rid, url){
+		GET(url, (ev)=>{
+			try{
+				var obj = JSON.parse(ev.target.responseText);
+				if(isString(obj)) return alert(obj);
+				if('info' in obj){
+					alert(obj.info);
+					delete obj.info;
+				}
+				getById('R'+rid).children[3].textContent = JSON.stringify(obj);
+			}catch(e){toast(e)}
+		}, toast)
+	}
 	function recordRF(rid) {
 		if(confirm("Please hold down the remote controller button and click OK to record:"))
-			getById('R'+rid).children[3].textContent = GET('/rf_record');
+			recordRC(rid, '/rf_record');
 	}
 	function recordIR(rid) {
 		if(confirm("Please press the remote controller button at least 3 times within 3 seconds after clicking OK:"))
-			getById('R'+rid).children[3].textContent = GET('/ir_record');
+			recordRC(rid, '/ir_record');
+	}
+	function openBLE(rid){
+		ble_rid = rid;
+		getById('bleFront').style.display = getById('bleBack').style.display = 'block';
+	}
+	function closeBLE(n=0){
+		if(n>0)
+			getById('R'+ble_rid).children[3].textContent = `{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'${tb_ble.rows[n].children[5].textContent}'}`;
+		getById('bleFront').style.display = getById('bleBack').style.display = 'none';
+	}
+	function sendBLE(n){
+		var data = `{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'${tb_ble.rows[n].children[5].textContent}'}`;
+		toast(POST('/rc_exec', data));
 	}
 	function emit(rid) {
 		var v = getById('R'+rid).children[3].textContent;
-		alert(POST('/rc_exec', v));
+		POST('/rc_exec', v, toast, toast);
+	}
+	function start_ble_scan(){
+		var opt = `, 'nbestn':${getById('nbestn').value}`;
+		if(getById('cb_filter').checked){
+			var mac = getById('sender_addr_filter').value;
+			if(! /^[0-9a-fA-F]{12}$/.test(mac)){
+				alert("Invalid MAC address format, must be of 12 hex digits!");
+				return;
+			}
+			opt += `, 'filter_addr':'${mac}'`;
+		}
+		POST('/rc_exec', `{'protocol': 'BLE', 'cmd': 'start_scan'${opt}}`, (ev) => {
+			toast('BLE Scan started');
+			getById('bt_scanBLE').textContent = "Stop Scan";
+			getById('bt_scanBLE').onclick = ()=>{stop_ble_scan()};
+			getById('cb_filter').disabled = true;
+			clear_all(tb_ble, 1);
+		}, toast)
+	}
+	function stop_ble_scan(){
+		POST('/rc_exec', "{'protocol': 'BLE', 'cmd': 'stop_scan'}", (ev) => {
+			toast('BLE Scan stopped');
+			getById('bt_scanBLE').textContent = "Start Scan";
+			getById('bt_scanBLE').onclick = ()=>{start_ble_scan()};
+			getById('cb_filter').disabled = false;
+			try{
+				// input format: [[RSSI,addr/#addr,addr_type,adv_type,data]]
+				obj = JSON.parse(ev.target.responseText);
+				for(var o1 of obj){
+					var n = tb_ble.rows.length;
+					var row = tb_ble.insertRow(n);
+					row.innerHTML = `<td>${n}</td><td>${o1[0]}</td><td>${o1[1]}</td><td>${o1[2]}</td><td>${o1[3]}</td>
+					<td contenteditable="true">${o1[4]}</td><td>${o1[4].length/2}</td>
+					<td style="text-align:center">
+						<input type='button' onclick='sendBLE(${n})' value='Send' title="Send this BLE signal to test whether it can control your device">
+						<input type='button' onclick='closeBLE(${n})' value='Pick' title="Choose this one and close the window">
+					</td>`
+				}
+			}catch(e){alert(e)}
+		}, (xhr) => {alert(xhr)})
 	}
 	function deleteRow(rid) {
 		getById('R' + rid).remove();
@@ -396,12 +518,13 @@ input {font-size:15px;}
 		var row = tb.insertRow(insp);
 		row.setAttribute('id', 'R'+rid);
 		row.innerHTML = `<th class="ptr" draggable=true ondragstart="drag_rid=${rid};" ondrop="drop(${rid})" ondragover="allowDrop(event)">${insp}</th>
-<td contenteditable="true" class="content_editable"></td>
-<td contenteditable="true" class="content_editable"></td>
-<td contenteditable="true" class="content_editable"></td>
+<td contenteditable="true" class="wrap"></td>
+<td contenteditable="true" class="wrap"></td>
+<td contenteditable="true" class="wrap"></td>
 <td style="text-align:center">
 	<input type='button' onclick='recordRF(${rid})' value='Record-RF' title="Record 433MHz remote controller signal">
 	<input type='button' onclick='recordIR(${rid})' value='Record-IR' title="Record infrared remote controller signal">
+	<input type='button' onclick='openBLE(${rid})' value='Record-BLE' title="Record BLE signal">
 	<input type='button' onclick='emit(${rid})' value='Send' title="Execute this command">
 	<input type='button' onclick='deleteRow(${rid})' value='Delete' title="Delete this row">
 </td>`;

@@ -26,15 +26,16 @@ from lib_common import *
 
 wifi = {}
 
+read_py_obj = lambda f: Try(lambda: eval(open('secret.py').read()), '')
+
 def connect_wifi():
-	global wifi
-	sta_if = network.WLAN(network.STA_IF)
+	global wifi, sta_if
 	if sta_if.active():
 		sta_if.disconnect()
 		sta_if.active(False)
 		time.sleep(1)
 	try:
-		cred = eval(open('secret.py').read())
+		cred = read_py_obj('secret.py')
 		sta_if.active(True)
 		WIFI_IP, WIFI_SUBNET, WIFI_GATEWAY, WIFI_DNS = [cred.get(v, '') for v in ['WIFI_IP', 'WIFI_SUBNET', 'WIFI_GATEWAY', 'WIFI_DNS']]
 		if WIFI_IP and WIFI_SUBNET and WIFI_GATEWAY and WIFI_DNS:
@@ -52,8 +53,7 @@ def connect_wifi():
 		return False
 
 def create_hotspot():
-	global wifi
-	ap_if = network.WLAN(network.AP_IF)
+	global wifi, ap_if
 	if ap_if.active():
 		wifi.update({'mode':'hotspot', 'config':ap_if.ifconfig()})
 		return
@@ -236,10 +236,10 @@ class WebServer:
 			( "/eval", "GET", lambda clie, resp: Eval(clie.GetRequestQueryString(True)) ),
 			( "/wifi_restart", "GET", lambda *_: self.set_cmd('restartWifi') ),
 			( "/wifi_save", "POST", lambda clie, resp: save_file('secret.py', clie.YieldRequestContent()) ),
-			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
+			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseJSONOk(read_py_obj('secret.py')) ),
 			( "/reboot", "GET", lambda *_: self.set_cmd('reboot') ),
-			( "/rf_record", "GET", lambda *_: str(rfc.recv()) ),
-			( "/ir_record", "GET", lambda *_: str(irc.recv()) ),
+			( "/rf_record", "GET", lambda clie, resp: resp.WriteResponseJSONOk(rfc.recv()) ),
+			( "/ir_record", "GET", lambda clie, resp: resp.WriteResponseJSONOk(irc.recv()) ),
 			( "/rc_run", "GET", lambda cli, *arg: execRC(cli.GetRequestQueryString(True))),
 			( "/rc_exec", "POST", lambda cli, *arg: execRC(cli.ReadRequestContent())),
 			( "/rc_save", "POST", lambda clie, resp: save_file(RCFILE, clie.YieldRequestContent()) ),
@@ -282,7 +282,7 @@ class WebServer:
 
 	def handleASR(self):
 		key = self.uart_ASR.readline().strip()
-		prt(f'RX received {key}')
+		prt(f'RX-ASR received {key}')
 		code = get_rc_code(key)
 		execRC(code)
 		flashLED()
