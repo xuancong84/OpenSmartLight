@@ -63,7 +63,7 @@ class RC():
 		del arr
 
 		lengths = [len(x) for x in segs]
-		# print(f'Received data size = {nedges}, segment lengths: {lengths}') #DEBUG
+		info = f'Segment lengths={lengths}\r\n'
 
 		# Select segments with most common frame length
 		cnter = {x:lengths.count(x) for x in set(lengths)}
@@ -78,18 +78,15 @@ class RC():
 		if N_new < self.min_nframes:
 			return f'Too few selected frames: {N_new}'
 		
-		# if N_old != N_new:	#DEBUG
-			# print('Deleted {} frames of different length'.format(N_old - N_new))	#DEBUG
-
-		# print(f'Averaging {N_new} frames')	#DEBUG
+		info += f'Discarded {N_old-N_new} frames; selected {N_new} frames\r\n'
 		m = [sum(x)/N_new for x in zip(*segs)]	# compute mean
 		for seg in segs:	# ignore STD due to gaps difference, clam gap duration to 0.2 sec
 			m[0] = min(m[0], 100000)
 			seg[0] = round(m[0])
 		std = [sqrt(sum([(y - m[i])**2 for y in x])/N_new) for i, x in enumerate(zip(*segs))]
 		del segs
-		# print('Capture quality {:5.1f} (0: perfect)'.format(sum(std)/len(std)))	#DEBUG
-		ret = {'init_level':init_level, 'data':list(map(round, m))}
+		info += 'Capture quality {:5.1f} (0: perfect)'.format(sum(std)/len(std))
+		ret = {'init_level':init_level, 'data':list(map(round, m)), 'info':info}
 		ret.update(self.proto)
 	
 		return ret

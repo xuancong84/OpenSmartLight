@@ -1,4 +1,4 @@
-import time, gc, bluetooth
+import time, gc, bluetooth, json
 from micropython import const
 from lib_common import *
 
@@ -33,34 +33,32 @@ class BLEcentral:
 	def __init__(self):
 		self._ble = bluetooth.BLE()
 		self._ble.irq(self._irq)
+		self._ble.active(True)
 		self.nbestn = 10
 		self.filter_addr = ''
 		self.filter_uuid = ''
-		self.nbest = {}
+		self.nbest = {}	# a dict of {str([addr_type, adv_type, data]): [rssi, set(addrs)]}
 
 	def _irq(self, event, data):
 		if event == _IRQ_SCAN_RESULT:
 			addr_type, addr, adv_type, rssi, adv_data = data
 			adv_data = bytes(adv_data)
-			if self.filter_addr and self.filter_addr != bytes(addr):
-				return
-			if self.filter_uuid and self.filter_uuid != bytes(uuid):
+			addr = bytes(addr)
+			if self.filter_addr and self.filter_addr != addr.hex():
 				return
 
-			# print(f'RSSI={rssi} adv_type={adv_type} data_len={len(adv_data)}')
-			if adv_data in self.nbest:
-				self.nbest[adv_data] = max(rssi, self.nbest[adv_data])
+			key = str([addr_type, adv_type, adv_data.hex()])
+			if key in self.nbest:
+				self.nbest[key][0] = max(rssi, self.nbest[key][0])
+				self.nbest[key][1].add(addr.hex())
 			elif len(self.nbest)<self.nbestn:
-				self.nbest[adv_data] = rssi
+				self.nbest[key] = [rssi, set([addr.hex()])]
 			else:
-				min_rssi = min(self.nbest.values())
-				if rssi>min_rssi:
-					key_min = [k for k,v in self.nbest.items() if v==min_rssi][0]
+				min_rssi = min(map(lambda t:t[0], self.nbest.values()))
+				if rssi > min_rssi:
+					key_min = [k for k,v in self.nbest.items() if v[0]==min_rssi][0]
 					self.nbest.pop(key_min)
-					self.nbest[adv_data] = rssi
-
-		elif event == _IRQ_SCAN_DONE:
-			self._ble.active(False)
+					self.nbest[key] = [rssi, set([addr.hex()])]
 
 	# Returns true if we've successfully connected and discovered characteristics.
 	def is_connected(self):
@@ -76,19 +74,15 @@ class BLEcentral:
 		self.filter_uuid = filter_uuid or self.filter_uuid
 		self.nbestn = nbestn or self.nbestn
 		self.nbest = {}
-		self._ble.active(True)
 		self._ble.gap_scan(duration_s, interval_us, window_us, False)
 
 	def stop_scan(self):
 		self._ble.gap_scan(None)
-		self._ble.active(False)
 
 	def advertise(self, data, interval_us=125000, duration_s=0.6, connectable=False, **kwargs):
-		self._ble.active(True)
 		self._ble.gap_advertise(interval_us, adv_data=parse_data(data), connectable=connectable)
 		time.sleep(duration_s)
 		self._ble.gap_advertise(None)
-		self._ble.active(False)
 
 	# Connect to the specified device (otherwise use cached address from a scan).
 	def connect(self, addr_type=None, addr=None, callback=None):
@@ -125,8 +119,13 @@ def ble_task(obj: dict):
 	try:
 		if cmd == 'gap_advertise':
 			g_ble.advertise(**obj)
-		elif cmd == 'gap_scan':
+		elif cmd == 'start_scan':
 			g_ble.scan(**obj)
+		elif cmd == 'stop_scan':
+			g_ble.stop_scan()
+			nbl = sorted(list(g_ble.nbest.items()), reverse=True, key=lambda t:t[1][0])
+			return json.dumps([[v[0], f'#[{len(v[1])}]' if len(v[1])>1 else list(v[1])[0]]+eval(k) for k,v in nbl])
+			# return format: [[RSSI,addr/#addr,addr_type,adv_type,data]]
 		return 'OK'
 	except Exception as e:
 		return str(e)
@@ -156,5 +155,3 @@ def ble_task(obj: dict):
 
 # 			print(f'Sending {msg.hex()}')
 # 			central.advertise(msg)
-
-gc.collect()

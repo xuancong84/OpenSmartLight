@@ -1,4 +1,4 @@
-import os, time, ntptime
+import os, time, ntptime, network
 from machine import Timer, ADC, Pin, PWM
 
 DEBUG = False
@@ -41,8 +41,8 @@ def syncNTP():
 		except:
 			pass
 	t = time.time()-t
-	for tmr in Timers:
-		tmr[0] += t
+	for k, v in Timers.items():
+		v[0] += t
 
 # Compare time string, whether dt is in between dt1 and dt2
 # If dt1==dt2 => range=0, always false
@@ -81,3 +81,22 @@ def prt(*args, **kwarg):
 		with open(LOGFILE, 'a') as fp:
 			print(getFullDateTime(), end=' ', file=fp)
 			print(*args, **kwarg, file=fp)
+
+def Try(fn, default=None):
+	try:
+		return fn()
+	except:
+		return default
+
+def parse_data(s):
+	if type(s)==int:
+		h = hex(s)[2:]
+		return bytes.fromhex(('0'+h) if len(h)&1 else h)
+	if type(s)==str:
+		return Try(lambda: bytes.fromhex(s), s.encode())
+	return s
+
+def getActiveNIF():
+	sta_if = network.WLAN(network.STA_IF)
+	ap_if = network.WLAN(network.AP_IF)
+	return sta_if if sta_if.active(True) else ap_if
