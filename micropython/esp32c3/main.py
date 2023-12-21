@@ -255,17 +255,17 @@ class WebServer:
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
 		self.poll_tmout = -1
-		set_uart = lambda p: sys.stdin if p==20 else (UART(1, 115200, tx=0, rx=1, timeout=256, timeout_char=256) if p==1 else None)
+		set_uart = lambda p: sys.stdin if p==20 else (UART(1, 115200, tx=0, rx=1) if p==1 else None)
 		self.uart_ASR = set_uart(PIN_ASR_IN)
 		self.uart_LD1115H = set_uart(PIN_LD1115H)
-		self.sock_map = {id(self.sock_web): self.mws.run_once}
+		self.sock_map = {self.sock_web: self.mws.run_once}
 		self.cpIP = captivePortalIP
 		if captivePortalIP:
 			self.sock_dns = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 			self.sock_dns.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			self.sock_dns.bind((captivePortalIP, 53))
 			self.poll.register(self.sock_dns, select.POLLIN)
-			self.sock_map[id(self.sock_dns)] = self.handleDNS
+			self.sock_map[self.sock_dns] = self.handleDNS
 		else:
 			self.sock_dns = None
 
@@ -273,15 +273,16 @@ class WebServer:
 			return
 		if self.uart_ASR != None:
 			self.poll.register(self.uart_ASR, select.POLLIN)
-			self.sock_map[id(self.uart_ASR)] = self.handleASR
+			self.sock_map[self.uart_ASR] = self.handleASR
 		if self.uart_LD1115H != None:
 			g.LD1115H = LD1115H(self.mws, self.uart_LD1115H)
 			self.poll_tmout = 1
 			self.poll.register(self.uart_LD1115H, select.POLLIN)
-			self.sock_map[id(self.uart_LD1115H)] = g.LD1115H.handleUART
+			self.sock_map[self.uart_LD1115H] = g.LD1115H.handleUART
 
 	def handleASR(self):
 		key = self.uart_ASR.readline().strip()
+		key = key.decode() if type(key)==bytes else key
 		prt(f'RX-ASR received {key}')
 		code = get_rc_code(key)
 		execRC(code)
@@ -322,7 +323,7 @@ class WebServer:
 				del g.Timers[tn]
 			tps = self.poll.poll(poll_tmout*1000)
 			for tp in tps:
-				self.sock_map[id(tp[0])]()
+				self.sock_map[tp[0]]()
 				gc.collect()
 				time.sleep(0.1)
 				if self.cmd=='reboot':

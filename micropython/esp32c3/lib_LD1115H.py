@@ -166,6 +166,7 @@ class LD1115H:
 		while select.select([self.uart], [], [], 0)[0]:
 			try:
 				L = self.uart.readline().strip()
+				L = L.decode() if type(L)==bytes else L
 				assert L
 
 				# append sensor log
