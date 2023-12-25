@@ -1,0 +1,4 @@
+python-vlc
+deebot-t8
+deebot-t8[cli]
+flask
