@@ -28,8 +28,8 @@ PFN	钢琴房吊扇开启	{'data': [7991, 800, 168, 321, 647, 321, 647, 321, 645
 PFF	钢琴房吊扇关闭	{'data': [7993, 799, 168, 320, 648, 319, 649, 320, 646, 797, 171, 318, 649, 319, 647, 796, 178, 793, 175, 314, 653, 790, 178, 788, 180, 307, 658, 786, 181, 783, 185, 303, 672, 304, 661, 782, 185, 780, 188, 300, 667, 300, 665, 779, 188, 777, 191, 297, 677, 299, 667, 777, 190, 775, 193, 772, 196, 292, 675, 293, 673, 295, 672, 772, 194, 295], 'init_level': 0, 'protocol': 'RF433'}
 LFN	客厅落地扇开启	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xba\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00Q{\n  "data": {\n    "fpwr": "ON"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-07-20T05:21:36Z"\n}'}
 LFF	客厅落地扇关闭	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbb\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00?{\n  "data": {\n    "fpwr": "OFF"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-07-20T05:17:39Z"\n}'}
-MFN	主人房落地扇开启	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xba\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00?{\n  "data": {\n    "fpwr": "ON"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-07-20T05:22:15Z"\n}'}
-MFF	主人房落地扇关闭	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbb\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00C{\n  "data": {\n    "fpwr": "OFF"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-07-20T05:22:51Z"\n}'}
+RFN	房间落地扇开启	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xba\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00?{\n  "data": {\n    "fpwr": "ON"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-07-20T05:22:15Z"\n}'}
+RFF	房间落地扇关闭	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbb\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00C{\n  "data": {\n    "fpwr": "OFF"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-07-20T05:22:51Z"\n}'}
 S1N	射灯1开启	{'protocol': 'TCP', 'IP': '192.168.50.15', 'PORT': 6668, 'data': b'\x00\x00U\xaa\x00\x00\x00\x02\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\x07\x00\x0e\xcb\xc0\xce\x9b\xc3\x19`|N\xfa\t=a\xeb\xbb\xbcH\x8a\x81\xca\xf56\x98\xdf\xe0\xa2E\x12\xefrgC\xc3\xa3$\xc7V\xe0\xb28)\xb8I\x05\x94\x8dQe\xd6n\xf2d\x9d"N=\x7f6E\t2\xa6\x8a\x18\xa3\x80@\x99\xa2PX$\xf8-\xcc"\xf8\xc5\x9c\x15\xf7U\xce=\x7fv\xaa\x9e\x97]wCa-f\xea\x04\xe9\xdf.\'r\x00\x00\xaaU'}
 S1F	射灯1关闭	{'protocol': 'TCP', 'IP': '192.168.50.15', 'PORT': 6668, 'data': b'\x00\x00U\xaa\x00\x00\x00\x03\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\x08\x00\x0e\xcb\xc0\xce\x9b\xc3\x19`|N\xfa\t=a\xeb\xbb\xbcH\x8a\x81\xca\xf56\x98\xdf\xe0\xa2E\x12\xefrgC\xc3\xa3\xd0\x81\xd6\x98\xc8\x03o\x9c\x0f\xa8#\xdf\x7f~{E\x06\xc2\xd6\x8f\xb7L\xcb\x93L\xc8T\xd8"\x12\xa2\x01\xfe\xf3G\x86\xb5E\x99\xf6vP0\x949\x16BP\x1e\x1a\xae\xea\x82\xec\xf4L\x83\x96\x17\xfe\xe5\xcb\x89\xbc\xb5\xa8\x08&\x00\x00\xaaU'}
 S2N	射灯2开启	{'protocol': 'TCP', 'IP': '192.168.50.14', 'PORT': 6668, 'data': b"\x00\x00U\xaa\x00\x00\x00\t\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\r\x00\x0bR9\xeaG\xcf\xa7\x9a\xc8\xe9EM'\xc7W\x99\x7f\xe3%\x8dp}1\xb6@\xfd\x8d\x9e00\x82\xa9\xe1W)M,\xd3\xb1N\x90\x9d\xcc\x85\xf8\x94\xff\xd0\xa1\x90\xc1\x16z\x98\rF\xc7\x15\xcc\x81\x8d\xe4\xe9\x87\x8f\xee\xf3x\xf6T\xd1\x1c\xa5\xca\xa2\x0f\xec\xc2\xbeY\xc7O#T\n\xe3\xf3\xc9;9ZU\x13\r\xdd\xf2\xf5]9>\xc4\x1f\x87\x00\x00\xaaU"}
@@ -38,17 +38,17 @@ S3N	射灯3开启	{'protocol': 'TCP', 'IP': '192.168.50.13', 'PORT': 6668, 'data
 S3F	射灯3关闭	{'protocol': 'TCP', 'IP': '192.168.50.13', 'PORT': 6668, 'data': b'\x00\x00U\xaa\x00\x00\x00\x02\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\x06\x00\x04\x14\xa3(\x9dm\xf4\x00\xd1\xa2\xe7\x9e\x18\xa2\x1c~\xe3\x18_\x1c9\x1fbR\xb9\x890\x12\x0e\xae\x06J6\x9d\x0b\xb8\xe9-5\xc5}U`\xb55\x03\x7f\xc9\xd7\xe31%\xc1\x1a\xa6\x85\xe3\xa9\x8c\xb0\x8f\x9f\xa0D\xba\x81\x19#2\x9d@\xfe\xa3w\xfd\x04\x07\xe5\x14\x9f\x80\x0f\xf9%\x89\xa9kP\xb2.\x10\x9a\xbdF\x94\x02\xe2\xad\x84K{\\\xe7\x00\x00\xaaU'}
 LDN	客厅射灯开启	['S1N', 'S2N', 'S3N']
 LDF	客厅射灯关闭	['S1F', 'S2F', 'S3F']
-LTVN	客厅电视机开启	{'protocol': 'WOL', 'data': '64:95:6C:39:3E:80'}
-LTVF	客厅电视机关闭	{'protocol': 'CAP', 'filename': 'livingTVoff.tcp'}
-MTVN	主人房电视机开启	{'protocol': 'WOL', 'data': '74:e6:b8:20:1d:db'}
+LTVN	客厅电视机开启	[{'protocol': 'WOL', 'data': '64:95:6C:39:3E:80'},{'protocol': 'WOL', 'data': '44:CB:8B:03:75:10'}]
+LTVF	客厅电视机关闭	{'protocol': 'CAP', 'filename': 'livingTVoff.wifi.tcp'}
+MTVN	主人房电视机开启	[{'protocol': 'WOL', 'data': '74:e6:b8:20:1d:db'},{'protocol': 'WOL', 'data': '64:cb:e9:04:18:3a'}]
 MTVF	主人房电视机关闭	{'protocol': 'CAP', 'filename': 'masterTVoff.tcp'}
 _KF	进入用餐模式	['LFN', 'DLN']
 _CW	退出用餐模式	['LFF', 'DLF', 'DFS']
 ALLN	客厅全部灯开启	['DLN', 'SLN', 'PLN', 'MLN', 'S1N', 'S2N', 'S3N']
 ALLF	客厅全部灯关闭	['DLF', 'SLF', 'PLF', 'MLF', 'S1F', 'S2F', 'S3F','LLF']
-RCB	扫地机开启	'http://18.139.106.135:8883/ecovacs/T8/clean'
-RCS	扫地机暂停	'http://18.139.106.135:8883/ecovacs/T8/pause'
-RCR	扫地机返回	'http://18.139.106.135:8883/ecovacs/T8/return-to-charge'
+RCB	扫地机开启	'http://192.168.50.3:8883/ecovacs/T8/clean'
+RCS	扫地机暂停	'http://192.168.50.3:8883/ecovacs/T8/pause'
+RCR	扫地机返回	'http://192.168.50.3:8883/ecovacs/T8/return-to-charge'
 MLS	客厅音乐灯开关	'http://192.168.50.7/rc_run?L1T'
 MLN	客厅音乐灯开启	'http://192.168.50.7/rc_run?L1N'
 MLF	客厅音乐灯关闭	'http://192.168.50.7/rc_run?L1F'
@@ -57,15 +57,15 @@ MLI	客厅音乐灯调亮	'http://192.168.50.7/rc_run?MLI'
 MLD	客厅音乐灯调暗	'http://192.168.50.7/rc_run?MLD'
 MPN	蓝牙播放器开启	'http://192.168.50.7/rc_run?L2N'
 MPF	蓝牙播放器关闭	'http://192.168.50.7/rc_run?L2F'
-MPS	开始播放蓝牙音乐	['MPN', {'protocol': 'WOL', 'IP':'192.168.50.32', 'data': '88:66:5a:01:7d:50'}, 'http://192.168.50.32:8883/play/Desktop/musics.m3u']
-MPE	停止播放蓝牙音乐	['http://192.168.50.32:8883/stop', 'MPF']
-MPP	暂停播放蓝牙音乐	'http://192.168.50.32:8883/pause'
-MPR	继续播放蓝牙音乐	'http://192.168.50.32:8883/resume'
+MPS	蓝牙音乐开启播放	['BSN', 'http://192.168.50.3:8883/play/Desktop/musics.m3u']
+MPE	蓝牙音乐停止关闭	['http://192.168.50.3:8883/stop','BSF']
+MPP	蓝牙音乐暂停播放	'http://192.168.50.3:8883/pause'
+MPR	蓝牙音乐继续播放	'http://192.168.50.3:8883/resume'
 LLN	客厅灯带开启	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': 0x3b230000000000000032000090}
 LLF	客厅灯带关闭	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': 0x3b240000000000000032000091}
 LLC	客厅灯带换色	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': bytes(g.Cmsg+[sum(g.Cmsg)&0xff])}, Exec('g.C=(1 if g.C+1>=8 else g.C+1);g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]')
 LLT	客厅灯带不断变色	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': b'8%\x012\x90'}
-__init__	系统初始化	exec('machine.freq(80000000);g.DL=g.SL=g.PL=0;PIN_RF_IN=2;PIN_RF_OUT=3;PIN_ASR_IN=20;PIN_IR_IN=11;PIN_DEBUG_LED=12;use_BLE=True;g.C=1;g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]')
+__init__	系统初始化	exec('machine.freq(80000000);g.DL=g.SL=g.PL=0;PIN_RF_IN=2;PIN_RF_OUT=3;PIN_ASR_IN=1;PIN_IR_IN=11;PIN_DEBUG_LED=12;use_BLE=True;g.C=1;g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]')
 __postinit__	后期初始化	SetTimer('pianoFan', 300, True, lambda: execRC('PFF' if '08:00:00'<getTimeString()<'22:00:00' else ''))
 DLC	餐桌吊灯变色	['DLF', 'DLN']
 SLC	沙发吊灯变色	['SLF' ,'SLN']
@@ -81,3 +81,23 @@ CRLF	中间房吊灯关闭	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x
 MRL9	主人房吊灯最亮	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3e174d9b74fa997166df5583fe87}
 MRL5	主人房吊灯明亮	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3e174d24dafae27101b855e4caa7}
 MRL1	主人房吊灯最暗	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3e174d2493fa22719f26557ad067}
+LF8	客厅落地扇快档	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0008"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
+LF7	客厅落地扇中档	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0007"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
+LF6	客厅落地扇慢档	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0006"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
+RF8	房间落地扇快档	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0008"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
+RF7	房间落地扇中档	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0007"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
+RF7	房间落地扇慢档	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0006"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
+BSN	蓝牙音响开启	'http://192.168.50.3:8883/connectble/marshall'
+BSF	蓝牙音响关闭	'http://192.168.50.3:8883/disconnectble/marshall'
+BSVU	音乐播放器音量提高	'http://192.168.50.3:8883/volume/up'
+BSVD	音乐播放器音量降低	'http://192.168.50.3:8883/volume/down'
+BSVM	音乐播放器音量中等	'http://192.168.50.3:8883/volume/50'
+MPPN	蓝牙音乐播放下一曲	'http://192.168.50.3:8883/next'
+MPPP	蓝牙音乐播放上一曲	'http://192.168.50.3:8883/previous'
+VPS	蓝牙视频开启播放	['LTVN', 'http://192.168.50.3:8883/play/Desktop/videos.m3u']
+VPE	蓝牙视频停止关闭	['http://192.168.50.3:8883/stop', 'LTVF']
+LTVL	客厅电视机音量增加	'http://192.168.50.3:8883/lgtv/livingTV/volumeUp'
+LTVS	客厅电视机音量降低	'http://192.168.50.3:8883/lgtv/livingTV/volumeDown'
+VPT	蓝牙视频停止	'http://192.168.50.3:8883/stop'
+VLCVU	VLC音量增加	'http://192.168.50.3:8883/vlcvolme/up'
+VLCVD	VLC音量降低	'http://192.168.50.3:8883/vlcvolme/down'
