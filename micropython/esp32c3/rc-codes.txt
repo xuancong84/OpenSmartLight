@@ -101,3 +101,7 @@ LTVS	客厅电视机音量降低	'http://192.168.50.3:8883/lgtv/livingTV/volumeD
 VPT	蓝牙视频停止	'http://192.168.50.3:8883/stop'
 VLCVU	VLC音量增加	'http://192.168.50.3:8883/vlcvolme/up'
 VLCVD	VLC音量降低	'http://192.168.50.3:8883/vlcvolme/down'
+LFU	客厅落地扇调快	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.11","E1G-SG-NGA0301A",1)'}
+LFD	客厅落地扇调慢	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.11","E1G-SG-NGA0301A",-1)'}
+RFU	房间落地扇调快	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.12","E1G-SG-NGA0425A",1)'}
+RFD	房间落地扇调慢	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.12","E1G-SG-NGA0425A",-1)'}
