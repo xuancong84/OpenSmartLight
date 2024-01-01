@@ -1,7 +1,7 @@
 import os, sys, vlc, subprocess, random, time, threading
 inst = vlc.Instance()
-filelist = [L.strip() for L in open('/home/xuancong/Desktop/videos.m3u') if not L.startswith('#')]
-random.shuffle(filelist)
+filelist = [L.strip() for L in open('/home/xuancong/test.m3u') if not L.startswith('#')]
+#random.shuffle(filelist)
 playlist = inst.media_list_new(filelist)
 player = inst.media_list_player_new()
 player.set_media_list(playlist)
