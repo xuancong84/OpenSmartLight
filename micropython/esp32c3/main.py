@@ -153,6 +153,26 @@ def mkdir(path):
 	except Exception as e:
 		return str(e)
 
+def run_python(obj):
+	try:
+		exec(open(obj['filename']).read(), globals(), globals())
+		gc.collect()
+		return 'OK'
+	except Exception as e:
+		return str(e)
+
+def run_module(obj):
+	try:
+		mod_name = obj['filename'].split('.')[0]
+		env = {}
+		exec(f'from {mod_name} import *', env, env)
+		res = eval(obj['cmd'], env, env)
+		del env, mod_name
+		gc.collect()
+		return res
+	except Exception as e:
+		return str(e)
+
 def execRC(s):
 	if type(s)==bytes:
 		s = s.decode()
@@ -188,6 +208,10 @@ def execRC(s):
 				return send_cap(s)
 			elif p=='BLE':
 				return ble_task(s)
+			elif p=='PY':
+				return run_python(s)
+			elif p=='MOD':
+				return run_module(s)
 
 	except Exception as e:
 		prt(e)

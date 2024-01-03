@@ -56,6 +56,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 	for d1 in data:
 		data_raw = parse_data(d1)
 		n=len(data_raw)
+		print(f'Data: {data_raw}')
 		s.sendall(data_raw)
 		print(f'Sent {n} bytes')
 		print('RECV:', s.recv(1024))

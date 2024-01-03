@@ -16,7 +16,7 @@ filelist = []
 isFirst = True
 isJustAfterBoot = float(open('/proc/uptime').read().split()[0])<120
 
-def RUN(cmd, shell=True, **kwargs):
+def RUN(cmd, shell=True, timeout=3, **kwargs):
 	ret = subprocess.check_output(cmd, shell=shell, **kwargs)
 	return ret if type(ret)==str else ret.decode()
 
@@ -198,6 +198,18 @@ def ecovacs(name='', cmd=''):
 @app.route('/lgtv/<name>/<cmd>')
 def lgtv(name='', cmd=''):
 	return RUN(f'./miniconda3/bin/lgtv --name {name} {cmd}')
+
+@app.route('/lgtvVolume/<name>/<vol>')
+def lgtvVolume(name='', vol=''):
+	try:
+		value = int(vol)
+		if not vol[0].isdigit():
+			ret = RUN(f'./miniconda3/bin/lgtv --name {name} audioVolume')
+			L = ret[ret.find('"volume":'):]
+			value += int(L[L.find(' '):L.find(',')])
+		return RUN(f'./miniconda3/bin/lgtv --name {name} setVolume {value}')
+	except Exception as e:
+		return str(e)
 
 list_audio = lambda: RUN('pactl list sinks short')
 
