@@ -6,6 +6,7 @@ from urllib.parse import unquote
 from flask import Flask
 app = Flask(__name__)
 
+video_file_exts = ['.mp4', '.mkv', '.avi', '.mpg', '.mpeg']
 
 inst = vlc.Instance()
 event = vlc.EventType()
@@ -22,6 +23,7 @@ def RUN(cmd, shell=True, timeout=3, **kwargs):
 
 def create(fn):
 	global inst, player, playlist, filelist
+	stop()
 	filelist = [L.strip() for L in open(fn) if not L.startswith('#')]
 	random.seed(time.time())
 	random.shuffle(filelist)
@@ -29,7 +31,20 @@ def create(fn):
 	if player == None:
 		player = inst.media_list_player_new()
 	player.set_media_list(playlist)
-	videos = [fn for fn in filelist for ext in ['.mp4', '.mkv', '.avi', '.mpg', '.mpeg'] if fn.lower().endswith(ext)]
+	videos = [fn for fn in filelist for ext in video_file_exts if fn.lower().endswith(ext)]
+	return videos
+
+def add_song(fn):
+	global player, playlist, mplayer, filelist
+	filelist += [fn]
+	if playlist==None:
+		playlist = inst.media_list_new([])
+	playlist.add_media(fn)
+	if player==None:
+		player = inst.media_list_player_new()
+		player.set_media_list(playlist)
+	player.play_item_at_index(playlist.count()-1)
+	videos = [fn for fn in filelist for ext in video_file_exts if fn.lower().endswith(ext)]
 	return videos
 
 def findSong(name):
@@ -61,10 +76,9 @@ def keep_fullscreen(_):
 def play(name=''):
 	global player, playlist, mplayer
 	try:
-		stop()
 		if not name.startswith('/'):
 			name = os.getenv('HOME')+'/'+name
-		isvideo = create(name)
+		isvideo = create(name) if name.lower().endswith('.m3u') else add_song(name)
 		mplayer = player.get_media_player()
 		if isvideo:
 			disconnectble('marshall')
