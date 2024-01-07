@@ -2,4 +2,7 @@ python-vlc
 deebot-t8
 deebot-t8[cli]
 flask
+whisper
+pinyin
+unidecode
 git@github.com:klattimer/LGWebOSRemote.git

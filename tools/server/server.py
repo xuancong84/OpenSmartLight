@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 
-import traceback
+import traceback, argparse
 import os, sys, vlc, subprocess, random, time, threading
+import pinyin
 from urllib.parse import unquote
 from flask import Flask
-app = Flask(__name__)
+from unidecode import unidecode
 
+
+app = Flask(__name__)
 video_file_exts = ['.mp4', '.mkv', '.avi', '.mpg', '.mpeg']
+to_pinyin = lambda t: pinyin.get(t, format='numerical')
 
 inst = vlc.Instance()
 event = vlc.EventType()
+asr_event = None
+asr_input = ''
 player = None
 playlist = None
 mplayer = None
@@ -24,7 +30,7 @@ def RUN(cmd, shell=True, timeout=3, **kwargs):
 def create(fn):
 	global inst, player, playlist, filelist
 	stop()
-	filelist = [L.strip() for L in open(fn) if not L.startswith('#')]
+	filelist = [L.strip() for L in open(fn) if L.strip() and not L.strip().startswith('#')]
 	random.seed(time.time())
 	random.shuffle(filelist)
 	playlist = inst.media_list_new(filelist)
@@ -49,27 +55,47 @@ def add_song(fn):
 
 def findSong(name):
 	global filelist
-	found = None
-	for ii,it in enumerate(filelist):
-		mrl = unquote(it)
-		bn = os.path.basename(mrl)
-		if name==bn.split('.')[0]:
-			found = ii
-			break
-	if found==None:
-		for ii,it in enumerate(filelist):
-			mrl = unquote(it)
-			bn = os.path.basename(mrl)
-			if name in bn:
-				found = ii
-				break
-	return found
+	name = name.lower().strip()
+	name_list = [os.path.basename(unquote(fn)).split('.')[0].lower().strip() for fn in filelist]
+
+	# 1. exact full match
+	if name in name_list:
+		return name_list.index(name)
+
+	# 2. exact substring match
+	for ii,it in enumerate(name_list):
+		if name in it:
+			return ii
+
+	# 3. pinyin full match
+	pinyin_list = [to_pinyin(n) for n in name_list]
+	pinyin_name = to_pinyin(name)
+	if pinyin_name in pinyin_list:
+		return pinyin_list.index(pinyin_name)
+
+	# 4. pinyin substring match
+	for ii,it in enumerate(pinyin_list):
+		if pinyin_name in it:
+			return ii
+	
+	# 5. transliteration full match
+	translit_list = [unidecode(n) for n in name_list]
+	translit_name = unidecode(name)
+	if translit_name in translit_list:
+		return translit_list.index(translit_name)
+
+	# 6. transliteration substring match
+	for ii,it in enumerate(pinyin_list):
+		if translit_name in it:
+			return ii
+
+	return None
 
 def keep_fullscreen(_):
 	global isFirst
 	wait_tm = (3 if isJustAfterBoot else 2) if isFirst else 1
 	threading.Timer(wait_tm, lambda:mplayer.set_fullscreen(False)).start()
-	threading.Timer(wait_tm+.2, lambda:mplayer.set_fullscreen(True)).start()
+	threading.Timer(wait_tm+.3, lambda:mplayer.set_fullscreen(True)).start()
 	isFirst = False
 
 @app.route('/play/<path:name>')
@@ -226,6 +252,7 @@ def lgtvVolume(name='', vol=''):
 		return str(e)
 
 list_audio = lambda: RUN('pactl list sinks short')
+list_mic = lambda: RUN('pactl list sources short')
 
 # For audio
 def set_audio_device(devs, wait=10):
@@ -239,6 +266,28 @@ def set_audio_device(devs, wait=10):
 	return (os.system(f'pactl set-default-sink {out[0][0]}')==0) if out else False
 
 
+# For ASR server
+def ASR_server(m):
+	import whisper
+	M = whisper.load_model(m)
+	while True:
+		asr_event.wait()
+		obj = M.transcribe(os.path.expanduser(asr_input))
+		playFrom(obj['text'])
+
+
 if __name__ == '__main__':
-	app.run(host='0.0.0.0', port=8883)
+	parser = argparse.ArgumentParser(usage='$0 [options]', description='launch the smart home server',
+			formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+	parser.add_argument('--port', '-p', type=int, default=8883, help='server port number')
+	parser.add_argument('--asr', '-a', help='host ASR server', action='store_true')
+	parser.add_argument('--asr-model', '-am', default='tiny', help='ASR model to load')
+	opt=parser.parse_args()
+	globals().update(vars(opt))
+
+	if asr:
+		asr_event = threading.Event()
+		threading.Timer(3, lambda: ASR_server(asr_model)).start()
+
+	app.run(host='0.0.0.0', port=port)
 
