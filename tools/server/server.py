@@ -7,6 +7,7 @@ from urllib.parse import unquote
 from flask import Flask
 from unidecode import unidecode
 
+from device_config import *
 
 app = Flask(__name__)
 video_file_exts = ['.mp4', '.mkv', '.avi', '.mpg', '.mpeg']
@@ -20,8 +21,16 @@ player = None
 playlist = None
 mplayer = None
 filelist = []
+P_ktv = None
 isFirst = True
 isJustAfterBoot = float(open('/proc/uptime').read().split()[0])<120
+
+
+def Eval(cmd, default=None):
+	try:
+		return eval(cmd, globals(), globals())
+	except:
+		return default
 
 def RUN(cmd, shell=True, timeout=3, **kwargs):
 	ret = subprocess.check_output(cmd, shell=shell, **kwargs)
@@ -107,12 +116,10 @@ def play(name=''):
 		isvideo = create(name) if name.lower().endswith('.m3u') else add_song(name)
 		mplayer = player.get_media_player()
 		if isvideo:
-			disconnectble('marshall')
-			set_audio_device(['hdmi','audio.stereo'], 1)
+			set_audio_device(MP4_SPEAKER)
 			mplayer.event_manager().event_attach(event.MediaPlayerOpening, keep_fullscreen)
 		else:
-			connectble('marshall')
-			set_audio_device('bluez', 2)
+			set_audio_device(MP3_SPEAKER)
 			mplayer.event_manager().event_detach(event.MediaPlayerOpening)
 		player.set_playback_mode(vlc.PlaybackMode.loop)
 		player.play()
@@ -187,15 +194,13 @@ def stop():
 	return ret
 
 @app.route('/connectble/<device>')
-def connectble(device=None):
-	if device=='marshall':
-		ret = os.system('bluetoothctl connect 54:b7:e5:9e:f4:14' if sys.platform=='linux' else 'blueutil --connect 54:b7:e5:9e:f4:14')
+def connectble(dev_mac):
+	ret = os.system(f'bluetoothctl connect {dev_mac}' if sys.platform=='linux' else f'blueutil --connect {dev_mac}')
 	return str(ret)
 
 @app.route('/disconnectble/<device>')
-def disconnectble(device=None):
-	if device=='marshall':
-		ret = os.system('bluetoothctl disconnect 54:b7:e5:9e:f4:14' if sys.platform=='linux' else 'blueutil --disconnect 54:b7:e5:9e:f4:14')
+def disconnectble(dev_mac):
+	ret = os.system(f'bluetoothctl disconnect {dev_mac}' if sys.platform=='linux' else f'blueutil --disconnect {dev_mac}')
 	return str(ret)
 
 @app.route('/volume/<cmd>')
@@ -255,15 +260,31 @@ list_audio = lambda: RUN('pactl list sinks short')
 list_mic = lambda: RUN('pactl list sources short')
 
 # For audio
-def set_audio_device(devs, wait=10):
+@app.route('/speaker/<cmd>/<name>')
+def speaker(cmd, name):
+	if name.endswith('_SPEAKER'):
+		name = Eval(name, name)
+	return str(set_audio_device(name) if cmd=='on' else unset_audio_device(name))
+
+def set_audio_device(devs, wait=3):
 	for dev in (devs if type(devs)==list else [devs]):
 		for i in range(wait+1):
+			patn = dev
+			if dev.count(':')==5:
+				connectble(dev)
+				patn = dev.replace(':', '_')
 			out = [L.split() for L in list_audio().splitlines()]
-			res = [its[0] for its in out if dev in its[1]]
+			res = [its[0] for its in out if patn in its[1]]
 			if res:
 				return os.system(f'pactl set-default-sink {res[0]}')==0
 			time.sleep(1)
 	return (os.system(f'pactl set-default-sink {out[0][0]}')==0) if out else False
+
+def unset_audio_device(devs):
+	for dev in (devs if type(devs)==list else [devs]):
+		if dev.count(':')==5:
+			disconnectble(dev)
+	return True
 
 
 # For ASR server
@@ -274,6 +295,22 @@ def ASR_server(m):
 		asr_event.wait()
 		obj = M.transcribe(os.path.expanduser(asr_input))
 		playFrom(obj['text'])
+
+
+# For pikaraoke
+@app.route('/KTV/<cmd>')
+def KTV(cmd):
+	try:
+		if cmd=='on':
+			stop()
+			set_audio_device(KTV_SPEAKER)
+			P_ktv = subprocess.Popen(['~/projects/pikaraoke/run-no-vocal.sh'], shell=True)
+		elif cmd=='off':
+			P_ktv.kill()
+			unset_audio_device(KTV_SPEAKER)
+		return 'OK'
+	except Exception as e:
+		return str(e)
 
 
 if __name__ == '__main__':
