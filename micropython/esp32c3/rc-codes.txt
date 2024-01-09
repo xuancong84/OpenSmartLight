@@ -1,110 +1,112 @@
-DLS	餐厅吊灯开关	[{'data': [8283, 792, 190, 789, 194, 785, 197, 782, 200, 780, 203, 776, 208, 289, 692, 291, 697, 776, 206, 774, 208, 770, 212, 768, 214, 766, 218, 278, 702, 765, 218, 761, 229, 275, 706, 761, 221, 758, 224, 272, 709, 758, 226, 272, 709, 274, 708, 275, 713, 277, 703, 763, 220, 276, 705, 279, 703, 280, 700, 766, 215, 765, 217, 763, 220, 277], 'init_level': 0, 'protocol': 'RF433'}, 'exec("g.DL=0")']
-DLN	餐厅吊灯开启	[(['DLS','sleep(0.2)','DLS','sleep(0.2)','DLS'] if (getTimeString()<'08:00:00' or getTimeString()>'18:00:00') else 'DLS'), 'exec("g.DL=1")'] if g.DL<=0 else None
-DLF	餐厅吊灯关闭	['DLS', 'exec("g.DL=-1")'] if g.DL>=0 else None
-SLS	客厅沙发吊灯开关	{'data': [6676, 431, 1047, 433, 1046, 1154, 325, 431, 1048, 1152, 327, 1149, 332, 1144, 336, 419, 1063, 422, 1055, 424, 1054, 1148, 333, 1142, 338, 1139, 341, 1135, 345, 411, 1066, 1134, 351, 409, 1068, 1133, 347, 409, 1069, 1132, 354, 409, 1069, 1131, 348, 408, 1069, 1132, 355, 1128, 359, 404, 1074, 1127, 352, 404, 1073, 1127, 353, 403], 'init_level': 0, 'protocol': 'RF433'}
-SLN	客厅沙发吊灯开启	['SLS', 'exec("g.SL=1")'] if g.SL<=0 else None
-SLF	客厅沙发吊灯关闭	['SLS', 'exec("g.SL=-1")'] if g.SL>=0 else None
-PLS	钢琴房吊灯开关	{'data': [8142, 794, 174, 314, 654, 313, 653, 316, 651, 792, 176, 312, 656, 312, 653, 790, 184, 787, 182, 307, 659, 785, 182, 783, 186, 302, 665, 779, 187, 777, 191, 298, 677, 297, 668, 776, 192, 773, 195, 293, 673, 772, 196, 292, 676, 293, 674, 294, 679, 297, 670, 774, 194, 294, 672, 772, 195, 770, 197, 767, 201, 288, 679, 764, 202, 289], 'init_level': 0, 'protocol': 'RF433'}
-PLN	钢琴房吊灯开启	['PLS', 'exec("g.PL=1")'] if g.PL<=0 else None
-PLF	钢琴房吊灯关闭	['PLS', 'exec("g.PL=-1")'] if g.PL>=0 else None
-SFS	客厅沙发吊扇关闭	{'data': [5971, 433, 1044, 435, 1043, 1157, 322, 433, 1045, 1155, 325, 1151, 329, 1147, 333, 423, 1060, 425, 1053, 428, 1049, 1151, 330, 1146, 334, 1142, 338, 1139, 341, 415, 1063, 1137, 347, 414, 1064, 1138, 341, 414, 1065, 1137, 349, 1133, 347, 1130, 350, 405, 1072, 409, 1075, 1132, 354, 409, 1067, 412, 1066, 414, 1063, 1137, 343, 1134], 'init_level': 0, 'protocol': 'RF433'}
-SF3	客厅沙发吊扇3档	{'data': [6607, 421, 1039, 423, 1037, 1113, 317, 421, 1040, 1110, 320, 1105, 324, 1102, 327, 412, 1053, 414, 1046, 417, 1045, 1105, 324, 1101, 329, 1097, 332, 1095, 334, 404, 1056, 1094, 340, 404, 1058, 1093, 337, 402, 1059, 1091, 345, 1089, 341, 1085, 344, 394, 1066, 1085, 350, 394, 1074, 1085, 343, 395, 1066, 397, 1064, 1086, 343, 396], 'init_level': 0, 'protocol': 'RF433'}
-DFM	餐厅吊扇中档	{'data': [8149, 783, 200, 780, 202, 777, 205, 775, 208, 771, 212, 769, 215, 281, 701, 282, 705, 769, 213, 767, 216, 764, 219, 762, 221, 759, 224, 272, 709, 758, 224, 756, 234, 269, 712, 756, 226, 754, 229, 267, 715, 268, 713, 271, 709, 758, 225, 755, 236, 268, 712, 756, 227, 269, 713, 756, 226, 753, 230, 750, 234, 263, 717, 751, 232, 265], 'init_level': 0, 'protocol': 'RF433'}
-DFH	餐厅吊扇高档	{'data': [8273, 797, 185, 794, 188, 791, 191, 789, 194, 786, 196, 783, 200, 296, 686, 297, 691, 783, 199, 780, 203, 777, 205, 775, 208, 771, 211, 286, 696, 770, 211, 768, 222, 281, 700, 766, 215, 766, 217, 279, 703, 764, 219, 276, 705, 279, 700, 765, 225, 279, 702, 764, 217, 764, 218, 278, 704, 279, 702, 764, 218, 279, 703, 279, 701, 283], 'init_level': 0, 'protocol': 'RF433'}
-DFL	餐厅吊扇低档	{'data': [8280, 791, 192, 787, 194, 787, 196, 782, 200, 781, 201, 777, 206, 291, 690, 292, 696, 779, 203, 775, 206, 774, 209, 771, 211, 769, 214, 282, 699, 768, 214, 766, 224, 278, 702, 765, 216, 763, 220, 278, 704, 278, 702, 281, 700, 766, 216, 280, 709, 281, 699, 767, 214, 766, 217, 763, 218, 761, 221, 760, 223, 756, 226, 270, 710, 275], 'init_level': 0, 'protocol': 'RF433'}
-SF1	客厅沙发吊扇1档	{'data': [6606, 447, 1032, 448, 1030, 1171, 309, 446, 1032, 1168, 312, 1164, 315, 1160, 320, 437, 1046, 438, 1039, 441, 1038, 1162, 317, 1159, 321, 1155, 325, 1152, 327, 429, 1050, 1151, 333, 427, 1051, 1150, 328, 427, 1051, 1149, 336, 1146, 333, 1143, 337, 1140, 340, 1137, 348, 414, 1072, 1137, 341, 414, 1063, 417, 1060, 420, 1058, 423], 'init_level': 0, 'protocol': 'RF433'}
-SF5	客厅沙发吊扇5档	{'data': [6674, 435, 1042, 437, 1040, 1159, 321, 434, 1043, 1157, 324, 1152, 328, 1148, 331, 425, 1057, 427, 1051, 429, 1049, 1151, 328, 1147, 334, 1144, 336, 1140, 339, 417, 1061, 1139, 345, 416, 1062, 1138, 342, 413, 1064, 1137, 349, 1134, 345, 411, 1067, 1134, 346, 1131, 355, 406, 1078, 1130, 349, 406, 1071, 1130, 349, 407, 1070, 409], 'init_level': 0, 'protocol': 'RF433'}
-SF2	客厅沙发吊扇2档	{'data': [5879, 438, 1040, 440, 1039, 1161, 318, 437, 1041, 1159, 321, 1154, 325, 1151, 328, 428, 1054, 429, 1049, 432, 1046, 1154, 326, 1149, 330, 1146, 334, 1143, 336, 420, 1058, 1142, 341, 418, 1060, 1141, 337, 419, 1059, 1141, 345, 1139, 342, 1134, 345, 1132, 347, 407, 1076, 411, 1073, 1134, 346, 410, 1068, 413, 1065, 416, 1062, 1139], 'init_level': 0, 'protocol': 'RF433'}
-DFS	餐厅吊扇关闭	{'data': [8128, 799, 182, 797, 186, 793, 189, 790, 191, 788, 195, 785, 198, 297, 684, 299, 688, 784, 197, 782, 200, 779, 202, 777, 205, 775, 208, 288, 693, 773, 208, 772, 218, 285, 696, 771, 211, 768, 214, 282, 701, 282, 698, 769, 212, 768, 216, 280, 708, 282, 698, 284, 697, 286, 695, 287, 694, 773, 208, 772, 212, 284, 697, 770, 212, 285], 'init_level': 0, 'protocol': 'RF433'}
-SFR	客厅沙发吊扇反转	{'data': [6596, 441, 1037, 443, 1036, 1164, 315, 440, 1038, 1163, 317, 1159, 321, 1155, 324, 430, 1052, 433, 1045, 435, 1043, 1158, 322, 1154, 326, 1151, 329, 1147, 332, 424, 1054, 1146, 338, 422, 1056, 1146, 333, 422, 1056, 1145, 342, 1142, 337, 418, 1060, 421, 1056, 1144, 342, 421, 1065, 1143, 336, 418, 1059, 1142, 337, 1139, 340, 416], 'init_level': 0, 'protocol': 'RF433'}
-SFN	客厅沙发吊扇自然风	{'data': [5915, 435, 1042, 438, 1041, 1159, 320, 434, 1044, 1157, 323, 1153, 327, 1149, 330, 425, 1058, 427, 1051, 429, 1049, 1152, 328, 1148, 332, 1145, 335, 1141, 338, 418, 1060, 1141, 344, 416, 1062, 1140, 340, 416, 1062, 1138, 348, 1136, 343, 412, 1065, 416, 1061, 419, 1065, 421, 1065, 1142, 337, 421, 1058, 1141, 338, 1139, 341, 1135], 'init_level': 0, 'protocol': 'RF433'}
-KON	厨房外灯开启	'http://192.168.50.5/control_output_on'
-KOF	厨房外灯关闭	'http://192.168.50.5/control_output_off'
-KIN	厨房内灯开启	'http://192.168.50.6/control_output_on'
-KIF	厨房内灯关闭	'http://192.168.50.6/control_output_off'
-KLN	厨房灯开启	['KON', 'KIN']
-KLF	厨房灯关闭	['KOF', 'http://192.168.50.6/control_output_off']
-PFN	钢琴房吊扇开启	{'data': [7991, 800, 168, 321, 647, 321, 647, 321, 645, 800, 168, 319, 648, 320, 646, 798, 176, 795, 174, 314, 652, 792, 174, 789, 178, 310, 657, 787, 180, 785, 184, 305, 669, 306, 660, 784, 183, 782, 187, 301, 666, 302, 664, 304, 662, 782, 184, 780, 196, 299, 667, 778, 188, 776, 193, 297, 671, 296, 669, 776, 192, 296, 670, 774, 193, 297], 'init_level': 0, 'protocol': 'RF433'}
-PFF	钢琴房吊扇关闭	{'data': [7993, 799, 168, 320, 648, 319, 649, 320, 646, 797, 171, 318, 649, 319, 647, 796, 178, 793, 175, 314, 653, 790, 178, 788, 180, 307, 658, 786, 181, 783, 185, 303, 672, 304, 661, 782, 185, 780, 188, 300, 667, 300, 665, 779, 188, 777, 191, 297, 677, 299, 667, 777, 190, 775, 193, 772, 196, 292, 675, 293, 673, 295, 672, 772, 194, 295], 'init_level': 0, 'protocol': 'RF433'}
-LFN	客厅落地扇开启	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xba\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00Q{\n  "data": {\n    "fpwr": "ON"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-07-20T05:21:36Z"\n}'}
-LFF	客厅落地扇关闭	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbb\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00?{\n  "data": {\n    "fpwr": "OFF"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-07-20T05:17:39Z"\n}'}
-RFN	房间落地扇开启	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xba\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00?{\n  "data": {\n    "fpwr": "ON"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-07-20T05:22:15Z"\n}'}
-RFF	房间落地扇关闭	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbb\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00C{\n  "data": {\n    "fpwr": "OFF"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-07-20T05:22:51Z"\n}'}
-S1N	射灯1开启	{'protocol': 'TCP', 'IP': '192.168.50.15', 'PORT': 6668, 'data': b'\x00\x00U\xaa\x00\x00\x00\x02\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\x07\x00\x0e\xcb\xc0\xce\x9b\xc3\x19`|N\xfa\t=a\xeb\xbb\xbcH\x8a\x81\xca\xf56\x98\xdf\xe0\xa2E\x12\xefrgC\xc3\xa3$\xc7V\xe0\xb28)\xb8I\x05\x94\x8dQe\xd6n\xf2d\x9d"N=\x7f6E\t2\xa6\x8a\x18\xa3\x80@\x99\xa2PX$\xf8-\xcc"\xf8\xc5\x9c\x15\xf7U\xce=\x7fv\xaa\x9e\x97]wCa-f\xea\x04\xe9\xdf.\'r\x00\x00\xaaU'}
-S1F	射灯1关闭	{'protocol': 'TCP', 'IP': '192.168.50.15', 'PORT': 6668, 'data': b'\x00\x00U\xaa\x00\x00\x00\x03\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\x08\x00\x0e\xcb\xc0\xce\x9b\xc3\x19`|N\xfa\t=a\xeb\xbb\xbcH\x8a\x81\xca\xf56\x98\xdf\xe0\xa2E\x12\xefrgC\xc3\xa3\xd0\x81\xd6\x98\xc8\x03o\x9c\x0f\xa8#\xdf\x7f~{E\x06\xc2\xd6\x8f\xb7L\xcb\x93L\xc8T\xd8"\x12\xa2\x01\xfe\xf3G\x86\xb5E\x99\xf6vP0\x949\x16BP\x1e\x1a\xae\xea\x82\xec\xf4L\x83\x96\x17\xfe\xe5\xcb\x89\xbc\xb5\xa8\x08&\x00\x00\xaaU'}
-S2N	射灯2开启	{'protocol': 'TCP', 'IP': '192.168.50.14', 'PORT': 6668, 'data': b"\x00\x00U\xaa\x00\x00\x00\t\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\r\x00\x0bR9\xeaG\xcf\xa7\x9a\xc8\xe9EM'\xc7W\x99\x7f\xe3%\x8dp}1\xb6@\xfd\x8d\x9e00\x82\xa9\xe1W)M,\xd3\xb1N\x90\x9d\xcc\x85\xf8\x94\xff\xd0\xa1\x90\xc1\x16z\x98\rF\xc7\x15\xcc\x81\x8d\xe4\xe9\x87\x8f\xee\xf3x\xf6T\xd1\x1c\xa5\xca\xa2\x0f\xec\xc2\xbeY\xc7O#T\n\xe3\xf3\xc9;9ZU\x13\r\xdd\xf2\xf5]9>\xc4\x1f\x87\x00\x00\xaaU"}
-S2F	射灯2关闭	{'protocol': 'TCP', 'IP': '192.168.50.14', 'PORT': 6668, 'data': b"\x00\x00U\xaa\x00\x00\x00\n\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\x0e\x00\x0bR9\xeaG\xcf\xa7\x9a\xc8\xe9EM'\xc7W\x99\x7f\xe3%\x8dp}1\xb6@\xfd\x8d\x9e00\x82\xa9\xe1W)_l\xf2\x18\xf5V\xb7i\xef;\xc6o!5s\n\xa1R\xd3\xedw,\x81\x80\x87\xc1W\xcd'\xe7\x8c\x04\xca\xb0\xa7xN\xd4\xaf\x85\xf2\xc3c\xafq\xbb,\xdb\x83?\xedk\x9e\xbb\x90\xfauz\xc7\xe87Jz7$\x05\x9b\x98\x00\x00\xaaU"}
-S3N	射灯3开启	{'protocol': 'TCP', 'IP': '192.168.50.13', 'PORT': 6668, 'data': b'\x00\x00U\xaa\x00\x00\x00\x03\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\x07\x00\x04\x14\xa3(\x9dm\xf4\x00\xd1\xa2\xe7\x9e\x18\xa2\x1c~\xe3\x18_\x1c9\x1fbR\xb9\x890\x12\x0e\xae\x06J6\x9d\x0bb\x8aw\xa6z\x98\x19\xdb\xa0\x05\xce\xd2\x9a\x0b\xdd@\xdfj\xe4\x1c\x90\xc9^\xbc\xa7\xdd1A\xf6D*E\xf6\xc3n/\x9fB\xd7HZ\x07pW\xdf\xbf\xe3\xfc/o\xfa\xd0\xbc\x8b\xd7g\x1c$\xa1\xfcS\xfc\x98\x9e\x07\xa1}\xac\x00\x00\xaaU'}
-S3F	射灯3关闭	{'protocol': 'TCP', 'IP': '192.168.50.13', 'PORT': 6668, 'data': b'\x00\x00U\xaa\x00\x00\x00\x02\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\x06\x00\x04\x14\xa3(\x9dm\xf4\x00\xd1\xa2\xe7\x9e\x18\xa2\x1c~\xe3\x18_\x1c9\x1fbR\xb9\x890\x12\x0e\xae\x06J6\x9d\x0b\xb8\xe9-5\xc5}U`\xb55\x03\x7f\xc9\xd7\xe31%\xc1\x1a\xa6\x85\xe3\xa9\x8c\xb0\x8f\x9f\xa0D\xba\x81\x19#2\x9d@\xfe\xa3w\xfd\x04\x07\xe5\x14\x9f\x80\x0f\xf9%\x89\xa9kP\xb2.\x10\x9a\xbdF\x94\x02\xe2\xad\x84K{\\\xe7\x00\x00\xaaU'}
-LDN	客厅射灯开启	['S1N', 'S2N', 'S3N']
-LDF	客厅射灯关闭	['S1F', 'S2F', 'S3F']
-LTVN	客厅电视机开启	[{'protocol': 'WOL', 'data': '64:95:6C:39:3E:80'},{'protocol': 'WOL', 'data': '44:CB:8B:03:75:10'}]
-LTVF	客厅电视机关闭	{'protocol': 'CAP', 'filename': 'livingTVoff.wifi.tcp'}
-MTVN	主人房电视机开启	[{'protocol': 'WOL', 'data': '74:e6:b8:20:1d:db'},{'protocol': 'WOL', 'data': '64:cb:e9:04:18:3a'}]
-MTVF	主人房电视机关闭	{'protocol': 'CAP', 'filename': 'masterTVoff.tcp'}
-_KF	进入用餐模式	['LFN', 'DLN']
-_CW	退出用餐模式	['LFF', 'DLF', 'DFS']
-ALLN	客厅全部灯开启	['DLN', 'SLN', 'PLN', 'MLN', 'S1N', 'S2N', 'S3N']
-ALLF	客厅全部灯关闭	['DLF', 'SLF', 'PLF', 'MLF', 'S1F', 'S2F', 'S3F','LLF']
-RCB	扫地机开启	'http://192.168.50.3:8883/ecovacs/T8/clean'
-RCS	扫地机暂停	'http://192.168.50.3:8883/ecovacs/T8/pause'
-RCR	扫地机返回	'http://192.168.50.3:8883/ecovacs/T8/return-to-charge'
-MLS	客厅音乐灯开关	'http://192.168.50.7/rc_run?L1T'
-MLN	客厅音乐灯开启	'http://192.168.50.7/rc_run?L1N'
-MLF	客厅音乐灯关闭	'http://192.168.50.7/rc_run?L1F'
-MLC	客厅音乐灯换色	'http://192.168.50.7/rc_run?MLC'
-MLI	客厅音乐灯调亮	'http://192.168.50.7/rc_run?MLI'
-MLD	客厅音乐灯调暗	'http://192.168.50.7/rc_run?MLD'
-MPN	蓝牙播放器开启	'http://192.168.50.7/rc_run?L2N'
-MPF	蓝牙播放器关闭	'http://192.168.50.7/rc_run?L2F'
-MPS	蓝牙音乐开启播放	['BSN', 'http://192.168.50.3:8883/play/Desktop/musics.m3u']
-MPE	蓝牙音乐停止关闭	['http://192.168.50.3:8883/stop','BSF']
-MPP	蓝牙音乐暂停播放	'http://192.168.50.3:8883/pause'
-MPR	蓝牙音乐继续播放	'http://192.168.50.3:8883/resume'
-LLN	客厅灯带开启	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': 0x3b230000000000000032000090}
-LLF	客厅灯带关闭	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': 0x3b240000000000000032000091}
-LLC	客厅灯带换色	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': bytes(g.Cmsg+[sum(g.Cmsg)&0xff])}, Exec('g.C=(1 if g.C+1>=8 else g.C+1);g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]')
-LLT	客厅灯带不断变色	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': b'8%\x012\x90'}
-__init__	系统初始化	exec('machine.freq(80000000);g.DL=g.SL=g.PL=0;PIN_RF_IN=2;PIN_RF_OUT=3;PIN_ASR_IN=1;PIN_IR_IN=11;PIN_DEBUG_LED=12;use_BLE=True;g.C=1;g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]')
-__postinit__	后期初始化	SetTimer('pianoFan', 300, True, lambda: execRC('PFF' if '08:00:00'<getTimeString()<'22:00:00' else ''))
-DLC	餐桌吊灯变色	['DLF', 'DLN']
-SLC	沙发吊灯变色	['SLF' ,'SLN']
-BLN	阳台灯开启	'http://192.168.50.8/rc_run?L2N'
-BLF	阳台灯关闭	'http://192.168.50.8/rc_run?L2F'
-BLC	阳台灯换色	['BLF','BLN']
-MRLN	主人房吊灯开启	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151bab2174d24cbfa2171f3ca55160a1f}
-MRLF	主人房吊灯关闭	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba32174d24cbfa8171221b55c7d6bc}
-GRLN	客人房吊灯开启	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151bab2178d24cbfa58716c1555896706}
-GRLF	客人房吊灯关闭	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba32178d24cbfa487182fb55675c13}
-CRLN	中间房吊灯开启	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151bab217cd24cbfa3c71cab3552f72b5}
-CRLF	中间房吊灯关闭	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3217cd24cbfadc71ed9455083cd9}
-MRL9	主人房吊灯最亮	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3e174d9b74fa997166df5583fe87}
-MRL5	主人房吊灯明亮	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3e174d24dafae27101b855e4caa7}
-MRL1	主人房吊灯最暗	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3e174d2493fa22719f26557ad067}
-LF8	客厅落地扇快档	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0008"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
-LF7	客厅落地扇中档	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0007"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
-LF6	客厅落地扇慢档	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0006"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
-RF8	房间落地扇快档	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0008"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
-RF7	房间落地扇中档	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0007"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
-RF7	房间落地扇慢档	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0006"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
-BSN	蓝牙音响开启	'http://192.168.50.3:8883/connectble/marshall'
-BSF	蓝牙音响关闭	'http://192.168.50.3:8883/disconnectble/marshall'
-BSVU	音乐播放器音量提高	'http://192.168.50.3:8883/volume/up'
-BSVD	音乐播放器音量降低	'http://192.168.50.3:8883/volume/down'
-BSVM	音乐播放器音量中等	'http://192.168.50.3:8883/volume/50'
-MPPN	播放器跳到下一曲	'http://192.168.50.3:8883/next'
-MPPP	播放器跳回上一曲	'http://192.168.50.3:8883/previous'
-LTVVU	客厅电视机音量增加	'http://192.168.50.3:8883/lgtvVolume/livingTV/+5'
-LTVVD	客厅电视机音量降低	'http://192.168.50.3:8883/lgtvVolume/livingTV/-5'
-MTVVU	主人房电视机音量增加	'http://192.168.50.3:8883/lgtvVolume/masterTV/+2'
-MTVVD	主人房电视机音量降低	'http://192.168.50.3:8883/lgtvVolume/masterTV/-2'
-VPS	蓝牙视频开启播放	['LTVN', 'http://192.168.50.3:8883/play/Desktop/videos.m3u']
-VPE	蓝牙视频停止关闭	['http://192.168.50.3:8883/stop', 'LTVF']
-VPR	蓝牙视频开播	'http://192.168.50.3:8883/play/Desktop/videos.m3u'
-VPT	蓝牙视频停止	'http://192.168.50.3:8883/stop'
-VLCVU	VLC音量增加	'http://192.168.50.3:8883/vlcvolme/up'
-VLCVD	VLC音量降低	'http://192.168.50.3:8883/vlcvolme/down'
-LFU	客厅落地扇调快	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.11","E1G-SG-NGA0301A",1)'}
-LFD	客厅落地扇调慢	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.11","E1G-SG-NGA0301A",-1)'}
-RFU	房间落地扇调快	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.12","E1G-SG-NGA0425A",1)'}
-RFD	房间落地扇调慢	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.12","E1G-SG-NGA0425A",-1)'}
+DLS	餐厅吊灯开关	1	-1	[{'data': [8283, 792, 190, 789, 194, 785, 197, 782, 200, 780, 203, 776, 208, 289, 692, 291, 697, 776, 206, 774, 208, 770, 212, 768, 214, 766, 218, 278, 702, 765, 218, 761, 229, 275, 706, 761, 221, 758, 224, 272, 709, 758, 226, 272, 709, 274, 708, 275, 713, 277, 703, 763, 220, 276, 705, 279, 703, 280, 700, 766, 215, 765, 217, 763, 220, 277], 'init_level': 0, 'protocol': 'RF433'}, 'exec("g.DL=0")']
+DLN	餐厅吊灯开启	1	-1	[(['DLS','sleep(0.2)','DLS','sleep(0.2)','DLS'] if (getTimeString()<'08:00:00' or getTimeString()>'18:00:00') else 'DLS'), 'exec("g.DL=1")'] if g.DL<=0 else None
+DLF	餐厅吊灯关闭	1	-1	['DLS', 'exec("g.DL=-1")'] if g.DL>=0 else None
+SLS	客厅沙发吊灯开关	1	-1	{'data': [6676, 431, 1047, 433, 1046, 1154, 325, 431, 1048, 1152, 327, 1149, 332, 1144, 336, 419, 1063, 422, 1055, 424, 1054, 1148, 333, 1142, 338, 1139, 341, 1135, 345, 411, 1066, 1134, 351, 409, 1068, 1133, 347, 409, 1069, 1132, 354, 409, 1069, 1131, 348, 408, 1069, 1132, 355, 1128, 359, 404, 1074, 1127, 352, 404, 1073, 1127, 353, 403], 'init_level': 0, 'protocol': 'RF433'}
+SLN	客厅沙发吊灯开启	1	-1	['SLS', 'exec("g.SL=1")'] if g.SL<=0 else None
+SLF	客厅沙发吊灯关闭	1	-1	['SLS', 'exec("g.SL=-1")'] if g.SL>=0 else None
+PLS	钢琴房吊灯开关	1	-1	{'data': [8142, 794, 174, 314, 654, 313, 653, 316, 651, 792, 176, 312, 656, 312, 653, 790, 184, 787, 182, 307, 659, 785, 182, 783, 186, 302, 665, 779, 187, 777, 191, 298, 677, 297, 668, 776, 192, 773, 195, 293, 673, 772, 196, 292, 676, 293, 674, 294, 679, 297, 670, 774, 194, 294, 672, 772, 195, 770, 197, 767, 201, 288, 679, 764, 202, 289], 'init_level': 0, 'protocol': 'RF433'}
+PLN	钢琴房吊灯开启	1	-1	['PLS', 'exec("g.PL=1")'] if g.PL<=0 else None
+PLF	钢琴房吊灯关闭	1	-1	['PLS', 'exec("g.PL=-1")'] if g.PL>=0 else None
+SFS	客厅沙发吊扇关闭	1	-1	{'data': [5971, 433, 1044, 435, 1043, 1157, 322, 433, 1045, 1155, 325, 1151, 329, 1147, 333, 423, 1060, 425, 1053, 428, 1049, 1151, 330, 1146, 334, 1142, 338, 1139, 341, 415, 1063, 1137, 347, 414, 1064, 1138, 341, 414, 1065, 1137, 349, 1133, 347, 1130, 350, 405, 1072, 409, 1075, 1132, 354, 409, 1067, 412, 1066, 414, 1063, 1137, 343, 1134], 'init_level': 0, 'protocol': 'RF433'}
+SF3	客厅沙发吊扇3档	1	-1	{'data': [6607, 421, 1039, 423, 1037, 1113, 317, 421, 1040, 1110, 320, 1105, 324, 1102, 327, 412, 1053, 414, 1046, 417, 1045, 1105, 324, 1101, 329, 1097, 332, 1095, 334, 404, 1056, 1094, 340, 404, 1058, 1093, 337, 402, 1059, 1091, 345, 1089, 341, 1085, 344, 394, 1066, 1085, 350, 394, 1074, 1085, 343, 395, 1066, 397, 1064, 1086, 343, 396], 'init_level': 0, 'protocol': 'RF433'}
+DFM	餐厅吊扇中档	1	-1	{'data': [8149, 783, 200, 780, 202, 777, 205, 775, 208, 771, 212, 769, 215, 281, 701, 282, 705, 769, 213, 767, 216, 764, 219, 762, 221, 759, 224, 272, 709, 758, 224, 756, 234, 269, 712, 756, 226, 754, 229, 267, 715, 268, 713, 271, 709, 758, 225, 755, 236, 268, 712, 756, 227, 269, 713, 756, 226, 753, 230, 750, 234, 263, 717, 751, 232, 265], 'init_level': 0, 'protocol': 'RF433'}
+DFH	餐厅吊扇高档	1	-1	{'data': [8273, 797, 185, 794, 188, 791, 191, 789, 194, 786, 196, 783, 200, 296, 686, 297, 691, 783, 199, 780, 203, 777, 205, 775, 208, 771, 211, 286, 696, 770, 211, 768, 222, 281, 700, 766, 215, 766, 217, 279, 703, 764, 219, 276, 705, 279, 700, 765, 225, 279, 702, 764, 217, 764, 218, 278, 704, 279, 702, 764, 218, 279, 703, 279, 701, 283], 'init_level': 0, 'protocol': 'RF433'}
+DFL	餐厅吊扇低档	1	-1	{'data': [8280, 791, 192, 787, 194, 787, 196, 782, 200, 781, 201, 777, 206, 291, 690, 292, 696, 779, 203, 775, 206, 774, 209, 771, 211, 769, 214, 282, 699, 768, 214, 766, 224, 278, 702, 765, 216, 763, 220, 278, 704, 278, 702, 281, 700, 766, 216, 280, 709, 281, 699, 767, 214, 766, 217, 763, 218, 761, 221, 760, 223, 756, 226, 270, 710, 275], 'init_level': 0, 'protocol': 'RF433'}
+SF1	客厅沙发吊扇1档	1	-1	{'data': [6606, 447, 1032, 448, 1030, 1171, 309, 446, 1032, 1168, 312, 1164, 315, 1160, 320, 437, 1046, 438, 1039, 441, 1038, 1162, 317, 1159, 321, 1155, 325, 1152, 327, 429, 1050, 1151, 333, 427, 1051, 1150, 328, 427, 1051, 1149, 336, 1146, 333, 1143, 337, 1140, 340, 1137, 348, 414, 1072, 1137, 341, 414, 1063, 417, 1060, 420, 1058, 423], 'init_level': 0, 'protocol': 'RF433'}
+SF5	客厅沙发吊扇5档	1	-1	{'data': [6674, 435, 1042, 437, 1040, 1159, 321, 434, 1043, 1157, 324, 1152, 328, 1148, 331, 425, 1057, 427, 1051, 429, 1049, 1151, 328, 1147, 334, 1144, 336, 1140, 339, 417, 1061, 1139, 345, 416, 1062, 1138, 342, 413, 1064, 1137, 349, 1134, 345, 411, 1067, 1134, 346, 1131, 355, 406, 1078, 1130, 349, 406, 1071, 1130, 349, 407, 1070, 409], 'init_level': 0, 'protocol': 'RF433'}
+SF2	客厅沙发吊扇2档	1	-1	{'data': [5879, 438, 1040, 440, 1039, 1161, 318, 437, 1041, 1159, 321, 1154, 325, 1151, 328, 428, 1054, 429, 1049, 432, 1046, 1154, 326, 1149, 330, 1146, 334, 1143, 336, 420, 1058, 1142, 341, 418, 1060, 1141, 337, 419, 1059, 1141, 345, 1139, 342, 1134, 345, 1132, 347, 407, 1076, 411, 1073, 1134, 346, 410, 1068, 413, 1065, 416, 1062, 1139], 'init_level': 0, 'protocol': 'RF433'}
+DFS	餐厅吊扇关闭	1	-1	{'data': [8128, 799, 182, 797, 186, 793, 189, 790, 191, 788, 195, 785, 198, 297, 684, 299, 688, 784, 197, 782, 200, 779, 202, 777, 205, 775, 208, 288, 693, 773, 208, 772, 218, 285, 696, 771, 211, 768, 214, 282, 701, 282, 698, 769, 212, 768, 216, 280, 708, 282, 698, 284, 697, 286, 695, 287, 694, 773, 208, 772, 212, 284, 697, 770, 212, 285], 'init_level': 0, 'protocol': 'RF433'}
+SFR	客厅沙发吊扇反转	1	-1	{'data': [6596, 441, 1037, 443, 1036, 1164, 315, 440, 1038, 1163, 317, 1159, 321, 1155, 324, 430, 1052, 433, 1045, 435, 1043, 1158, 322, 1154, 326, 1151, 329, 1147, 332, 424, 1054, 1146, 338, 422, 1056, 1146, 333, 422, 1056, 1145, 342, 1142, 337, 418, 1060, 421, 1056, 1144, 342, 421, 1065, 1143, 336, 418, 1059, 1142, 337, 1139, 340, 416], 'init_level': 0, 'protocol': 'RF433'}
+SFN	客厅沙发吊扇自然风	1	-1	{'data': [5915, 435, 1042, 438, 1041, 1159, 320, 434, 1044, 1157, 323, 1153, 327, 1149, 330, 425, 1058, 427, 1051, 429, 1049, 1152, 328, 1148, 332, 1145, 335, 1141, 338, 418, 1060, 1141, 344, 416, 1062, 1140, 340, 416, 1062, 1138, 348, 1136, 343, 412, 1065, 416, 1061, 419, 1065, 421, 1065, 1142, 337, 421, 1058, 1141, 338, 1139, 341, 1135], 'init_level': 0, 'protocol': 'RF433'}
+KON	厨房外灯开启	1	-1	'http://192.168.50.5/control_output_on'
+KOF	厨房外灯关闭	1	-1	'http://192.168.50.5/control_output_off'
+KIN	厨房内灯开启	1	-1	'http://192.168.50.6/control_output_on'
+KIF	厨房内灯关闭	1	-1	'http://192.168.50.6/control_output_off'
+KLN	厨房灯开启	1	-1	['KON', 'KIN']
+KLF	厨房灯关闭	1	-1	['KOF', 'http://192.168.50.6/control_output_off']
+PFN	钢琴房吊扇开启	1	-1	{'data': [7991, 800, 168, 321, 647, 321, 647, 321, 645, 800, 168, 319, 648, 320, 646, 798, 176, 795, 174, 314, 652, 792, 174, 789, 178, 310, 657, 787, 180, 785, 184, 305, 669, 306, 660, 784, 183, 782, 187, 301, 666, 302, 664, 304, 662, 782, 184, 780, 196, 299, 667, 778, 188, 776, 193, 297, 671, 296, 669, 776, 192, 296, 670, 774, 193, 297], 'init_level': 0, 'protocol': 'RF433'}
+PFF	钢琴房吊扇关闭	1	-1	{'data': [7993, 799, 168, 320, 648, 319, 649, 320, 646, 797, 171, 318, 649, 319, 647, 796, 178, 793, 175, 314, 653, 790, 178, 788, 180, 307, 658, 786, 181, 783, 185, 303, 672, 304, 661, 782, 185, 780, 188, 300, 667, 300, 665, 779, 188, 777, 191, 297, 677, 299, 667, 777, 190, 775, 193, 772, 196, 292, 675, 293, 673, 295, 672, 772, 194, 295], 'init_level': 0, 'protocol': 'RF433'}
+LFN	客厅落地扇开启	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xba\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00Q{\n  "data": {\n    "fpwr": "ON"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-07-20T05:21:36Z"\n}'}
+LFF	客厅落地扇关闭	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbb\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00?{\n  "data": {\n    "fpwr": "OFF"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-07-20T05:17:39Z"\n}'}
+RFN	房间落地扇开启	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xba\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00?{\n  "data": {\n    "fpwr": "ON"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-07-20T05:22:15Z"\n}'}
+RFF	房间落地扇关闭	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbb\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00C{\n  "data": {\n    "fpwr": "OFF"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-07-20T05:22:51Z"\n}'}
+S1N	射灯1开启	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.15', 'PORT': 6668, 'data': b'\x00\x00U\xaa\x00\x00\x00\x02\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\x07\x00\x0e\xcb\xc0\xce\x9b\xc3\x19`|N\xfa\t=a\xeb\xbb\xbcH\x8a\x81\xca\xf56\x98\xdf\xe0\xa2E\x12\xefrgC\xc3\xa3$\xc7V\xe0\xb28)\xb8I\x05\x94\x8dQe\xd6n\xf2d\x9d"N=\x7f6E\t2\xa6\x8a\x18\xa3\x80@\x99\xa2PX$\xf8-\xcc"\xf8\xc5\x9c\x15\xf7U\xce=\x7fv\xaa\x9e\x97]wCa-f\xea\x04\xe9\xdf.\'r\x00\x00\xaaU'}
+S1F	射灯1关闭	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.15', 'PORT': 6668, 'data': b'\x00\x00U\xaa\x00\x00\x00\x03\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\x08\x00\x0e\xcb\xc0\xce\x9b\xc3\x19`|N\xfa\t=a\xeb\xbb\xbcH\x8a\x81\xca\xf56\x98\xdf\xe0\xa2E\x12\xefrgC\xc3\xa3\xd0\x81\xd6\x98\xc8\x03o\x9c\x0f\xa8#\xdf\x7f~{E\x06\xc2\xd6\x8f\xb7L\xcb\x93L\xc8T\xd8"\x12\xa2\x01\xfe\xf3G\x86\xb5E\x99\xf6vP0\x949\x16BP\x1e\x1a\xae\xea\x82\xec\xf4L\x83\x96\x17\xfe\xe5\xcb\x89\xbc\xb5\xa8\x08&\x00\x00\xaaU'}
+S2N	射灯2开启	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.14', 'PORT': 6668, 'data': b"\x00\x00U\xaa\x00\x00\x00\t\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\r\x00\x0bR9\xeaG\xcf\xa7\x9a\xc8\xe9EM'\xc7W\x99\x7f\xe3%\x8dp}1\xb6@\xfd\x8d\x9e00\x82\xa9\xe1W)M,\xd3\xb1N\x90\x9d\xcc\x85\xf8\x94\xff\xd0\xa1\x90\xc1\x16z\x98\rF\xc7\x15\xcc\x81\x8d\xe4\xe9\x87\x8f\xee\xf3x\xf6T\xd1\x1c\xa5\xca\xa2\x0f\xec\xc2\xbeY\xc7O#T\n\xe3\xf3\xc9;9ZU\x13\r\xdd\xf2\xf5]9>\xc4\x1f\x87\x00\x00\xaaU"}
+S2F	射灯2关闭	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.14', 'PORT': 6668, 'data': b"\x00\x00U\xaa\x00\x00\x00\n\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\x0e\x00\x0bR9\xeaG\xcf\xa7\x9a\xc8\xe9EM'\xc7W\x99\x7f\xe3%\x8dp}1\xb6@\xfd\x8d\x9e00\x82\xa9\xe1W)_l\xf2\x18\xf5V\xb7i\xef;\xc6o!5s\n\xa1R\xd3\xedw,\x81\x80\x87\xc1W\xcd'\xe7\x8c\x04\xca\xb0\xa7xN\xd4\xaf\x85\xf2\xc3c\xafq\xbb,\xdb\x83?\xedk\x9e\xbb\x90\xfauz\xc7\xe87Jz7$\x05\x9b\x98\x00\x00\xaaU"}
+S3N	射灯3开启	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.13', 'PORT': 6668, 'data': b'\x00\x00U\xaa\x00\x00\x00\x03\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\x07\x00\x04\x14\xa3(\x9dm\xf4\x00\xd1\xa2\xe7\x9e\x18\xa2\x1c~\xe3\x18_\x1c9\x1fbR\xb9\x890\x12\x0e\xae\x06J6\x9d\x0bb\x8aw\xa6z\x98\x19\xdb\xa0\x05\xce\xd2\x9a\x0b\xdd@\xdfj\xe4\x1c\x90\xc9^\xbc\xa7\xdd1A\xf6D*E\xf6\xc3n/\x9fB\xd7HZ\x07pW\xdf\xbf\xe3\xfc/o\xfa\xd0\xbc\x8b\xd7g\x1c$\xa1\xfcS\xfc\x98\x9e\x07\xa1}\xac\x00\x00\xaaU'}
+S3F	射灯3关闭	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.13', 'PORT': 6668, 'data': b'\x00\x00U\xaa\x00\x00\x00\x02\x00\x00\x00\x07\x00\x00\x00w3.3\x00\x00\x00\x00\x00\x00\x00\x06\x00\x04\x14\xa3(\x9dm\xf4\x00\xd1\xa2\xe7\x9e\x18\xa2\x1c~\xe3\x18_\x1c9\x1fbR\xb9\x890\x12\x0e\xae\x06J6\x9d\x0b\xb8\xe9-5\xc5}U`\xb55\x03\x7f\xc9\xd7\xe31%\xc1\x1a\xa6\x85\xe3\xa9\x8c\xb0\x8f\x9f\xa0D\xba\x81\x19#2\x9d@\xfe\xa3w\xfd\x04\x07\xe5\x14\x9f\x80\x0f\xf9%\x89\xa9kP\xb2.\x10\x9a\xbdF\x94\x02\xe2\xad\x84K{\\\xe7\x00\x00\xaaU'}
+LDN	客厅射灯开启	1	-1	['S1N', 'S2N', 'S3N']
+LDF	客厅射灯关闭	1	-1	['S1F', 'S2F', 'S3F']
+LTVN	客厅电视机开启	1	-1	[{'protocol': 'WOL', 'data': '64:95:6C:39:3E:80'},{'protocol': 'WOL', 'data': '44:CB:8B:03:75:10'}]
+LTVF	客厅电视机关闭	1	-1	{'protocol': 'CAP', 'filename': 'livingTVoff.wifi.tcp'}
+MTVN	主人房电视机开启	1	-1	[{'protocol': 'WOL', 'data': '74:e6:b8:20:1d:db'},{'protocol': 'WOL', 'data': '64:cb:e9:04:18:3a'}]
+MTVF	主人房电视机关闭	1	-1	{'protocol': 'CAP', 'filename': 'masterTVoff.tcp'}
+_KF	进入用餐模式	1	-1	['LFN', 'DLN']
+_CW	退出用餐模式	1	-1	['LFF', 'DLF', 'DFS']
+ALLN	客厅全部灯开启	1	-1	['DLN', 'SLN', 'PLN', 'MLN', 'S1N', 'S2N', 'S3N']
+ALLF	客厅全部灯关闭	1	-1	['DLF', 'SLF', 'PLF', 'MLF', 'S1F', 'S2F', 'S3F','LLF']
+RCB	扫地机开启	1	-1	'http://192.168.50.3:8883/ecovacs/T8/clean'
+RCS	扫地机暂停	1	-1	'http://192.168.50.3:8883/ecovacs/T8/pause'
+RCR	扫地机返回	1	-1	'http://192.168.50.3:8883/ecovacs/T8/return-to-charge'
+MLS	客厅音乐灯开关	1	-1	'http://192.168.50.7/rc_run?L1T'
+MLN	客厅音乐灯开启	1	-1	'http://192.168.50.7/rc_run?L1N'
+MLF	客厅音乐灯关闭	1	-1	'http://192.168.50.7/rc_run?L1F'
+MLC	客厅音乐灯换色	1	-1	'http://192.168.50.7/rc_run?MLC'
+MLI	客厅音乐灯调亮	1	-1	'http://192.168.50.7/rc_run?MLI'
+MLD	客厅音乐灯调暗	1	-1	'http://192.168.50.7/rc_run?MLD'
+MPN	蓝牙播放器开启	1	-1	'http://192.168.50.7/rc_run?L2N'
+MPF	蓝牙播放器关闭	1	-1	'http://192.168.50.7/rc_run?L2F'
+MPS	蓝牙音乐开启播放	1	-1	['BSN', 'http://192.168.50.3:8883/play/Desktop/musics.m3u']
+MPE	蓝牙音乐停止关闭	1	-1	['http://192.168.50.3:8883/stop','BSF']
+MPP	蓝牙音乐暂停播放	1	-1	'http://192.168.50.3:8883/pause'
+MPR	蓝牙音乐继续播放	1	-1	'http://192.168.50.3:8883/resume'
+LLN	客厅灯带开启	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': 0x3b230000000000000032000090}
+LLF	客厅灯带关闭	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': 0x3b240000000000000032000091}
+LLC	客厅灯带换色	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': bytes(g.Cmsg+[sum(g.Cmsg)&0xff])}, Exec('g.C=(1 if g.C+1>=8 else g.C+1);g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]')
+LLT	客厅灯带不断变色	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': b'8%\x012\x90'}
+__init__	系统初始化	1	-1	exec('machine.freq(80000000);g.DL=g.SL=g.PL=0;PIN_RF_IN=2;PIN_RF_OUT=3;PIN_ASR_IN=1;PIN_IR_IN=11;PIN_DEBUG_LED=12;use_BLE=True;g.C=1;g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]')
+__postinit__	后期初始化	1	-1	SetTimer('pianoFan', 300, True, lambda: execRC('PFF' if '08:00:00'<getTimeString()<'22:00:00' else ''))
+DLC	餐桌吊灯换色	1	-1	['DLS', 'DLS']
+SLC	沙发吊灯换色	1	-1	['SLS' ,'SLS']
+BLN	阳台灯开启	1	-1	'http://192.168.50.8/rc_run?L2N'
+BLF	阳台灯关闭	1	-1	'http://192.168.50.8/rc_run?L2F'
+BLC	阳台灯换色	1	-1	['BLF','BLN']
+MRLN	主人房吊灯开启	1	-1	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151bab2174d24cbfa2171f3ca55160a1f}
+MRLF	主人房吊灯关闭	1	-1	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba32174d24cbfa8171221b55c7d6bc}
+GRLN	客人房吊灯开启	1	-1	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151bab2178d24cbfa58716c1555896706}
+GRLF	客人房吊灯关闭	1	-1	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba32178d24cbfa487182fb55675c13}
+CRLN	中间房吊灯开启	1	-1	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151bab217cd24cbfa3c71cab3552f72b5}
+CRLF	中间房吊灯关闭	1	-1	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3217cd24cbfadc71ed9455083cd9}
+MRL9	主人房吊灯最亮	1	-1	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3e174d9b74fa997166df5583fe87}
+MRL5	主人房吊灯明亮	1	-1	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3e174d24dafae27101b855e4caa7}
+MRL1	主人房吊灯最暗	1	-1	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3e174d2493fa22719f26557ad067}
+LF8	客厅落地扇快档	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0008"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
+LF7	客厅落地扇中档	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0007"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
+LF6	客厅落地扇慢档	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0006"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
+RF8	房间落地扇快档	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0008"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
+RF7	房间落地扇中档	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0007"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
+RF7	房间落地扇慢档	1	-1	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0006"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
+BSN	蓝牙音响开启	1	-1	'http://192.168.50.3:8883/speaker/on/MP3_SPEAKER'
+BSF	蓝牙音响关闭	1	-1	'http://192.168.50.3:8883/speaker/off/MP3_SPEAKER'
+BSVU	音乐播放器音量提高	1	-1	'http://192.168.50.3:8883/volume/up'
+BSVD	音乐播放器音量降低	1	-1	'http://192.168.50.3:8883/volume/down'
+BSVM	音乐播放器音量中等	1	-1	'http://192.168.50.3:8883/volume/50'
+MPPN	播放器跳到下一曲	1	-1	'http://192.168.50.3:8883/next'
+MPPP	播放器跳回上一曲	1	-1	'http://192.168.50.3:8883/previous'
+LTVVU	客厅电视机音量增加	1	-1	'http://192.168.50.3:8883/lgtvVolume/livingTV/+5'
+LTVVD	客厅电视机音量降低	1	-1	'http://192.168.50.3:8883/lgtvVolume/livingTV/-5'
+MTVVU	主人房电视机音量增加	1	-1	'http://192.168.50.3:8883/lgtvVolume/masterTV/+2'
+MTVVD	主人房电视机音量降低	1	-1	'http://192.168.50.3:8883/lgtvVolume/masterTV/-2'
+VPS	蓝牙视频开启播放	1	-1	['LTVN', 'http://192.168.50.3:8883/play/Desktop/videos.m3u']
+VPE	蓝牙视频停止关闭	1	-1	['http://192.168.50.3:8883/stop', 'LTVF']
+VPR	蓝牙视频开播	1	-1	'http://192.168.50.3:8883/play/Desktop/videos.m3u'
+VPT	蓝牙视频停止	1	-1	'http://192.168.50.3:8883/stop'
+VLCVU	VLC音量增加	1	-1	'http://192.168.50.3:8883/vlcvolme/up'
+VLCVD	VLC音量降低	1	-1	'http://192.168.50.3:8883/vlcvolme/down'
+LFU	客厅落地扇调快	1	-1	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.11","E1G-SG-NGA0301A",1)'}
+LFD	客厅落地扇调慢	1	-1	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.11","E1G-SG-NGA0301A",-1)'}
+RFU	房间落地扇调快	1	-1	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.12","E1G-SG-NGA0425A",1)'}
+RFD	房间落地扇调慢	1	-1	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.12","E1G-SG-NGA0425A",-1)'}
+KTVN	进入卡拉OK模式	1	-1	'http://192.168.50.3:8883/KTV/on'
+KTVF	退出卡拉OK模式	1	-1	'http://192.168.50.3:8883/KTV/off'

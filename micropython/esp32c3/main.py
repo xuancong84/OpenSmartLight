@@ -85,7 +85,7 @@ def get_rc_code(key):
 				gc.collect()
 				its = L.split('\t')
 				if key == its[0]:
-					return eval(its[2])
+					return eval(its[-1])
 	except Exception as e:
 		prt(e)
 	return None
