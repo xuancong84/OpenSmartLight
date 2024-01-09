@@ -238,7 +238,13 @@ input {font-size:15px;}
 			<td colspan="100%"><button onclick="add_new_row()">Add New Row</button></td>
 		</tr>
 	</table>
-	<p>Notes: it is better to sort the commands with most frequently used one on top, you can drag the SN index to sort the rows.</p>
+	<p><b>Notes</b>:<br>
+	<ul>
+		<li>If ReqL is nonempty, the row defines a voice command that will be sent from the ASR chip upon hearing the voice.</li>
+		<li>If ReqL is empty, the row defines a voice ID, i.e., send Code to the ASR chip to speak the words in Description.</li>
+		<li>It is better to sort the commands with most frequently used one on top, you can drag the SN index to sort the rows.</li>
+	</ul>
+	</p>
 	<p>
 		<button onclick="save()" title="Save remote control mappings" class="bb">Save Table</button>&nbsp;
 		<button onclick="load()" title="Load remote control mappings" class="bb">Load Table</button>&nbsp;
