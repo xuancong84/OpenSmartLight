@@ -100,11 +100,25 @@ def findSong(name):
 
 	return None
 
+def ensure_fullscreen():
+	while True:
+		try:
+			txt = RUN('DISPLAY=:0.0 xprop -name "VLC media player"')
+		except:
+			time.sleep(0.5)
+			continue
+		if '_NET_WM_STATE_FULLSCREEN' in txt:
+			return
+		mplayer.set_fullscreen(False)
+		time.sleep(0.2)
+		mplayer.set_fullscreen(True)
+
 def keep_fullscreen(_):
 	global isFirst
 	wait_tm = (3 if isJustAfterBoot else 2) if isFirst else 1
 	threading.Timer(wait_tm, lambda:mplayer.set_fullscreen(False)).start()
-	threading.Timer(wait_tm+.3, lambda:mplayer.set_fullscreen(True)).start()
+	threading.Timer(wait_tm+.2, lambda:mplayer.set_fullscreen(True)).start()
+	threading.Timer(wait_tm+.8, lambda:ensure_fullscreen()).start()
 	isFirst = False
 
 @app.route('/play/<path:name>')
@@ -118,6 +132,7 @@ def play(name=''):
 		if isvideo:
 			set_audio_device(MP4_SPEAKER)
 			mplayer.event_manager().event_attach(event.MediaPlayerOpening, keep_fullscreen)
+			#mplayer.event_manager().event_attach(event.MediaPlayerOpening, lambda t: threading.Timer(0.5, lambda:ensure_fullscreen()).start())
 		else:
 			set_audio_device(MP3_SPEAKER)
 			mplayer.event_manager().event_detach(event.MediaPlayerOpening)
