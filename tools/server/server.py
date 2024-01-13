@@ -23,7 +23,9 @@ mplayer = None
 filelist = []
 P_ktv = None
 isFirst = True
+subtitle = True
 isJustAfterBoot = float(open('/proc/uptime').read().split()[0])<120
+random.seed(time.time())
 
 
 def Eval(cmd, default=None):
@@ -40,7 +42,6 @@ def create(fn):
 	global inst, player, playlist, filelist
 	stop()
 	filelist = [L.strip() for L in open(fn) if L.strip() and not L.strip().startswith('#')]
-	random.seed(time.time())
 	random.shuffle(filelist)
 	playlist = inst.media_list_new(filelist)
 	if player == None:
@@ -100,6 +101,14 @@ def findSong(name):
 
 	return None
 
+@app.route('/subtitle/<show>')
+def show_subtitle(show=None):
+	global subtitle
+	subtitle = subtitle if show==None else eval(show)
+	mplayer.video_set_spu(2 if (subtitle and mplayer.video_get_spu_count()>=2) else -1)
+	print(f'Set subtitle = {subtitle}', file=sys.stderr)
+	return 'OK'
+
 def ensure_fullscreen():
 	while True:
 		try:
@@ -119,6 +128,7 @@ def keep_fullscreen(_):
 	threading.Timer(wait_tm, lambda:mplayer.set_fullscreen(False)).start()
 	threading.Timer(wait_tm+.2, lambda:mplayer.set_fullscreen(True)).start()
 	threading.Timer(wait_tm+.8, lambda:ensure_fullscreen()).start()
+	threading.Timer(wait_tm+2, show_subtitle).start()
 	isFirst = False
 
 @app.route('/play/<path:name>')
@@ -132,7 +142,6 @@ def play(name=''):
 		if isvideo:
 			set_audio_device(MP4_SPEAKER)
 			mplayer.event_manager().event_attach(event.MediaPlayerOpening, keep_fullscreen)
-			#mplayer.event_manager().event_attach(event.MediaPlayerOpening, lambda t: threading.Timer(0.5, lambda:ensure_fullscreen()).start())
 		else:
 			set_audio_device(MP3_SPEAKER)
 			mplayer.event_manager().event_detach(event.MediaPlayerOpening)
@@ -334,8 +343,11 @@ if __name__ == '__main__':
 	parser.add_argument('--port', '-p', type=int, default=8883, help='server port number')
 	parser.add_argument('--asr', '-a', help='host ASR server', action='store_true')
 	parser.add_argument('--asr-model', '-am', default='tiny', help='ASR model to load')
+	parser.add_argument('--hide-subtitle', '-nosub', help='ASR model to load', action='store_true')
 	opt=parser.parse_args()
 	globals().update(vars(opt))
+
+	subtitle = not hide_subtitle
 
 	if asr:
 		asr_event = threading.Event()

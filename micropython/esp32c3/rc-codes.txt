@@ -112,6 +112,8 @@ VPS	蓝牙视频开启播放	1	2	['LTVN', 'http://192.168.50.3:8883/play/Desktop
 VPE	蓝牙视频停止关闭	1	2	['http://192.168.50.3:8883/stop', 'LTVF']
 VPR	蓝牙视频开播	1	2	'http://192.168.50.3:8883/play/Desktop/videos.m3u'
 VPT	蓝牙视频停播	1	2	'http://192.168.50.3:8883/stop'
+MPSN	播放器显示字幕	1	2	'http://192.168.50.3:8883/subtitle/True'
+MPSF	播放器隐藏字幕	1	2	'http://192.168.50.3:8883/subtitle/False'
 VLCVU	ＶＬＣ音量增加	1	VLCV	'http://192.168.50.3:8883/vlcvolme/up'
 VLCVD	ＶＬＣ音量降低	1	VLCV	'http://192.168.50.3:8883/vlcvolme/down'
 KTVN	卡拉ＯＫ模式开启	1	2	'http://192.168.50.3:8883/KTV/on'
