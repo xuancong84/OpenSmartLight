@@ -273,15 +273,17 @@ class WebServer:
 			( "/mkdir", "GET", lambda clie, resp: mkdir(clie.GetRequestQueryString(True)) ),
 			( "/get_file", "GET", lambda clie, resp: resp.WriteResponseFileAttachment(clie.GetRequestQueryString(True)) ),
 			( "/upload_file", "POST", lambda clie, resp: save_file(clie.GetRequestQueryString(True), clie.YieldRequestContent()) ),
+			( "/asr_write", "GET", lambda clie, resp: Try(lambda: f'{self.uart_ASR_out.write(bytes.fromhex(clie.GetRequestQueryString(True)))} bytes sent', 'ERROR_MSG') ),
+			( "/asr_print", "GET", lambda clie, resp: Try(lambda: [print(clie.GetRequestQueryString(True), file=self.uart_ASR_out), 'message sent'][-1], 'ERROR_MSG') ),
 		]
 		self.mws = MWS(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
 		self.sock_web = self.mws.run(max_conn=max_conn, loop_forever=False)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
 		self.poll_tmout = -1
-		set_uart = lambda p: sys.stdin if p==20 else (UART(1, 115200, tx=0, rx=1) if p==1 else None)
-		self.uart_ASR = set_uart(PIN_ASR_IN)
-		self.uart_LD1115H = set_uart(PIN_LD1115H)
+		set_uart = lambda p: (sys.stdin, sys.stdout) if p==20 else (UART(1, 115200, tx=0, rx=1) if p==1 else None,)*2
+		self.uart_ASR, self.uart_ASR_out = set_uart(PIN_ASR_IN)
+		self.uart_LD1115H, self.uart_LD1115H_out = set_uart(PIN_LD1115H)
 		self.sock_map = {self.sock_web: self.mws.run_once}
 		self.cpIP = captivePortalIP
 		if captivePortalIP:

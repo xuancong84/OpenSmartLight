@@ -86,11 +86,11 @@ def prt(*args, **kwarg):
 			print(getFullDateTime(), end=' ', file=fp)
 			print(*args, **kwarg, file=fp)
 
-def Try(fn, default=None):
+def Try(fn, default=''):
 	try:
 		return fn()
-	except:
-		return default
+	except Exception as e:
+		return str(e) if default=='ERROR_MSG' else default
 
 def parse_data(s):
 	if type(s)==int:

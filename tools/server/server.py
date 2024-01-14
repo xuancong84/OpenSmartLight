@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
-import traceback, argparse
+import traceback, argparse, math, requests
 import os, sys, vlc, subprocess, random, time, threading
 import pinyin
 from urllib.parse import unquote
-from flask import Flask
+from flask import Flask, request
 from unidecode import unidecode
+from pydub import AudioSegment
 
 from device_config import *
 
@@ -24,9 +25,14 @@ filelist = []
 P_ktv = None
 isFirst = True
 subtitle = True
-isJustAfterBoot = float(open('/proc/uptime').read().split()[0])<120
+isJustAfterBoot = True if sys.platform=='darwin' else float(open('/proc/uptime').read().split()[0])<120
 random.seed(time.time())
 
+def Try(fn, default=None):
+	try:
+		return fn()
+	except Exception as e:
+		return str(e) if default=='ERROR_MSG' else default
 
 def Eval(cmd, default=None):
 	try:
@@ -38,6 +44,12 @@ def RUN(cmd, shell=True, timeout=3, **kwargs):
 	ret = subprocess.check_output(cmd, shell=shell, **kwargs)
 	return ret if type(ret)==str else ret.decode()
 
+def isVideoFile(fn):
+	for ext in video_file_exts:
+		if fn.lower().endswith(ext):
+			return True
+	return False
+
 def create(fn):
 	global inst, player, playlist, filelist
 	stop()
@@ -47,7 +59,7 @@ def create(fn):
 	if player == None:
 		player = inst.media_list_player_new()
 	player.set_media_list(playlist)
-	videos = [fn for fn in filelist for ext in video_file_exts if fn.lower().endswith(ext)]
+	videos = [fn for fn in filelist if isVideoFile(fn)]
 	return videos
 
 def add_song(fn):
@@ -60,7 +72,7 @@ def add_song(fn):
 		player = inst.media_list_player_new()
 		player.set_media_list(playlist)
 	player.play_item_at_index(playlist.count()-1)
-	videos = [fn for fn in filelist for ext in video_file_exts if fn.lower().endswith(ext)]
+	videos = [fn for fn in filelist if isVideoFile(fn)]
 	return videos
 
 def findSong(name):
@@ -135,8 +147,7 @@ def keep_fullscreen(_):
 def play(name=''):
 	global player, playlist, mplayer
 	try:
-		if not name.startswith('/'):
-			name = os.getenv('HOME')+'/'+name
+		name = os.path.expanduser(name if name.startswith('~') else ('~/'+name))
 		isvideo = create(name) if name.lower().endswith('.m3u') else add_song(name)
 		mplayer = player.get_media_player()
 		if isvideo:
@@ -181,6 +192,46 @@ def play_previous():
 			player.previous()
 	except Exception as e:
 		return str(e)
+	return 'OK'
+
+remote_addr = None
+def _normalize_vol(song):
+	global player
+	if song.startswith('~'):
+		fn = os.path.expanduser(song)
+		sid = -1
+	elif song:
+		sid = findSong(song)
+	else:
+		mrl = mplayer.get_media().get_mrl()
+		sid = filelist.index(mrl) if mrl in filelist else filelist.index(unquote(mrl).replace('file://', ''))
+		player.stop()
+	fn = fn if sid<0 else unquote(filelist[sid]).replace('file://', '')
+	assert os.path.isfile(fn)
+	requests.get(f'http://{remote_addr}/asr_write?aa558155aa')
+	audio = AudioSegment.from_file(fn)
+	if isVideoFile(fn):
+		if not os.path.exists(fn+'.orig.m4a'):
+			audio.export(fn+'.orig.m4a', format='ipod')
+		audio += 10*math.log10((4096/audio.rms)**2)
+		audio.export(fn+'.m4a', format='ipod')
+		os.system(f'ffmpeg -y -i {fn} -i {fn}.m4a -c copy -map 0 -map -0:a -map 1:a {fn}.tmp.mp4')
+		os.rename(f'{fn}.tmp.mp4', fn)
+		os.remove(fn+'.m4a')
+	else:
+		if not os.path.exists(fn+'.orig'):
+			os.rename(fn, fn+'.orig')
+		audio += 10*math.log10((4096/audio.rms)**2)
+		audio.export(fn, format=('mp3' if fn.lower().endswith('.mp3') else 'ipod'))
+	if sid>=0:
+		player.play_item_at_index(sid)
+
+@app.route('/normalize_vol/')
+@app.route('/normalize_vol/<path:song>')
+def normalize_vol(song=''):
+	global remote_addr
+	remote_addr = request.remote_addr
+	threading.Timer(0, lambda: _normalize_vol(song)).start()
 	return 'OK'
 
 @app.route('/playFrom/<name>')
