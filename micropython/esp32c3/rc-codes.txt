@@ -87,25 +87,25 @@ CRLF	中间房吊灯关闭	1	2	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data
 MRL9	主人房吊灯最亮	1	2	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3e174d9b74fa997166df5583fe87}
 MRL5	主人房吊灯明亮	1	2	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3e174d24dafae27101b855e4caa7}
 MRL1	主人房吊灯最暗	1	2	{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3e174d2493fa22719f26557ad067}
-LF8	客厅落地扇快档	1	LFA	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0008"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
-LF7	客厅落地扇中档	1	LFA	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0007"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
-LF6	客厅落地扇慢档	1	LFA	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0006"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
-LFU	客厅落地扇调快	1	LFA	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.11","E1G-SG-NGA0301A",1)'}
-LFD	客厅落地扇调慢	1	LFA	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.11","E1G-SG-NGA0301A",-1)'}
-RF8	房间落地扇快档	1	RFA	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0008"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
-RF7	房间落地扇中档	1	RFA	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0007"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
-RF6	房间落地扇慢档	1	RFA	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0006"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
-RFU	房间落地扇调快	1	RFA	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.12","E1G-SG-NGA0425A",1)'}
-RFD	房间落地扇调慢	1	RFA	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.12","E1G-SG-NGA0425A",-1)'}
+LF8	客厅落地扇快档	1	2 LFA	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0008"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
+LF7	客厅落地扇中档	1	2 LFA	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0007"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
+LF6	客厅落地扇慢档	1	2 LFA	{'protocol': 'TCP', 'IP': '192.168.50.11', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0301A/command\x00\x04{\n  "data": {\n    "fnsp": "0006"\n  },\n  "h": "438/E1G-SG-NGA0301A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T10:26:49Z"\n}'}
+LFU	客厅落地扇调快	1	2 LFA	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.11","E1G-SG-NGA0301A",1)'}
+LFD	客厅落地扇调慢	1	2 LFA	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.11","E1G-SG-NGA0301A",-1)'}
+RF8	房间落地扇快档	1	2 RFA	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0008"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
+RF7	房间落地扇中档	1	2 RFA	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0007"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
+RF6	房间落地扇慢档	1	2 RFA	{'protocol': 'TCP', 'IP': '192.168.50.12', 'PORT': 1883, 'data': b'2\xbc\x01\x00\x1b438/E1G-SG-NGA0425A/command\x00\x04{\n  "data": {\n    "fnsp": "0006"\n  },\n  "h": "438/E1G-SG-NGA0425A/command",\n  "mode-reason": "LAPP",\n  "msg": "STATE-SET",\n  "time": "2023-12-20T11:02:20Z"\n}'}
+RFU	房间落地扇调快	1	2 RFA	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.12","E1G-SG-NGA0425A",1)'}
+RFD	房间落地扇调慢	1	2 RFA	{'protocol': 'MOD','filename':'modules.mpy','cmd':'dysonFanAdj("192.168.50.12","E1G-SG-NGA0425A",-1)'}
 BSN	蓝牙音响开启	1	2	'http://192.168.50.3:8883/speaker/on/MP3_SPEAKER'
 BSF	蓝牙音响关闭	1	2	'http://192.168.50.3:8883/speaker/off/MP3_SPEAKER'
-BSVU	播放器音量增加|播放器音量提高	1	BSVA	'http://192.168.50.3:8883/volume/up'
-BSVD	播放器音量减少|播放器音量降低	1	BSVA	'http://192.168.50.3:8883/volume/down'
-BSVM	播放器音量中等	1	BSVA	'http://192.168.50.3:8883/volume/50'
-MPPN	播放器跳到下一曲	1	MPP	'http://192.168.50.3:8883/next'
-MPPP	播放器跳回上一曲	1	MPP	'http://192.168.50.3:8883/previous'
-LTVVU	电视机音量增加	1	LTVV	'http://192.168.50.3:8883/lgtvVolume/livingTV/+5'
-LTVVD	电视机音量降低	1	LTVV	'http://192.168.50.3:8883/lgtvVolume/livingTV/-5'
+BSVU	播放器音量增加|播放器音量提高	1	2 BSVA	'http://192.168.50.3:8883/volume/up'
+BSVD	播放器音量减少|播放器音量降低	1	2 BSVA	'http://192.168.50.3:8883/volume/down'
+BSVM	播放器音量中等	1	2 BSVA	'http://192.168.50.3:8883/volume/50'
+MPPN	播放器跳到下一曲	1	2 MPP	'http://192.168.50.3:8883/next'
+MPPP	播放器跳回上一曲	1	2 MPP	'http://192.168.50.3:8883/previous'
+LTVVU	电视机音量增加	1	2 LTVV	'http://192.168.50.3:8883/lgtvVolume/livingTV/+5'
+LTVVD	电视机音量降低	1	2 LTVV	'http://192.168.50.3:8883/lgtvVolume/livingTV/-5'
 MTVVU	主人房电视机音量增加	1	2	'http://192.168.50.3:8883/lgtvVolume/masterTV/+2'
 MTVVD	主人房电视机音量降低	1	2	'http://192.168.50.3:8883/lgtvVolume/masterTV/-2'
 VPS	蓝牙视频开启播放	1	2	['LTVN', 'http://192.168.50.3:8883/play/Desktop/videos.m3u']
@@ -114,12 +114,12 @@ VPR	蓝牙视频开播	1	2	'http://192.168.50.3:8883/play/Desktop/videos.m3u'
 VPT	蓝牙视频停播	1	2	'http://192.168.50.3:8883/stop'
 MPSN	播放器显示字幕	1	2	'http://192.168.50.3:8883/subtitle/True'
 MPSF	播放器隐藏字幕	1	2	'http://192.168.50.3:8883/subtitle/False'
-VLCVU	ＶＬＣ音量增加	1	VLCV	'http://192.168.50.3:8883/vlcvolme/up'
-VLCVD	ＶＬＣ音量降低	1	VLCV	'http://192.168.50.3:8883/vlcvolme/down'
+VLCVU	ＶＬＣ音量增加	1	2 VLCV	'http://192.168.50.3:8883/vlcvolme/up'
+VLCVD	ＶＬＣ音量降低	1	2 VLCV	'http://192.168.50.3:8883/vlcvolme/down'
 KTVN	卡拉ＯＫ模式开启	1	2	'http://192.168.50.3:8883/KTV/on'
 KTVF	卡拉ＯＫ模式关闭	1	2	'http://192.168.50.3:8883/KTV/off'
-SVU	系统音量增加	1	SVA	[]
-SVD	系统音量减小	1	SVA	[]
+SVU	系统音量增加	1	2 SVA	[]
+SVD	系统音量减小	1	2 SVA	[]
 	再大些	LFA_LFU RFA_RFU SVA_SVU BSVA_BSVU LTVV_LTVVU VLCV_VLCVU	0	[]
 	再小些	LFA_LFD RFA_RFD SVA_SVD BSVA_BSVD LTVV_LTVVD VLCV_VLCVD	0	[]
 	再快些	LFA_LFU RFA_RFU	0	[]
