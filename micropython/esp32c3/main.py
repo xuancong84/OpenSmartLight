@@ -231,6 +231,9 @@ def Eval(cmd):
 	except Exception as e:
 		return str(e)
 
+asr_write = lambda t: Try(lambda: f'{g.server.uart_ASR_out.write(bytes.fromhex(t))} bytes sent', 'ERROR_MSG')
+asr_print = lambda t: Try(lambda: [print(t, file=g.server.uart_ASR_out), 'message sent'][-1], 'ERROR_MSG')
+
 class WebServer:
 	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=0):
 		self.cmd = ''
@@ -273,8 +276,8 @@ class WebServer:
 			( "/mkdir", "GET", lambda clie, resp: mkdir(clie.GetRequestQueryString(True)) ),
 			( "/get_file", "GET", lambda clie, resp: resp.WriteResponseFileAttachment(clie.GetRequestQueryString(True)) ),
 			( "/upload_file", "POST", lambda clie, resp: save_file(clie.GetRequestQueryString(True), clie.YieldRequestContent()) ),
-			( "/asr_write", "GET", lambda clie, resp: Try(lambda: f'{self.uart_ASR_out.write(bytes.fromhex(clie.GetRequestQueryString(True)))} bytes sent', 'ERROR_MSG') ),
-			( "/asr_print", "GET", lambda clie, resp: Try(lambda: [print(clie.GetRequestQueryString(True), file=self.uart_ASR_out), 'message sent'][-1], 'ERROR_MSG') ),
+			( "/asr_write", "GET", lambda clie, resp: asr_write(clie.GetRequestQueryString(True)) ),
+			( "/asr_print", "GET", lambda clie, resp: asr_print(clie.GetRequestQueryString(True)) ),
 		]
 		self.mws = MWS(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
 		self.sock_web = self.mws.run(max_conn=max_conn, loop_forever=False)
