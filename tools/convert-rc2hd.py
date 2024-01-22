@@ -15,15 +15,23 @@ def Open(fn, mode='r', **kwargs):
 
 def get_3lists(rc_):
 	# filter out unwanted
-	rc = [its[:4] for its in rc_ if len(its)==5 and not its[0].startswith('__')]
+	rc = [its for its in rc_ if len(its)>1 and not its[0].startswith('__')]
+	assert len(set([len(its) for its in rc]))==1, 'inconsistent number of columns'
 
 	# split between voice commands and voice sentence IDs
-	lst_vcmd = [its for its in rc if its[2]!='']
-	lst_vsid = [its[:2] for its in rc if its[2]=='']
+	lst_vcmd = [its for its in rc if not its[0].isdigit()]
+	lst_vsid = [its[:2] for its in rc if its[0].isdigit()]
 
 	# output 1: voice speech ID
-	sid2int = defaultdict(lambda: -1, {lst_vsid[i][0]:(1000+i) for i in range(len(lst_vsid))})
-	out_vsid = [[sid2int[i], j] for i,j in lst_vsid]
+	ids_vsid = [its[0] for its in lst_vsid]
+	assert len(set(ids_vsid))==len(ids_vsid), 'duplicate voice speech IDs'
+	sid2int = defaultdict(lambda: -1, {vs:(1000+int(ii)) for ii,vs in lst_vsid})
+	for its in lst_vcmd:
+		vs = its[2]
+		if vs and vs not in sid2int:
+			sid2int[vs] = max(sid2int.values())+1
+
+	out_vsid = [[str(ii), vs] for vs,ii in sid2int.items()]
 
 	# expand lst_vcmd by |
 	get_options = lambda t: t.replace('｜', '|').split('|')
@@ -33,14 +41,14 @@ def get_3lists(rc_):
 	out_vcmd = [*map(lambda t:t[1], lst_vcmd)]
 
 	# output 3: combined list = [[UART:str, ReqL:str, reply:int, SetL:int]]
-	out_full = [[its[0], its[2], sid2int[its[3].split()[0]], its[3].split()[1:]] for its in lst_vcmd]
-	SPL = set([its[3][0] for its in out_full if its[3]])	# special level
+	out_full = [[its[0], its[3], sid2int[its[2]], its[4]] for its in lst_vcmd]
+	SPL = set([its[3] for its in out_full if its[3]])	# special level
 	SPL2int = {name:ii+100 for ii, name in enumerate(SPL)}	# special level map
 	cmd2int = {its[0]:ii for ii, its in enumerate(out_full)} 	# voice command map
 
 	for its in out_full:
 		setL = its[3]
-		its[3] = SPL2int[setL[0]] if setL else -1
+		its[3] = SPL2int[setL] if setL else -1
 		reqL = its[1]
 		if len(reqL)>1:
 			out = []

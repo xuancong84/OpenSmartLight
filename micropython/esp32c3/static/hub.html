@@ -228,10 +228,11 @@ input {font-size:15px;}
 		<tr class="wrap">
 			<th style="width:2%">SN</th>
 			<th style="width:4%">Code</th>
-			<th style="width:8%">Description</th>
+			<th style="width:8%">Command</th>
+			<th style="width:6%">Reply</th>
 			<th style="width:8%">ReqL</th>
 			<th style="width:4%">SetL</th>
-			<th style="width:60%">Remote Controller Data</th>
+			<th style="width:54%">Remote Controller Data</th>
 			<th style="width:14%">Actions</th>
 		</tr>
 		<tr>
@@ -335,6 +336,7 @@ input {font-size:15px;}
 	var drag_rid;
 	var G = {};
 	var doGetParam = false;
+	var data_i = tb.rows[0].childElementCount-2;
 	function set_ckbox(obj, cmd='exec'){ GET(`/${cmd}?${obj.id}=${obj.checked?'True':'False'}`, toast, toast); }
 	function save() {
 		var N = tb.rows.length - 2;
@@ -437,7 +439,7 @@ input {font-size:15px;}
 					alert(obj.info);
 					delete obj.info;
 				}
-				getById('R'+rid).children[5].textContent = JSON.stringify(obj);
+				getById('R'+rid).children[data_i].textContent = JSON.stringify(obj);
 			}catch(e){toast(e)}
 		}, toast)
 	}
@@ -455,7 +457,7 @@ input {font-size:15px;}
 	}
 	function closeBLE(n=0){
 		if(n>0)
-			getById('R'+ble_rid).children[5].textContent = `{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'${tb_ble.rows[n].children[5].textContent}'}`;
+			getById('R'+ble_rid).children[data_i].textContent = `{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'${tb_ble.rows[n].children[5].textContent}'}`;
 		getById('bleFront').style.display = getById('bleBack').style.display = 'none';
 	}
 	function sendBLE(n){
@@ -463,7 +465,7 @@ input {font-size:15px;}
 		toast(POST('/rc_exec', data));
 	}
 	function emit(rid) {
-		var v = getById('R'+rid).children[5].textContent;
+		var v = getById('R'+rid).children[data_i].textContent;
 		POST('/rc_exec', v, toast, toast);
 	}
 	function start_ble_scan(){
@@ -527,11 +529,7 @@ input {font-size:15px;}
 		var row = tb.insertRow(insp);
 		row.setAttribute('id', 'R'+rid);
 		row.innerHTML = `<th class="ptr" draggable=true ondragstart="drag_rid=${rid};" ondrop="drop(${rid})" ondragover="allowDrop(event)">${insp}</th>
-<td contenteditable="true" class="wrap"></td>
-<td contenteditable="true" class="wrap"></td>
-<td contenteditable="true" class="wrap"></td>
-<td contenteditable="true" class="wrap"></td>
-<td contenteditable="true" class="wrap"></td>
+${'<td contenteditable="true" class="wrap"></td>'.repeat(tb.rows[0].childElementCount-2)}
 <td style="text-align:center">
 	<input type='button' onclick='recordRF(${rid})' value='Record-RF' title="Record 433MHz remote controller signal">
 	<input type='button' onclick='recordIR(${rid})' value='Record-IR' title="Record infrared remote controller signal">
