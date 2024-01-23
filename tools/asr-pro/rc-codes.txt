@@ -124,6 +124,13 @@ KTVF	退出卡拉欧嘿模式	好的	1		'http://192.168.50.3:8883/KTV/off'
 SVU	系统音量增加	好的	1	SVA	asr_print('volume_up')
 SVD	系统音量减小	好的	1	SVA	asr_print('volume_down')
 HEAR	能听见吗	我能听见	2		
+TIME	小爱请播报时间		1		asr_print(f'read_time_12h {getTimeString()[:-3]}')
+TIME2	现在几点了		2		'TIME'
+DATE	小爱请播报日期		1		asr_print(f'read_date {getDateString()}-{getWeekdayNum()}')
+DATE2	今天啥日期		2		'DATE'
+DDMM	今天几月几号		2		asr_print(f'read_date {getDateString()[-5:]}')
+WEEK	今天星期几		2		asr_print(f'read_week {getWeekdayNum()}')
+YYYY	今昔是何年		2		asr_print(f'read_date {getDateString()[:4]}')
 	再大些		LFA_LFU RFA_RFU SVA_SVU BSVA_BSVU LTVV_LTVVU VLCV_VLCVU		[]
 	再小些		LFA_LFD RFA_RFD SVA_SVD BSVA_BSVD LTVV_LTVVD VLCV_VLCVD		[]
 	再快些		LFA_LFU RFA_RFU		[]
