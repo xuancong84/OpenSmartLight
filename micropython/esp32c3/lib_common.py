@@ -24,11 +24,16 @@ def getTimeString(tm=None):
 	tm = tm or getDateTime()
 	return '%02d:%02d:%02d'%(tm[3],tm[4],tm[5])
 
-def getDateString(tm, showDay=True):
+def getDateString(tm=None, showDay=True):
+	tm = tm or getDateTime()
 	ds = "%04d-%02d-%02d"%(tm[0],tm[1],tm[2])
 	return ds if showDay else ds[:-3]
 
 weekDays=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+def getWeekdayNum(tm=None):
+	tm = tm or getDateTime()
+	return tm[6]
+
 def getWeekdayString(tm):
 	return weekDays[tm[6]]
 
