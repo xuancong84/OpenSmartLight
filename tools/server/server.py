@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import traceback, argparse, math, requests
+import traceback, argparse, math, requests, string
 import os, sys, vlc, subprocess, random, time, threading
 import pinyin
 from urllib.parse import unquote
@@ -13,11 +13,14 @@ from device_config import *
 app = Flask(__name__)
 video_file_exts = ['.mp4', '.mkv', '.avi', '.mpg', '.mpeg']
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
+get_alpha = lambda t: ''.join([c for c in t if c in string.ascii_letters])
+get_alnum = lambda t: ''.join([c for c in t if c in string.ascii_letters+string.digits])
+get_volume = lambda: RUN("amixer get Master | awk -F'[][]' '/Left:/ { print $2 }'").rstrip('%\n')
 
 inst = vlc.Instance()
 event = vlc.EventType()
 asr_event = None
-asr_input = ''
+asr_input = DEFAULT_RECORDING_FILE
 player = None
 playlist = None
 mplayer = None
@@ -90,8 +93,8 @@ def findSong(name):
 			return ii
 
 	# 3. pinyin full match
-	pinyin_list = [to_pinyin(n) for n in name_list]
-	pinyin_name = to_pinyin(name)
+	pinyin_list = [get_alnum(to_pinyin(n)) for n in name_list]
+	pinyin_name = get_alnum(to_pinyin(name))
 	if pinyin_name in pinyin_list:
 		return pinyin_list.index(pinyin_name)
 
@@ -101,8 +104,8 @@ def findSong(name):
 			return ii
 	
 	# 5. transliteration full match
-	translit_list = [unidecode(n) for n in name_list]
-	translit_name = unidecode(name)
+	translit_list = [get_alpha(unidecode(n)) for n in name_list]
+	translit_name = get_alpha(unidecode(name))
 	if translit_name in translit_list:
 		return translit_list.index(translit_name)
 
@@ -169,7 +172,7 @@ def pause():
 	global player
 	try:
 		if player.is_playing():
-			player.pause()
+			player.set_pause(True)
 	except Exception as e:
 		return str(e)
 	return 'OK'
@@ -246,12 +249,38 @@ def playFrom(name=''):
 		return str(e)
 	return 'OK'
 
+@app.route('/play_spoken_song')
+def play_spoken_song():
+	global player, playlist, mplayer
+	try:
+		# preserve environment
+		cur_sta = player.is_playing()
+		if cur_sta:
+			player.set_pause(True)
+		cur_vol = get_volume()
+
+		# record speech
+		set_volume(60)
+		play_audio('./voice/speak_title.m4a', True)
+		record_audio()
+		asr_event.set()
+		play_audio('./voice/wait_for_asr.m4a', True)
+
+		# restore environment
+		set_volume(cur_vol)
+		if cur_sta:
+			player.set_pause(False)
+	except Exception as e:
+		traceback.print_exc()
+		return str(e)
+	return 'OK'
+
 @app.route('/resume')
 def resume():
 	global player
 	try:
 		if not player.is_playing():
-			player.pause()
+			player.set_pause(False)
 	except Exception as e:
 		return str(e)
 	return 'OK'
@@ -279,15 +308,15 @@ def disconnectble(dev_mac):
 	return str(ret)
 
 @app.route('/volume/<cmd>')
-def volume(cmd=None):
+def set_volume(cmd=None):
 	try:
 		if cmd=='up':
 			ret = os.system('amixer sset Master 10%+' if sys.platform=='linux' else 'osascript -e "set volume output volume (output volume of (get volume settings) + 10)"')
 		elif cmd=='down':
 			ret = os.system('amixer sset Master 10%-' if sys.platform=='linux' else 'osascript -e "set volume output volume (output volume of (get volume settings) - 10)"')
-		elif cmd.isdigit():
-			ret = os.system('amixer sset Master 50%' if sys.platform=='linux' else f'osascript -e "set volume output volume {int(cmd)}"')
-		return RUN("amixer get Master | awk -F'[][]' '/Left:/ { print $2 }'")
+		elif cmd.isdigit() or type(cmd)==int:
+			ret = os.system(f'amixer sset Master {int(cmd)}%' if sys.platform=='linux' else f'osascript -e "set volume output volume {int(cmd)}"')
+		return get_volume()
 	except Exception as e:
 		return str(e)
 
@@ -331,8 +360,8 @@ def lgtvVolume(name='', vol=''):
 	except Exception as e:
 		return str(e)
 
-list_audio = lambda: RUN('pactl list sinks short')
-list_mic = lambda: RUN('pactl list sources short')
+list_sinks = lambda: RUN('pactl list sinks short')
+list_sources = lambda: RUN('pactl list sources short')
 
 # For audio
 @app.route('/speaker/<cmd>/<name>')
@@ -348,7 +377,7 @@ def set_audio_device(devs, wait=3):
 			if dev.count(':')==5:
 				connectble(dev)
 				patn = dev.replace(':', '_')
-			out = [L.split() for L in list_audio().splitlines()]
+			out = [L.split() for L in list_sinks().splitlines()]
 			res = [its[0] for its in out if patn in its[1]]
 			if res:
 				return os.system(f'pactl set-default-sink {res[0]}')==0
@@ -361,15 +390,55 @@ def unset_audio_device(devs):
 			disconnectble(dev)
 	return True
 
+def get_recorder(devs, wait=3):
+	for dev in (devs if type(devs)==list else [devs]):
+		for i in range(wait+1):
+			patn = dev
+			if dev.count(':')==5:
+				connectble(dev)
+				patn = dev.replace(':', '_')
+			out = [L.split() for L in list_sources().splitlines()]
+			res = sorted([its for its in out if patn in its[1]], key=lambda t: int(t[0]))
+			if res:
+				os.system(f'pactl set-default-source {res[-1][0]}')
+				return res[-1][1]
+			time.sleep(1)
+	res = sorted(out, key=lambda t: int(t[0]))
+	if res:
+		os.system(f'pactl set-default-source {res[-1][0]}')
+		return res[-1][1]
+	return '0'
+
+def play_audio(fn, block=False):
+	p = vlc.MediaPlayer(fn)
+	p.play()
+	if block:
+		while not p.is_playing():pass
+		while p.is_playing():pass
+
+def record_audio(tm_sec=5, file_path=DEFAULT_RECORDING_FILE):
+	os.system(f'ffmpeg -y -f pulse -i {get_recorder(MIC_RECORDER)} -ac 1 -t {tm_sec} {file_path}')
 
 # For ASR server
 def ASR_server(m):
 	import whisper
 	M = whisper.load_model(m)
+	print('Offline ASR model loaded successfully ...', file=sys.stderr)
 	while True:
-		asr_event.wait()
-		obj = M.transcribe(os.path.expanduser(asr_input))
-		playFrom(obj['text'])
+		try:
+			asr_event.wait()
+			asr_event.clear()
+			obj = M.transcribe(os.path.expanduser(asr_input))
+			print(f'ASR result: {obj}', file=sys.stderr)
+			if not obj['text']:
+				play_audio('voice/asr_fail.m4a')
+			elif playFrom(obj['text'])=='OK':
+				play_audio('voice/asr_found.m4a')
+			else:
+				play_audio('voice/asr_not_found.m4a')
+		except Exception as e:
+			traceback.print_exc()
+			play_audio('voice/asr_error.m4a')
 
 
 # For pikaraoke
@@ -393,7 +462,7 @@ if __name__ == '__main__':
 			formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	parser.add_argument('--port', '-p', type=int, default=8883, help='server port number')
 	parser.add_argument('--asr', '-a', help='host ASR server', action='store_true')
-	parser.add_argument('--asr-model', '-am', default='tiny', help='ASR model to load')
+	parser.add_argument('--asr-model', '-am', default='base', help='ASR model to load')
 	parser.add_argument('--hide-subtitle', '-nosub', help='ASR model to load', action='store_true')
 	opt=parser.parse_args()
 	globals().update(vars(opt))
