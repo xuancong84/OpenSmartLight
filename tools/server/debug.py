@@ -1,7 +1,8 @@
 import os, sys, vlc, subprocess, random, time, threading
+from urllib.parse import unquote
 
 inst = vlc.Instance()
-filelist = [L.strip() for L in open('/home/xuancong/test.m3u') if not L.startswith('#')]
+filelist = [L.strip() for L in open('/home/xuancong/test-musics.m3u') if not L.startswith('#')]
 #random.shuffle(filelist)
 playlist = inst.media_list_new(filelist)
 player = inst.media_list_player_new()
