@@ -520,7 +520,7 @@ input {font-size:15px;}
 		var inc = drag_rid==upper?1:-1;
 		for(var i=drag_rid; i!=rid; i+=inc){
 			var src=getById('R'+i), tgt=getById('R'+(i+inc));
-			for(var x=1; x<=5; x++)
+			for(var x=1; x<tb.rows[0].childElementCount-1; x++)
 				[src.children[x].textContent, tgt.children[x].textContent] = [tgt.children[x].textContent, src.children[x].textContent];
 		}
 	}
