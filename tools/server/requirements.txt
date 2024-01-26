@@ -5,5 +5,8 @@ deebot-t8[cli]
 flask
 whisper
 pinyin
+pykakasi
+gTTS
+lingua-language-detector
 unidecode
 #git@github.com:klattimer/LGWebOSRemote.git

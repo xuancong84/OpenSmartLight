@@ -2,20 +2,27 @@
 
 import traceback, argparse, math, requests, string, json
 import os, sys, subprocess, random, time, threading
-import pinyin, vlc
+import pinyin, vlc, pykakasi
 from urllib.parse import unquote
 from flask import Flask, request
 from unidecode import unidecode
 from pydub import AudioSegment
+from gtts import gTTS
+from lingua import Language, LanguageDetectorBuilder
 
 from device_config import *
 
 app = Flask(__name__)
+KKS = pykakasi.kakasi()
 video_file_exts = ['.mp4', '.mkv', '.avi', '.mpg', '.mpeg']
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
+to_romaji = lambda t: ' '.join([its['hepburn'] for its in KKS.convert(t)])
 get_alpha = lambda t: ''.join([c for c in t if c in string.ascii_letters])
 get_alnum = lambda t: ''.join([c for c in t if c in string.ascii_letters+string.digits])
 get_volume = lambda: RUN("amixer get Master | awk -F'[][]' '/Left:/ { print $2 }'").rstrip('%\n')
+mrl2path = lambda mrl: unquote(mrl).replace('file://', '') if mrl.startswith('file://') else mrl
+filepath2songtitle = lambda fn: os.path.basename(unquote(fn)).split('.')[0].lower().strip()
+lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.JAPANESE: 'ja', Language.KOREAN: 'ko'}
 
 inst = vlc.Instance()
 event = vlc.EventType()
@@ -32,6 +39,8 @@ subtitle = True
 CANCEL_FLAG = False
 isJustAfterBoot = True if sys.platform=='darwin' else float(open('/proc/uptime').read().split()[0])<120
 random.seed(time.time())
+ASR_server_running = ASR_cloud_running = False
+lang_detector = LanguageDetectorBuilder.from_languages(*lang2id.keys()).build()
 
 def Try(fn, default=None):
 	try:
@@ -48,6 +57,15 @@ def Eval(cmd, default=None):
 def RUN(cmd, shell=True, timeout=3, **kwargs):
 	ret = subprocess.check_output(cmd, shell=shell, **kwargs)
 	return ret if type(ret)==str else ret.decode()
+
+# Detect language, invoke Google-translate TTS and play the speech audio
+def play_TTS(txt):
+	txts = txt if type(txt)==list else [txt]
+	for seg in txts:
+		lang_id = lang2id[lang_detector.detect_language_of(seg)]
+		tts = gTTS(seg, lang=lang_id)
+		tts.save(DEFAULT_SPEECH_FILE)
+		play_audio(DEFAULT_SPEECH_FILE, True)
 
 # Abort transcription thread
 def cancel_transcription():
@@ -93,41 +111,53 @@ def add_song(fn):
 	videos = [fn for fn in filelist if isVideoFile(fn)]
 	return videos
 
-def findSong(name):
-	global filelist
-	name = name.lower().strip()
-	name_list = [os.path.basename(unquote(fn)).split('.')[0].lower().strip() for fn in filelist]
-
+def str_search(name, name_list, mode=3):
 	# 1. exact full match
 	if name in name_list:
 		return name_list.index(name)
 
 	# 2. exact substring match
-	for ii,it in enumerate(name_list):
-		if name in it:
-			return ii
+	res = [[ii, len(it)-len(name)] for ii,it in enumerate(name_list) if name in it]
+	return sorted(res, key=lambda t:t[1])[0][0] if res else -1
 
-	# 3. pinyin full match
-	pinyin_list = [get_alnum(to_pinyin(n)) for n in name_list]
-	pinyin_name = get_alnum(to_pinyin(name))
-	if pinyin_name in pinyin_list:
-		return pinyin_list.index(pinyin_name)
+def findSong(name, lang=None):
+	global filelist
+	name = name.lower().strip()
+	name_list = [filepath2songtitle(fn) for fn in filelist]
 
-	# 4. pinyin substring match
-	for ii,it in enumerate(pinyin_list):
-		if pinyin_name in it:
-			return ii
+	# 1. exact full match of original form
+	if name in name_list:
+		return name_list.index(name)
+
+	# 2. match by pinyin if Chinese or unknown
+	if lang in [None, 'zh']:
+		# 3. pinyin full match
+		pinyin_list = [get_alnum(to_pinyin(n)) for n in name_list]
+		pinyin_name = get_alnum(to_pinyin(name))
+		res = str_search(pinyin_name, pinyin_list)
+		if res>=0:
+			return res
+
+	# 3. match by romaji if Japanese or unknown
+	if lang in [None, 'ja']:
+		# 5. romaji full match
+		romaji_list = [get_alpha(to_romaji(n)) for n in name_list]
+		romaji_name = get_alpha(to_romaji(name))
+		res = str_search(romaji_name, romaji_list)
+		if res>=0:
+			return res
+
+	# 4. substring match
+	res = str_search(name, name_list)
+	if res>=0:
+		return res
 	
-	# 5. transliteration full match
+	# 5. match by transliteration
 	translit_list = [get_alpha(unidecode(n)) for n in name_list]
 	translit_name = get_alpha(unidecode(name))
-	if translit_name in translit_list:
-		return translit_list.index(translit_name)
-
-	# 6. transliteration substring match
-	for ii,it in enumerate(pinyin_list):
-		if translit_name in it:
-			return ii
+	res = str_search(translit_name, translit_list)
+	if res>=0:
+		return res
 
 	return None
 
@@ -212,6 +242,11 @@ def play_previous():
 		return str(e)
 	return 'OK'
 
+def get_bak_fn(fn):
+	dirname = os.path.dirname(fn)
+	Try(os.makedirs(dirname+'/orig'))
+	return f'{dirname}/orig/{os.path.basename(fn)}'
+
 remote_addr = None
 def _normalize_vol(song):
 	global player
@@ -222,29 +257,31 @@ def _normalize_vol(song):
 		sid = findSong(song)
 	else:
 		mrl = mplayer.get_media().get_mrl()
-		sid = filelist.index(mrl) if mrl in filelist else filelist.index(unquote(mrl).replace('file://', ''))
+		sid = filelist.index(mrl) if mrl in filelist else filelist.index(mrl2path(mrl))
 		player.stop()
-	fn = fn if sid<0 else unquote(filelist[sid]).replace('file://', '')
+	fn = fn if sid<0 else mrl2path(filelist[sid])
 	assert os.path.isfile(fn)
-	requests.get(f'http://{remote_addr}/asr_write?aa558155aa')
+	play_audio('voice/processing.m4a')
 	audio = AudioSegment.from_file(fn)
 	if isVideoFile(fn):
-		if not os.path.exists(fn+'.orig.m4a'):
-			audio.export(fn+'.orig.m4a', format='ipod')
+		if not os.path.exists(get_bak_fn(fn+'.m4a')):
+			audio.export(get_bak_fn(fn+'.m4a'), format='ipod')
 		audio += 10*math.log10((4096/audio.rms)**2)
 		audio.export(fn+'.m4a', format='ipod')
 		os.system(f'ffmpeg -y -i {fn} -i {fn}.m4a -c copy -map 0 -map -0:a -map 1:a {fn}.tmp.mp4')
+		os.system('sync')
 		os.rename(f'{fn}.tmp.mp4', fn)
+		os.system('sync')
 		os.remove(fn+'.m4a')
 	else:
-		if not os.path.exists(fn+'.orig'):
-			os.rename(fn, fn+'.orig')
+		if not os.path.exists(get_bak_fn(fn+'.m4a')):
+			os.rename(fn, get_bak_fn(fn+'.m4a'))
 		audio += 10*math.log10((4096/audio.rms)**2)
 		audio.export(fn, format=('mp3' if fn.lower().endswith('.mp3') else 'ipod'))
 	if sid>=0:
 		player.play_item_at_index(sid)
 
-@app.route('/normalize_vol/')
+@app.route('/normalize_vol')
 @app.route('/normalize_vol/<path:song>')
 def normalize_vol(song=''):
 	global remote_addr
@@ -253,11 +290,11 @@ def normalize_vol(song=''):
 	return 'OK'
 
 @app.route('/playFrom/<name>')
-def playFrom(name=''):
+def playFrom(name='', lang=None):
 	global player
 	try:
 		if name:
-			ii = findSong(name)
+			ii = findSong(name, lang=lang)
 			assert ii!=None
 			player.play_item_at_index(ii)
 	except Exception as e:
@@ -265,9 +302,14 @@ def playFrom(name=''):
 	return 'OK'
 
 @app.route('/play_spoken_song')
-def play_spoken_song():
+@app.route('/play_spoken_song/<path:search_list>')
+def play_spoken_song(search_list=''):
 	global player, playlist, mplayer, asr_model, asr_finished
 	try:
+		if player == None:
+			play_audio('voice/playlist_empty.m4a')
+			return 'NA'
+
 		# preserve environment
 		cur_sta = player.is_playing()
 		if cur_sta:
@@ -275,18 +317,21 @@ def play_spoken_song():
 		cur_vol = get_volume()
 
 		# record speech
-		set_volume(70)
-		play_audio('./voice/speak_title.m4a', True)
+		set_volume(75)
+		play_audio('voice/speak_title.m4a', True)
 		record_audio()
 		time.sleep(0)
 
 		asr_finished = CANCEL_FLAG = False
-		if ASR_CLOUD:
+		reply_wait = True
+		if ASR_CLOUD and not ASR_cloud_running:
 			threading.Thread(target=ASR_cloud_thread).start()
-		if asr_model!=None:
+			reply_wait = False
+		if asr_model!=None and not ASR_server_running:
 			threading.Thread(target=ASR_server_thread).start()
 
-		# play_audio('./voice/wait_for_asr.m4a', True)
+		if reply_wait:
+			play_audio('voice/wait_for_asr.m4a', True)
 
 		# restore environment
 		set_volume(cur_vol)
@@ -295,6 +340,27 @@ def play_spoken_song():
 	except Exception as e:
 		traceback.print_exc()
 		return str(e)
+	return 'OK'
+
+def _report_song_title():
+	songtitle = filepath2songtitle(mrl2path(mplayer.get_media().get_mrl()))
+	cur_sta = False
+	if mplayer.is_playing():
+		mplayer.set_pause(True)
+		cur_sta = True
+	cur_vol = get_volume()
+	set_volume(60)
+
+	play_audio('voice/cur_song_title.mp3', True)
+	play_TTS(songtitle)
+	
+	set_volume(cur_vol)
+	if cur_sta:
+		mplayer.set_pause(False)
+
+@app.route('/report_song_title')
+def report_song_title():
+	threading.Thread(target=_report_song_title).start()
 	return 'OK'
 
 @app.route('/resume')
@@ -343,27 +409,25 @@ def set_volume(cmd=None):
 		return str(e)
 
 @app.route('/vlcvolume/<cmd>')
-def vlcvolume(cmd=None):
+def vlcvolume(cmd=''):
 	global mplayer
 	try:
-		if cmd=='up':
+		if type(cmd) in [int, float] or cmd.isdigit():
+			mplayer.audio_set_volume(int(cmd))
+		elif cmd=='up':
 			mplayer.audio_set_volume(mplayer.audio_get_volume()+10)
 		elif cmd=='down':
 			mplayer.audio_set_volume(mplayer.audio_get_volume()-10)
-		elif cmd.isdigit():
-			mplayer.audio_set_volume(int(cmd))
 		return str(mplayer.audio_get_volume())
 	except Exception as e:
 		traceback.print_exc()
 		return str(e)
-
 
 # For Ecovacs
 @app.route('/ecovacs', defaults={'name': '', 'cmd':''})
 @app.route('/ecovacs/<name>/<cmd>')
 def ecovacs(name='', cmd=''):
 	return RUN(f'./ecovacs-cmd.sh {name} {cmd}')
-
 
 # For LG TV
 @app.route('/lgtv/<name>/<cmd>')
@@ -433,6 +497,7 @@ def get_recorder(devs, wait=3):
 
 def play_audio(fn, block=False):
 	p = vlc.MediaPlayer(fn)
+	p.audio_set_volume(100)
 	p.play()
 	if block:
 		while not p.is_playing():pass
@@ -449,21 +514,26 @@ def handle_ASR(obj):
 	print(f'ASR result: {obj}', file=sys.stderr)
 	if not obj['text']:
 		play_audio('voice/asr_fail.m4a')
-	elif playFrom(obj['text'])=='OK':
+	elif playFrom(obj['text'], obj['language'])=='OK':
 		asr_finished = True
 		play_audio('voice/asr_found.m4a')
 	else:
 		play_audio('voice/asr_not_found.m4a')
 
 def ASR_server_thread():
+	global ASR_server_running
+	ASR_server_running = True
 	try:
 		obj = asr_model.transcribe(os.path.expanduser(asr_input), cancel_func=cancel_requested)
 		handle_ASR(obj)
 	except Exception as e:
 		traceback.print_exc()
 		play_audio('voice/asr_error.m4a')
+	ASR_server_running = False
 
 def ASR_cloud_thread():
+	global ASR_cloud_running
+	ASR_cloud_running = True
 	try:
 		with open(os.path.expanduser(asr_input), 'rb') as f:
 			r = requests.post(ASR_CLOUD, files={'file': f}, timeout=4)
@@ -473,6 +543,7 @@ def ASR_cloud_thread():
 	except Exception as e:
 		traceback.print_exc()
 		play_audio('voice/asr_error.m4a')
+	ASR_cloud_running = False
 
 
 # For pikaraoke
@@ -510,5 +581,6 @@ if __name__ == '__main__':
 	else:
 		asr_model = None
 
+	app.url_map.strict_slashes = False
 	app.run(host='0.0.0.0', port=port)
 
