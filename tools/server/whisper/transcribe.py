@@ -51,6 +51,7 @@ def transcribe(
     append_punctuations: str = "\"'.。,，!！?？:：”)]}、",
     clip_timestamps: Union[str, List[float]] = "0",
     hallucination_silence_threshold: Optional[float] = None,
+    cancel_func = lambda: False,
     **decode_options,
 ):
     """
@@ -260,6 +261,8 @@ def transcribe(
         # for seek_clip_start, seek_clip_end in seek_clips:
         #     while seek < seek_clip_end
         while clip_idx < len(seek_clips):
+            if cancel_func():
+                return {}
             seek_clip_start, seek_clip_end = seek_clips[clip_idx]
             if seek < seek_clip_start:
                 seek = seek_clip_start

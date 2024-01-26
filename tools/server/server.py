@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-import traceback, argparse, math, requests, string
-import os, sys, vlc, subprocess, random, time, threading
-import pinyin
+import traceback, argparse, math, requests, string, json
+import os, sys, subprocess, random, time, threading
+import pinyin, vlc
 from urllib.parse import unquote
 from flask import Flask, request
 from unidecode import unidecode
@@ -19,7 +19,8 @@ get_volume = lambda: RUN("amixer get Master | awk -F'[][]' '/Left:/ { print $2 }
 
 inst = vlc.Instance()
 event = vlc.EventType()
-asr_event = None
+asr_finished = False
+asr_model = None
 asr_input = DEFAULT_RECORDING_FILE
 player = None
 playlist = None
@@ -28,6 +29,7 @@ filelist = []
 P_ktv = None
 isFirst = True
 subtitle = True
+CANCEL_FLAG = False
 isJustAfterBoot = True if sys.platform=='darwin' else float(open('/proc/uptime').read().split()[0])<120
 random.seed(time.time())
 
@@ -46,6 +48,19 @@ def Eval(cmd, default=None):
 def RUN(cmd, shell=True, timeout=3, **kwargs):
 	ret = subprocess.check_output(cmd, shell=shell, **kwargs)
 	return ret if type(ret)==str else ret.decode()
+
+# Abort transcription thread
+def cancel_transcription():
+    global CANCEL_FLAG
+    CANCEL_FLAG = True
+
+# Function to check if cancellation is requested
+def cancel_requested():
+	global CANCEL_FLAG
+	if CANCEL_FLAG:
+		CANCEL_FLAG = False
+		return True
+	return False
 
 def isVideoFile(fn):
 	for ext in video_file_exts:
@@ -241,7 +256,7 @@ def normalize_vol(song=''):
 def playFrom(name=''):
 	global player
 	try:
-		if name and player.is_playing():
+		if name:
 			ii = findSong(name)
 			assert ii!=None
 			player.play_item_at_index(ii)
@@ -251,7 +266,7 @@ def playFrom(name=''):
 
 @app.route('/play_spoken_song')
 def play_spoken_song():
-	global player, playlist, mplayer
+	global player, playlist, mplayer, asr_model, asr_finished
 	try:
 		# preserve environment
 		cur_sta = player.is_playing()
@@ -260,11 +275,18 @@ def play_spoken_song():
 		cur_vol = get_volume()
 
 		# record speech
-		set_volume(60)
+		set_volume(70)
 		play_audio('./voice/speak_title.m4a', True)
 		record_audio()
-		asr_event.set()
-		play_audio('./voice/wait_for_asr.m4a', True)
+		time.sleep(0)
+
+		asr_finished = CANCEL_FLAG = False
+		if ASR_CLOUD:
+			threading.Thread(target=ASR_cloud_thread).start()
+		if asr_model!=None:
+			threading.Thread(target=ASR_server_thread).start()
+
+		# play_audio('./voice/wait_for_asr.m4a', True)
 
 		# restore environment
 		set_volume(cur_vol)
@@ -419,26 +441,38 @@ def play_audio(fn, block=False):
 def record_audio(tm_sec=5, file_path=DEFAULT_RECORDING_FILE):
 	os.system(f'ffmpeg -y -f pulse -i {get_recorder(MIC_RECORDER)} -ac 1 -t {tm_sec} {file_path}')
 
+
 # For ASR server
-def ASR_server(m):
-	import whisper
-	M = whisper.load_model(m)
-	print('Offline ASR model loaded successfully ...', file=sys.stderr)
-	while True:
-		try:
-			asr_event.wait()
-			asr_event.clear()
-			obj = M.transcribe(os.path.expanduser(asr_input))
-			print(f'ASR result: {obj}', file=sys.stderr)
-			if not obj['text']:
-				play_audio('voice/asr_fail.m4a')
-			elif playFrom(obj['text'])=='OK':
-				play_audio('voice/asr_found.m4a')
-			else:
-				play_audio('voice/asr_not_found.m4a')
-		except Exception as e:
-			traceback.print_exc()
-			play_audio('voice/asr_error.m4a')
+def handle_ASR(obj):
+	global asr_finished
+	if (not obj) or asr_finished: return
+	print(f'ASR result: {obj}', file=sys.stderr)
+	if not obj['text']:
+		play_audio('voice/asr_fail.m4a')
+	elif playFrom(obj['text'])=='OK':
+		asr_finished = True
+		play_audio('voice/asr_found.m4a')
+	else:
+		play_audio('voice/asr_not_found.m4a')
+
+def ASR_server_thread():
+	try:
+		obj = asr_model.transcribe(os.path.expanduser(asr_input), cancel_func=cancel_requested)
+		handle_ASR(obj)
+	except Exception as e:
+		traceback.print_exc()
+		play_audio('voice/asr_error.m4a')
+
+def ASR_cloud_thread():
+	try:
+		with open(os.path.expanduser(asr_input), 'rb') as f:
+			r = requests.post(ASR_CLOUD, files={'file': f}, timeout=4)
+		if r.status_code==200:
+			cancel_transcription()
+		handle_ASR(json.loads(r.text))
+	except Exception as e:
+		traceback.print_exc()
+		play_audio('voice/asr_error.m4a')
 
 
 # For pikaraoke
@@ -470,8 +504,11 @@ if __name__ == '__main__':
 	subtitle = not hide_subtitle
 
 	if asr:
-		asr_event = threading.Event()
-		threading.Timer(3, lambda: ASR_server(asr_model)).start()
+		import whisper
+		asr_model = whisper.load_model(asr_model)
+		print('Offline ASR model loaded successfully ...', file=sys.stderr)
+	else:
+		asr_model = None
 
 	app.run(host='0.0.0.0', port=port)
 
