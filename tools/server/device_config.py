@@ -7,3 +7,4 @@ MIC_RECORDER='usb'
 DEFAULT_RECORDING_FILE='/dev/shm/speech.m4a'
 DEFAULT_SPEECH_FILE='/dev/shm/speak.mp3'
 ASR_CLOUD='http://203.149.235.62:8883/run_asr/base'
+VOICE_VOL=64
