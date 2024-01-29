@@ -10,6 +10,7 @@ from pydub import AudioSegment
 from gtts import gTTS
 from lingua import Language, LanguageDetectorBuilder
 
+from lib.an2cn import num2zh
 from device_config import *
 
 app = Flask(__name__)
@@ -35,6 +36,7 @@ mplayer = None
 filelist = []
 P_ktv = None
 isFirst = True
+isVideo = None
 subtitle = True
 CANCEL_FLAG = False
 isJustAfterBoot = True if sys.platform=='darwin' else float(open('/proc/uptime').read().split()[0])<120
@@ -57,6 +59,9 @@ def Eval(cmd, default=None):
 def RUN(cmd, shell=True, timeout=3, **kwargs):
 	ret = subprocess.check_output(cmd, shell=shell, **kwargs)
 	return ret if type(ret)==str else ret.decode()
+
+load_config = lambda: Try(json.load(open('.config.json')), {})
+save_config = lambda obj: exec("with open('.config.json','w') as fp: json.dump(obj, fp, indent=1)")
 
 # Detect language, invoke Google-translate TTS and play the speech audio
 def play_TTS(txt):
@@ -132,10 +137,10 @@ def findSong(name, lang=None):
 	# 2. match by pinyin if Chinese or unknown
 	if lang in [None, 'zh']:
 		# 3. pinyin full match
-		pinyin_list = [get_alnum(to_pinyin(n)) for n in name_list]
-		pinyin_name = get_alnum(to_pinyin(name))
+		pinyin_list = [get_alnum(to_pinyin(num2zh(n))) for n in name_list]
+		pinyin_name = get_alnum(to_pinyin(num2zh(name)))
 		res = str_search(pinyin_name, pinyin_list)
-		if res>=0:
+		if pinyin_name and res>=0:
 			return res
 
 	# 3. match by romaji if Japanese or unknown
@@ -144,7 +149,7 @@ def findSong(name, lang=None):
 		romaji_list = [get_alpha(to_romaji(n)) for n in name_list]
 		romaji_name = get_alpha(to_romaji(name))
 		res = str_search(romaji_name, romaji_list)
-		if res>=0:
+		if romaji_name and res>=0:
 			return res
 
 	# 4. substring match
@@ -156,7 +161,7 @@ def findSong(name, lang=None):
 	translit_list = [get_alpha(unidecode(n)) for n in name_list]
 	translit_name = get_alpha(unidecode(name))
 	res = str_search(translit_name, translit_list)
-	if res>=0:
+	if translit_name and res>=0:
 		return res
 
 	return None
@@ -182,28 +187,29 @@ def ensure_fullscreen():
 		time.sleep(0.2)
 		mplayer.set_fullscreen(True)
 
-def keep_fullscreen(_):
-	global isFirst
-	wait_tm = (3 if isJustAfterBoot else 2) if isFirst else 1
-	threading.Timer(wait_tm, lambda:mplayer.set_fullscreen(False)).start()
-	threading.Timer(wait_tm+.2, lambda:mplayer.set_fullscreen(True)).start()
-	threading.Timer(wait_tm+.8, lambda:ensure_fullscreen()).start()
-	threading.Timer(wait_tm+2, show_subtitle).start()
-	isFirst = False
+def on_media_opening(_):
+	global isFirst, isVideo
+	print(f'Starting to play: {mrl2path(mplayer.get_media().get_mrl())}', file=sys.stderr)
+	if isVideo:
+		wait_tm = (3 if isJustAfterBoot else 2) if isFirst else 1
+		threading.Timer(wait_tm, lambda:mplayer.set_fullscreen(False)).start()
+		threading.Timer(wait_tm+.2, lambda:mplayer.set_fullscreen(True)).start()
+		threading.Timer(wait_tm+.8, lambda:ensure_fullscreen()).start()
+		threading.Timer(wait_tm+2, show_subtitle).start()
+		isFirst = False
 
 @app.route('/play/<path:name>')
 def play(name=''):
-	global player, playlist, mplayer
+	global player, playlist, mplayer, isVideo
 	try:
 		name = os.path.expanduser(name if name.startswith('~') else ('~/'+name))
-		isvideo = create(name) if name.lower().endswith('.m3u') else add_song(name)
+		isVideo = create(name) if name.lower().endswith('.m3u') else add_song(name)
 		mplayer = player.get_media_player()
-		if isvideo:
+		mplayer.event_manager().event_attach(event.MediaPlayerOpening, on_media_opening)
+		if isVideo:
 			set_audio_device(MP4_SPEAKER)
-			mplayer.event_manager().event_attach(event.MediaPlayerOpening, keep_fullscreen)
 		else:
 			set_audio_device(MP3_SPEAKER)
-			mplayer.event_manager().event_detach(event.MediaPlayerOpening)
 		player.set_playback_mode(vlc.PlaybackMode.loop)
 		player.play()
 		threading.Timer(1, lambda:mplayer.audio_set_volume(100)).start()
@@ -293,53 +299,58 @@ def normalize_vol(song=''):
 def playFrom(name='', lang=None):
 	global player
 	try:
-		if name:
-			ii = findSong(name, lang=lang)
-			assert ii!=None
-			player.play_item_at_index(ii)
+		ii = findSong(name, lang=lang)
+		assert ii!=None
+		player.play_item_at_index(ii)
 	except Exception as e:
 		return str(e)
 	return 'OK'
 
+def _play_spoken_song(search_list=''):
+	global player, playlist, mplayer, asr_model, asr_finished
+	if player == None:
+		play_audio('voice/playlist_empty.m4a')
+		return 'NA'
+
+	# preserve environment
+	cur_sta = player.is_playing()
+	if cur_sta:
+		player.set_pause(True)
+	cur_vol = get_volume()
+
+	# record speech
+	set_volume(VOICE_VOL)
+	play_audio('voice/speak_title.m4a', True)
+	record_audio()
+	time.sleep(0)
+
+	asr_finished = CANCEL_FLAG = False
+	reply_wait = True
+	if ASR_CLOUD and not ASR_cloud_running:
+		threading.Thread(target=ASR_cloud_thread).start()
+		reply_wait = False
+	if asr_model!=None and not ASR_server_running:
+		threading.Thread(target=ASR_server_thread).start()
+
+	if reply_wait:
+		play_audio('voice/wait_for_asr.m4a', True)
+
+	# restore environment
+	set_volume(cur_vol)
+	if cur_sta:
+		player.set_pause(False)
+
 @app.route('/play_spoken_song')
 @app.route('/play_spoken_song/<path:search_list>')
 def play_spoken_song(search_list=''):
-	global player, playlist, mplayer, asr_model, asr_finished
-	try:
-		if player == None:
-			play_audio('voice/playlist_empty.m4a')
-			return 'NA'
+	threading.Thread(target=_play_spoken_song, args=(search_list,)).start()
+	return 'OK'
 
-		# preserve environment
-		cur_sta = player.is_playing()
-		if cur_sta:
-			player.set_pause(True)
-		cur_vol = get_volume()
-
-		# record speech
-		set_volume(75)
-		play_audio('voice/speak_title.m4a', True)
-		record_audio()
-		time.sleep(0)
-
-		asr_finished = CANCEL_FLAG = False
-		reply_wait = True
-		if ASR_CLOUD and not ASR_cloud_running:
-			threading.Thread(target=ASR_cloud_thread).start()
-			reply_wait = False
-		if asr_model!=None and not ASR_server_running:
-			threading.Thread(target=ASR_server_thread).start()
-
-		if reply_wait:
-			play_audio('voice/wait_for_asr.m4a', True)
-
-		# restore environment
-		set_volume(cur_vol)
-		if cur_sta:
-			player.set_pause(False)
-	except Exception as e:
-		traceback.print_exc()
-		return str(e)
+@app.route('/play_drama')
+@app.route('/play_drama/<path:name>')
+def play_drama(name=None):
+	if name==None:
+		load_config()
 	return 'OK'
 
 def _report_song_title():
@@ -349,11 +360,11 @@ def _report_song_title():
 		mplayer.set_pause(True)
 		cur_sta = True
 	cur_vol = get_volume()
-	set_volume(60)
+	set_volume(VOICE_VOL)
 
 	play_audio('voice/cur_song_title.mp3', True)
 	play_TTS(songtitle)
-	
+
 	set_volume(cur_vol)
 	if cur_sta:
 		mplayer.set_pause(False)
@@ -398,12 +409,12 @@ def disconnectble(dev_mac):
 @app.route('/volume/<cmd>')
 def set_volume(cmd=None):
 	try:
-		if cmd=='up':
+		if type(cmd) in [int, float] or cmd.isdigit():
+			ret = os.system(f'amixer sset Master {int(cmd)}%' if sys.platform=='linux' else f'osascript -e "set volume output volume {int(cmd)}"')
+		elif cmd=='up':
 			ret = os.system('amixer sset Master 10%+' if sys.platform=='linux' else 'osascript -e "set volume output volume (output volume of (get volume settings) + 10)"')
 		elif cmd=='down':
 			ret = os.system('amixer sset Master 10%-' if sys.platform=='linux' else 'osascript -e "set volume output volume (output volume of (get volume settings) - 10)"')
-		elif cmd.isdigit() or type(cmd)==int:
-			ret = os.system(f'amixer sset Master {int(cmd)}%' if sys.platform=='linux' else f'osascript -e "set volume output volume {int(cmd)}"')
 		return get_volume()
 	except Exception as e:
 		return str(e)
