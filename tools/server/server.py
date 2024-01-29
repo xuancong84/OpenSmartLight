@@ -14,6 +14,7 @@ from lib.an2cn import num2zh
 from device_config import *
 
 app = Flask(__name__)
+app.url_map.strict_slashes = False
 KKS = pykakasi.kakasi()
 video_file_exts = ['.mp4', '.mkv', '.avi', '.mpg', '.mpeg']
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
@@ -27,7 +28,6 @@ lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.JAPANESE: 'j
 
 inst = vlc.Instance()
 event = vlc.EventType()
-asr_finished = False
 asr_model = None
 asr_input = DEFAULT_RECORDING_FILE
 player = None
@@ -59,6 +59,11 @@ def Eval(cmd, default=None):
 def RUN(cmd, shell=True, timeout=3, **kwargs):
 	ret = subprocess.check_output(cmd, shell=shell, **kwargs)
 	return ret if type(ret)==str else ret.decode()
+
+def fuzzy_pinyin(txt):
+	for src, tgt in FUZZY_PINYIN.items():
+		txt = txt.replace(src, tgt)
+	return txt
 
 load_config = lambda: Try(json.load(open('.config.json')), {})
 save_config = lambda obj: exec("with open('.config.json','w') as fp: json.dump(obj, fp, indent=1)")
@@ -137,8 +142,8 @@ def findSong(name, lang=None):
 	# 2. match by pinyin if Chinese or unknown
 	if lang in [None, 'zh']:
 		# 3. pinyin full match
-		pinyin_list = [get_alnum(to_pinyin(num2zh(n))) for n in name_list]
-		pinyin_name = get_alnum(to_pinyin(num2zh(name)))
+		pinyin_list = [get_alnum(fuzzy_pinyin(to_pinyin(num2zh(n)))) for n in name_list]
+		pinyin_name = get_alnum(fuzzy_pinyin(to_pinyin(num2zh(name))))
 		res = str_search(pinyin_name, pinyin_list)
 		if pinyin_name and res>=0:
 			return res
@@ -158,8 +163,8 @@ def findSong(name, lang=None):
 		return res
 	
 	# 5. match by transliteration
-	translit_list = [get_alpha(unidecode(n)) for n in name_list]
-	translit_name = get_alpha(unidecode(name))
+	translit_list = [get_alpha(fuzzy_pinyin(unidecode(n))) for n in name_list]
+	translit_name = get_alpha(fuzzy_pinyin(unidecode(name)))
 	res = str_search(translit_name, translit_list)
 	if translit_name and res>=0:
 		return res
@@ -267,7 +272,7 @@ def _normalize_vol(song):
 		player.stop()
 	fn = fn if sid<0 else mrl2path(filelist[sid])
 	assert os.path.isfile(fn)
-	play_audio('voice/processing.m4a')
+	play_audio('voice/processing.mp3')
 	audio = AudioSegment.from_file(fn)
 	if isVideoFile(fn):
 		if not os.path.exists(get_bak_fn(fn+'.m4a')):
@@ -306,52 +311,6 @@ def playFrom(name='', lang=None):
 		return str(e)
 	return 'OK'
 
-def _play_spoken_song(search_list=''):
-	global player, playlist, mplayer, asr_model, asr_finished
-	if player == None:
-		play_audio('voice/playlist_empty.m4a')
-		return 'NA'
-
-	# preserve environment
-	cur_sta = player.is_playing()
-	if cur_sta:
-		player.set_pause(True)
-	cur_vol = get_volume()
-
-	# record speech
-	set_volume(VOICE_VOL)
-	play_audio('voice/speak_title.m4a', True)
-	record_audio()
-	time.sleep(0)
-
-	asr_finished = CANCEL_FLAG = False
-	reply_wait = True
-	if ASR_CLOUD and not ASR_cloud_running:
-		threading.Thread(target=ASR_cloud_thread).start()
-		reply_wait = False
-	if asr_model!=None and not ASR_server_running:
-		threading.Thread(target=ASR_server_thread).start()
-
-	if reply_wait:
-		play_audio('voice/wait_for_asr.m4a', True)
-
-	# restore environment
-	set_volume(cur_vol)
-	if cur_sta:
-		player.set_pause(False)
-
-@app.route('/play_spoken_song')
-@app.route('/play_spoken_song/<path:search_list>')
-def play_spoken_song(search_list=''):
-	threading.Thread(target=_play_spoken_song, args=(search_list,)).start()
-	return 'OK'
-
-@app.route('/play_drama')
-@app.route('/play_drama/<path:name>')
-def play_drama(name=None):
-	if name==None:
-		load_config()
-	return 'OK'
 
 def _report_song_title():
 	songtitle = filepath2songtitle(mrl2path(mplayer.get_media().get_mrl()))
@@ -506,13 +465,19 @@ def get_recorder(devs, wait=3):
 		return res[-1][1]
 	return '0'
 
+# def play_audio(fn, block=False):
+# 	p = vlc.MediaPlayer(fn)
+# 	p.audio_set_volume(100)
+# 	p.play()
+# 	if block:
+# 		while not p.is_playing():pass
+# 		while p.is_playing():pass
+
 def play_audio(fn, block=False):
-	p = vlc.MediaPlayer(fn)
-	p.audio_set_volume(100)
-	p.play()
 	if block:
-		while not p.is_playing():pass
-		while p.is_playing():pass
+		os.system(f'mplayer -really-quiet -noconsolecontrols {fn}')
+	else:
+		threading.Thread(target=play_audio, args=(fn, True)).start()
 
 def record_audio(tm_sec=5, file_path=DEFAULT_RECORDING_FILE):
 	os.system(f'ffmpeg -y -f pulse -i {get_recorder(MIC_RECORDER)} -ac 1 -t {tm_sec} {file_path}')
@@ -520,41 +485,105 @@ def record_audio(tm_sec=5, file_path=DEFAULT_RECORDING_FILE):
 
 # For ASR server
 def handle_ASR(obj):
-	global asr_finished
-	if (not obj) or asr_finished: return
+	if type(obj)!=dict:
+		return play_audio('voice/asr_error.mp3')
 	print(f'ASR result: {obj}', file=sys.stderr)
 	if not obj['text']:
-		play_audio('voice/asr_fail.m4a')
+		play_audio('voice/asr_fail.mp3')
 	elif playFrom(obj['text'], obj['language'])=='OK':
-		asr_finished = True
-		play_audio('voice/asr_found.m4a')
+		play_audio('voice/asr_found.mp3')
 	else:
-		play_audio('voice/asr_not_found.m4a')
+		play_audio('voice/asr_not_found.mp3')
 
-def ASR_server_thread():
-	global ASR_server_running
-	ASR_server_running = True
+def get_ASR_offline():
 	try:
+		CANCEL_FLAG = False
 		obj = asr_model.transcribe(os.path.expanduser(asr_input), cancel_func=cancel_requested)
-		handle_ASR(obj)
+		return obj
 	except Exception as e:
 		traceback.print_exc()
-		play_audio('voice/asr_error.m4a')
-	ASR_server_running = False
+		return str(e)
 
-def ASR_cloud_thread():
-	global ASR_cloud_running
-	ASR_cloud_running = True
+def get_ASR_online():
 	try:
 		with open(os.path.expanduser(asr_input), 'rb') as f:
 			r = requests.post(ASR_CLOUD, files={'file': f}, timeout=4)
-		if r.status_code==200:
-			cancel_transcription()
-		handle_ASR(json.loads(r.text))
+		return json.loads(r.text) if r.status_code==200 else {}
 	except Exception as e:
 		traceback.print_exc()
-		play_audio('voice/asr_error.m4a')
-	ASR_cloud_running = False
+		return str(e)
+
+# This function might take very long time, must be run in a separate thread
+def recog_and_play(voice, handler):
+	global player, asr_model, ASR_cloud_running, ASR_server_running
+
+	# preserve environment
+	cur_sta = player.is_playing()
+	if cur_sta:
+		player.set_pause(True)
+	cur_vol = get_volume()
+
+	# record speech
+	set_volume(VOICE_VOL)
+	play_audio(voice, True)
+	record_audio()
+	time.sleep(0)
+
+	if ASR_CLOUD and not ASR_cloud_running:
+		ASR_cloud_running = True
+		asr_output = get_ASR_online()
+		ASR_cloud_running = False
+
+	if type(asr_output)==str or not asr_output:
+		if asr_model == None:
+			return play_audio('voice/offline_asr_not_available.mp3')
+		if ASR_server_running:
+			return play_audio('voice/unfinished_offline_asr.mp3')
+		play_audio('voice/wait_for_asr.mp3')
+
+		# restore environment
+		set_volume(cur_vol)
+		if cur_sta:
+			player.set_pause(False)
+		asr_output = get_ASR_offline()
+
+	handler(asr_output)
+
+	# restore environment
+	set_volume(cur_vol)
+	if cur_sta:
+		player.set_pause(False)
+
+@app.route('/play_spoken_song')
+@app.route('/play_spoken_song/<path:search_list>')
+def play_spoken_song(search_list=''):
+	if player == None and not search_list:
+		return play_audio('voice/playlist_empty.mp3')
+	threading.Thread(target=recog_and_play, args=('voice/speak_title.mp3', lambda t: handle_ASR(t))).start()
+	return 'OK'
+
+
+def _play_drama(name=None):
+	if name==None:
+		cfg = load_config()
+		last_drama = cfg.get('last_drama', '')
+		dict_drama = cfg.get('dict_drama', {})
+		if not last_drama:
+			recog_and_play(voice='', handler=_play_drama)
+
+	return 'OK'
+
+@app.route('/play_drama')
+@app.route('/play_drama/<path:name>')
+def play_drama(name=None):
+	print(f'play_drama: {name}')
+	#threading.Thread(target=_play_drama, args=(name,)).start()
+	return 'OK'
+
+@app.route('/play_spoken_drama')
+def play_spoken_drama():
+	threading.Thread(target=recog_and_play, args=(name,)).start()
+	return 'OK'
 
 
 # For pikaraoke
@@ -592,6 +621,5 @@ if __name__ == '__main__':
 	else:
 		asr_model = None
 
-	app.url_map.strict_slashes = False
 	app.run(host='0.0.0.0', port=port)
 
