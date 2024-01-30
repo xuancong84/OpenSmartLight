@@ -3,10 +3,12 @@ python-vlc
 deebot-t8
 deebot-t8[cli]
 flask
+flask-sock
+jinja2
 whisper
 pinyin
 pykakasi
 gTTS
 lingua-language-detector
 unidecode
-#git@github.com:klattimer/LGWebOSRemote.git
+git+https://github.com/klattimer/LGWebOSRemote.git

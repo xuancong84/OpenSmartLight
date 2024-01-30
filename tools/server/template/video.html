@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+<head><title>{{title}}</title>
+<style>
+.overlay {
+  position: absolute;
+  /*  object-fit is not supported on IE  */
+  object-fit: cover;
+  opacity:0.7;
+  z-index: 10;
+  color:gold;
+  font-weight: bold;
+  cursor: pointer;
+}
+video {
+    width: 100vw;
+    height: 100vh;
+    position: fixed;
+    object-fit: cover;
+}
+</style>
+</head>
+<body style="background-color:black; overflow: hidden;">
+ <video id='video0' autoplay controls onended="ws.send('next')" ontouchmove="timerRst()" onmousemove="timerRst()">
+   <source type="video/mp4">
+ </video>
+ <div id="overlay">
+  <div class="overlay" style="left:0px; top:50%; transform: translateY(-50%);" onclick="ws.send('prev')">◀</div>
+  <div class="overlay" style="right:0px; top:50%; transform: translateY(-50%);" onclick="ws.send('next')">▶</div>
+  <div class="overlay" style="left:50%; top:50%; transform: translate(-50%, -50%);" onclick="v.currentTime=0;v.play()">↻</div>
+ </div>
+
+<script>
+function getById(id_str) { return document.getElementById(id_str); }
+var idleTime = 0;
+var n_items = {{n_items}};
+var v = getById("video0");
+var ovl = getById("overlay")
+const ws = new WebSocket('ws://' + location.host + '/ws_init');
+function setvsrc(url){
+  v.src = url;
+  v.play();
+  var ttl = url.substr(url.indexOf('/',1)+1);
+  document.title = ttl.substr(0, ttl.lastIndexOf('.'))
+  ovl.style.display = n_items>1?"":"none";
+}
+function seturl(url){ window.location.href = url; }
+function timerInc() {
+  ovl.style.display = (idleTime>1||n_items<=1)?"none":"";
+  document.body.style.overflow = idleTime>1?"hidden":"";
+  idleTime += 1;
+}
+function timerRst() {
+  ovl.style.display = n_items>1?"":"none";
+  document.body.style.overflow = "";
+  idleTime = 0;
+}
+ws.addEventListener('message', ev => { setTimeout(ev.data, 1); });
+setvsrc("{{file_path}}")
+document.styleSheets[0].cssRules[0].style.fontSize=`${screen.width/16}px`;
+setInterval(timerInc, 1000);
+</script>
+</body>
+</html>
