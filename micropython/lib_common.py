@@ -9,6 +9,7 @@ Timers = {}	# {'timer-name': [last-stamp-sec, period-in-sec, True (is periodic o
 timezone = 8
 A0 = ADC(0)
 
+url_string = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~/'
 digitalWrite = lambda pin, val: Pin(pin, Pin.OUT)(val) if type(pin)==int else None
 digitalRead = lambda pin: Pin(pin, Pin.OUT)() if type(pin)==int else None
 analogWrite = lambda pin, val: PWM(Pin(pin), freq=1000, duty=val) if type(pin)==int else None
@@ -100,3 +101,10 @@ def getActiveNIF():
 	sta_if = network.WLAN(network.STA_IF)
 	ap_if = network.WLAN(network.AP_IF)
 	return sta_if if sta_if.active(True) else ap_if
+
+def url_encode(s):
+	try:
+		p = s.find('/', s.find('//')+2)
+		return s[:p] + ''.join([(c if c in url_string else f'%{ord(c):x}') for c in s[p:]])
+	except:
+		return s

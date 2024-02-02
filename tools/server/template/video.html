@@ -35,14 +35,20 @@ function getById(id_str) { return document.getElementById(id_str); }
 var idleTime = 0;
 var n_items = {{n_items}};
 var v = getById("video0");
-var ovl = getById("overlay")
+var ovl = getById("overlay");
 const ws = new WebSocket('ws://' + location.host + '/ws_init');
 function setvsrc(url){
   v.src = url;
   v.play();
   var ttl = url.substr(url.indexOf('/',1)+1);
-  document.title = ttl.substr(0, ttl.lastIndexOf('.'))
+  document.title = ttl.substr(0, ttl.lastIndexOf('.'));
   ovl.style.display = n_items>1?"":"none";
+}
+function play_audio(fn, reply=false){
+  var aud = new Audio(fn);
+  if(reply)
+    aud.onended = ()=>{ws.send('audio_ended')};
+  aud.play();
 }
 function seturl(url){ window.location.href = url; }
 function timerInc() {

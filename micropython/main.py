@@ -166,7 +166,7 @@ def execRC(s):
 			return '\r\n'.join(res)
 		elif type(s)==str:
 			if s.startswith('http'):
-				url.get(s).close()
+				url.get(url_encode(s)).close()
 			else:
 				code = get_rc_code(s)
 				return execRC(eval(s) if code==None else code)
