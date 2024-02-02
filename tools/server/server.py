@@ -33,12 +33,14 @@ get_alpha = lambda t: ''.join([c for c in t if c in string.ascii_letters])
 get_alnum = lambda t: ''.join([c for c in t if c in string.ascii_letters+string.digits])
 get_volume = lambda: RUN("amixer get Master | awk -F'[][]' '/Left:/ { print $2 }'").rstrip('%\n')
 get_fullpath_rel_home = lambda fn: os.path.expanduser(fn if fn.startswith('~') else ('~/'+fn))
+ping = lambda ip: os.system(f'ping -W 1 -c 1 {ip}')==0
 mrl2path = lambda t: unquote(t).replace('file://', '').strip() if t.startswith('file://') else (t.strip() if t.startswith('/') else None)
 filepath2songtitle = lambda fn: os.path.basename(unquote(fn)).split('.')[0].lower().strip()
 lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.JAPANESE: 'ja', Language.KOREAN: 'ko'}
 
 inst = vlc.Instance()
 event = vlc.EventType()
+ev_voice = threading.Event()
 asr_model = None
 asr_input = DEFAULT_RECORDING_FILE
 player = None
@@ -148,10 +150,9 @@ def str_search(name, name_list, mode=3):
 	res = [[ii, len(it)-len(name)] for ii,it in enumerate(name_list) if name in it]
 	return sorted(res, key=lambda t:t[1])[0][0] if res else -1
 
-def findSong(name, lang=None):
-	global filelist
+def findSong(name, lang=None, flist=filelist):
 	name = name.lower().strip()
-	name_list = [filepath2songtitle(fn) for fn in filelist]
+	name_list = [filepath2songtitle(fn) for fn in flist]
 
 	# 1. exact full match of original form
 	if name in name_list:
@@ -195,6 +196,10 @@ def findSong(name, lang=None):
 @app.route('/files/<path:filename>')
 def get_file(filename):
 	return send_from_directory(SHARED_PATH, filename, conditional=True)
+
+@app.route('/voice/<path:filename>')
+def get_voice(filename):
+	return send_from_directory('./voice', filename, conditional=True)
 
 @app.route('/subtitle/<show>')
 def show_subtitle(show=None):
@@ -424,8 +429,31 @@ def ecovacs(name='', cmd=''):
 
 
 # For LG TV
+def send_wol(mac, ip='255.255.255.255'):
+	try:
+		if len(mac) == 17:
+			mac = mac.replace(mac[2], "")
+		elif len(mac) != 12:
+			return "Incorrect MAC address format"
+		s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+		nsent = s.sendto(bytes.fromhex("F"*12 + mac*16), (ip, 9))
+		s.close()
+		return True
+	except Exception:
+		traceback.print_exc()
+		return False
+
+def tv_on_if_off(tv_name, wait_ready=False):
+	tvinfo = tv2lginfo[tv_name]
+	if not ping(tvinfo['ip']):
+		send_wol(tvinfo['mac'])
+		if wait_ready:
+			while os.system(f'./miniconda3/bin/lgtv --name {tv_name} audioVolume')!=0:
+				time.sleep(0.1)
+
 ip2websock = {}
-ip2tvdata = defaultdict(lambda: {}, {})
+ip2tvdata = defaultdict(lambda: {}, {}) # {'playlist':[full filenames], 'cur_ii': current_index}
 tv2lginfo = Try(lambda: json.load(open(os.path.expanduser('~/.lgtv/config.json'))), {})
 
 @app.route('/lgtv/<name>/<cmd>')
@@ -485,6 +513,7 @@ def lgtvPlay(name, listfilename):
 	try:
 		tv_name, tm_info = (name.split(' ',1)+[0])[:2]
 		if tv_name in tv2lginfo:
+			tv_on_if_off(tv_name, True)
 			return lgtv(tv_name, f'openBrowserAt "http://{local_IP}:{port}/webPlay/{tm_info}/{listfilename}"')
 		else:
 			ws = ip2websock[tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name]
@@ -493,21 +522,31 @@ def lgtvPlay(name, listfilename):
 		traceback.print_exc()
 		return str(e)
 
-@app.route('/lgtv_wscmd/<name>/<cmd>')
+@app.route('/lgtv_wscmd/<name>/<path:cmd>')
 def lgtv_wscmd(name, cmd):
-	ip = tv2lginfo[name]['ip'] if name in tv2lginfo else name
-	ws = ip2websock[ip]
-	if cmd == 'pause':
-		ws.send('v.pause()')
-	elif cmd == 'resume':
-		ws.send('v.play()')
-	elif cmd == 'rewind':
-		ws.send('v.currentTime=0')
-	elif cmd in ['next', 'prev']:
-		ip2tvdata[ip]['cur_ii'] = (ip2tvdata[ip]['cur_ii']+(1 if cmd=='next' else -1))%len(ip2tvdata[ip]['playlist'])
-		fn = ip2tvdata[ip]['playlist'][ip2tvdata[ip]['cur_ii']]
-		ws.send(f'setvsrc("/files/{fn[len(SHARED_PATH):]}");v.play()')
-	return 'OK'
+	try:
+		ip = tv2lginfo[name]['ip'] if name in tv2lginfo else name
+		ws = ip2websock[ip]
+		if cmd == 'pause':
+			ws.send('v.pause()')
+		elif cmd == 'resume':
+			ws.send('v.play()')
+		elif cmd == 'rewind':
+			ws.send('v.currentTime=0')
+		elif cmd.startswith('play_audio('):
+			ws.send(cmd)
+		elif cmd == 'audio_ended':
+			ev_voice.set()
+		else:
+			if cmd in ['next', 'prev']:
+				ip2tvdata[ip]['cur_ii'] = (ip2tvdata[ip]['cur_ii']+(1 if cmd=='next' else -1))%len(ip2tvdata[ip]['playlist'])
+			elif cmd.startswith('goto_idx'):
+				ip2tvdata[ip]['cur_ii'] = int(cmd.split()[1])
+			fn = ip2tvdata[ip]['playlist'][ip2tvdata[ip]['cur_ii']]
+			ws.send(f'setvsrc("/files/{fn[len(SHARED_PATH):]}");v.play()')
+		return 'OK'
+	except Exception as e:
+		return str(e)
 
 
 # For audio
@@ -568,18 +607,23 @@ def get_recorder(devs, wait=3):
 # 		while not p.is_playing():pass
 # 		while p.is_playing():pass
 
-def play_audio(fn, block=False):
-	if block:
-		os.system(f'mplayer -really-quiet -noconsolecontrols {fn}')
+def play_audio(fn, block=False, tv_name=None):
+	if tv_name:
+		if block:
+			ev_voice.clear()
+			lgtv_wscmd(tv_name, f'play_audio("/{fn}",true)')
+			ev_voice.wait()
+		else:
+			lgtv_wscmd(tv_name, f'play_audio("/{fn}")')
 	else:
-		threading.Thread(target=play_audio, args=(fn, True)).start()
+		os.system(f'mplayer -really-quiet -noconsolecontrols {fn}'+('' if block else ' &'))
 
 def record_audio(tm_sec=5, file_path=DEFAULT_RECORDING_FILE):
 	os.system(f'ffmpeg -y -f pulse -i {get_recorder(MIC_RECORDER)} -ac 1 -t {tm_sec} {file_path}')
 
 
 # For ASR server
-def handle_ASR(obj):
+def handle_ASR(obj, _):
 	if type(obj)!=dict:
 		return play_audio('voice/asr_error.mp3')
 	print(f'ASR result: {obj}', file=sys.stderr)
@@ -609,12 +653,15 @@ def get_ASR_online():
 		return str(e)
 
 class VoicePrompt:
-	def __init__(self):
+	def __init__(self, tv_name=None):
 		self.cur_sta = self.cur_vol = None
+		self.tv_name = tv_name
 
 	def __enter__(self):	# preserve environment
 		global player
-		if player!=None:
+		if self.tv_name:
+			lgtv_wscmd(self.tv_name, 'pause')
+		elif player!=None:
 			self.cur_sta = player.is_playing()
 			if self.cur_sta:
 				player.set_pause(True)
@@ -622,10 +669,13 @@ class VoicePrompt:
 		return self
 
 	def restore(self):
-		if self.cur_vol != None:
-			set_volume(self.cur_vol)
-		if self.cur_sta:
-			player.set_pause(False)
+		if self.tv_name:
+			lgtv_wscmd(self.tv_name, 'resume')
+		else:
+			if self.cur_vol != None:
+				set_volume(self.cur_vol)
+			if self.cur_sta:
+				player.set_pause(False)
 		self.cur_vol = self.cur_sta = None
 		return True
 
@@ -634,13 +684,13 @@ class VoicePrompt:
 
 
 # This function might take very long time, must be run in a separate thread
-def recog_and_play(voice, handler):
+def recog_and_play(voice, tv_name, handler):
 	global player, asr_model, ASR_cloud_running, ASR_server_running
 
-	with VoicePrompt() as context:
+	with VoicePrompt(tv_name) as context:
 		# record speech
 		set_volume(VOICE_VOL)
-		play_audio(voice, True)
+		play_audio(voice, True, tv_name)
 		record_audio()
 		time.sleep(0)
 
@@ -653,15 +703,15 @@ def recog_and_play(voice, handler):
 		# try offline ASR if cloud ASR fails
 		if type(asr_output)==str or not asr_output:
 			if asr_model == None:
-				return play_audio('voice/offline_asr_not_available.mp3')
+				return play_audio('voice/offline_asr_not_available.mp3', False, tv_name)
 			if ASR_server_running:
-				return play_audio('voice/unfinished_offline_asr.mp3')
-			play_audio('voice/wait_for_asr.mp3')
+				return play_audio('voice/unfinished_offline_asr.mp3', False, tv_name)
+			play_audio('voice/wait_for_asr.mp3', False, tv_name)
 
 			context.restore()
 			asr_output = get_ASR_offline()
 
-		handler(asr_output)
+		handler(asr_output, tv_name)
 
 
 @app.route('/play_spoken_song')
@@ -669,7 +719,7 @@ def recog_and_play(voice, handler):
 def play_spoken_song(search_list=''):
 	if player == None and not search_list:
 		return play_audio('voice/playlist_empty.mp3')
-	threading.Thread(target=recog_and_play, args=('voice/speak_title.mp3', lambda t: handle_ASR(t))).start()
+	threading.Thread(target=recog_and_play, args=('voice/speak_title.mp3', None, handle_ASR)).start()
 	return 'OK'
 
 
@@ -690,9 +740,33 @@ def play_drama(name=None):
 	#threading.Thread(target=_play_drama, args=(name,)).start()
 	return 'OK'
 
-@app.route('/play_spoken_drama')
-def play_spoken_drama():
-	threading.Thread(target=recog_and_play, args=(name,)).start()
+def handle_ASR_drama(obj, tv_name):
+	flist = os.listdir(SHARED_PATH)
+	ii = findSong(obj['text'], obj['language'], flist)
+	if ii == None:
+		play_audio('voice/asr_not_found_drama.mp3', True, tv_name)
+	else:
+		play_audio(('voice/asr_found_drama.mp3' if os.path.isdir(SHARED_PATH+flist[ii]) else 'voice/asr_found_movie.mp3'), True, tv_name)
+		lgtvPlay(tv_name, flist[ii])
+
+def handle_ASR_item(obj, tv_name):
+	data = ip2tvdata[tv2lginfo[tv_name]['ip']]
+	lst = data['playlist']
+	ii = findSong(obj['text'], obj['language'], lst)
+	if ii == None:
+		play_audio('voice/asr_not_found.mp3', True, tv_name)
+	else:
+		play_audio('voice/asr_found.mp3', True, tv_name)
+		lgtv_wscmd(tv_name, f'goto_idx {ii}')
+
+@app.route('/play_spoken_drama/<tv_name>')
+def play_spoken_drama(tv_name):
+	threading.Thread(target=recog_and_play, args=('voice/speak_drama.mp3', tv_name, handle_ASR_drama)).start()
+	return 'OK'
+
+@app.route('/play_spoken_item/<tv_name>')
+def play_spoken_item(tv_name):
+	threading.Thread(target=recog_and_play, args=('voice/speak_title.mp3', tv_name, handle_ASR_item)).start()
 	return 'OK'
 
 
