@@ -21,7 +21,8 @@ video {
 </style>
 </head>
 <body style="background-color:black; overflow: hidden;">
- <video id='video0' autoplay controls onended="ws.send('next')" ontouchmove="timerRst()" onmousemove="timerRst()">
+ <video id='video0' autoplay controls onended="ws.send('next')" onplaying="isPlaying=1" onpause="isPlaying=0" 
+    onseeked="markCounter=0" ontouchmove="timerRst()" onmousemove="timerRst()">
    <source type="video/mp4">
  </video>
  <div id="overlay">
@@ -33,16 +34,17 @@ video {
 <script>
 function getById(id_str) { return document.getElementById(id_str); }
 var idleTime = 0;
+var isPlaying = 0, markCounter = 0;
 var n_items = {{n_items}};
 var v = getById("video0");
 var ovl = getById("overlay");
-const ws = new WebSocket('ws://' + location.host + '/ws_init');
+const ws = new WebSocket(({{ssl}}?'wss://':'ws://') + location.host + '/ws_init');
 function setvsrc(url){
   v.src = url;
-  v.play();
   var ttl = url.substr(url.indexOf('/',1)+1);
   document.title = ttl.substr(0, ttl.lastIndexOf('.'));
   ovl.style.display = n_items>1?"":"none";
+  v.play();
 }
 function play_audio(fn, reply=false){
   var aud = new Audio(fn);
@@ -55,6 +57,11 @@ function timerInc() {
   ovl.style.display = (idleTime>1||n_items<=1)?"none":"";
   document.body.style.overflow = idleTime>1?"hidden":"";
   idleTime += 1;
+  markCounter += isPlaying;
+  if(markCounter>60){
+    markCounter = 0;
+    ws.send(`mark ${v.currentTime}`);
+  }
 }
 function timerRst() {
   ovl.style.display = n_items>1?"":"none";
