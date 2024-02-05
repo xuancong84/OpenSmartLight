@@ -13,3 +13,4 @@ MAX_WALK_LEVEL=2
 ASR_CLOUD='http://203.149.235.62:8883/run_asr/base'
 FUZZY_PINYIN={'ing': 'in'}
 VOICE_VOL=60
+CUSTOM_CMDLINES={'macair_play':"ssh hetianfang@192.168.50.31 /Applications/Firefox.app/Contents/MacOS/firefox --new-tab '\"http://192.168.50.3:8883/webPlay/-1/长月烬明\"'"}
