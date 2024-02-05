@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import traceback, argparse, math, requests, string, json, re
 import os, sys, subprocess, random, time, threading, socket
@@ -15,12 +16,12 @@ from lingua import Language, LanguageDetectorBuilder
 from lib.an2cn import num2zh
 from lib.DefaultRevisionDict import *
 from device_config import *
-SHARED_PATH = os.path.expanduser(SHARED_PATH.rstrip('/')+'/')
+SHARED_PATH = os.path.expanduser(SHARED_PATH).rstrip('/')+'/'
 
 _regex_ip = re.compile("^(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$")
 isIP = _regex_ip.match
 
-app = Flask(__name__, template_folder='./template')
+app = Flask(__name__, template_folder='template')
 app.url_map.strict_slashes = False
 app.config['TEMPLATES_AUTO_RELOAD'] = True	##DEBUG
 sock = Sock(app)
@@ -127,31 +128,6 @@ def isVideoFile(fn):
 			return True
 	return False
 
-def create(fn):
-	global inst, player, playlist, filelist
-	stop()
-	filelist = [i for L in open(fn).readlines() for i in [mrl2path(L)] if i]
-	random.shuffle(filelist)
-	playlist = inst.media_list_new(filelist)
-	if player == None:
-		player = inst.media_list_player_new()
-	player.set_media_list(playlist)
-	videos = [fn for fn in filelist if isVideoFile(fn)]
-	return videos
-
-def add_song(fn):
-	global player, playlist, mplayer, filelist
-	filelist += [fn]
-	if playlist==None:
-		playlist = inst.media_list_new([])
-	playlist.add_media(fn)
-	if player==None:
-		player = inst.media_list_player_new()
-		player.set_media_list(playlist)
-	player.play_item_at_index(playlist.count()-1)
-	videos = [fn for fn in filelist if isVideoFile(fn)]
-	return videos
-
 def str_search(name, name_list, mode=3):
 	# 1. exact full match
 	if name in name_list:
@@ -204,9 +180,23 @@ def findSong(name, lang=None, flist=filelist):
 
 ### Start handling of URL requests	###
 
+@app.route('/custom_cmdline/<cmd>')
+def custom_cmdline(cmd, wait=False):
+	try:
+		exec(open('device_config.py').read(), locals(), locals())
+		cmdline = CUSTOM_CMDLINES[cmd]
+		return RUN(cmdline+('' if wait else ' &'))
+	except Exception as e:
+		traceback.print_exc()
+		return str(e)
+
 @app.route('/files/<path:filename>')
 def get_file(filename):
 	return send_from_directory(SHARED_PATH, filename, conditional=True)
+
+@app.route('/favicon.ico')
+def get_favicon():
+	return send_file('template/favicon.ico')
 
 @app.route('/voice')
 @app.route('/voice/<path:fn>')
@@ -245,18 +235,23 @@ def on_media_opening(_):
 		threading.Timer(wait_tm+2, show_subtitle).start()
 		isFirst = False
 
-@app.route('/play/<path:name>')
+@app.route('/play/<tm_info>/<path:filename>')
 def play(name=''):
-	global player, playlist, mplayer, isVideo
+	global inst, player, playlist, filelist, mplayer, isVideo
 	try:
-		name = SHARED_PATH + name
-		isVideo = create(name) if name.lower().endswith('.m3u') else add_song(name)
+		filelist, ii, tm_sec, randomize = load_playable(None, tm_info, filename)
+
+		stop()
+		filelist = [i for L in open(fn).readlines() for i in [mrl2path(L)] if i]
+		playlist = inst.media_list_new(filelist)
+		if player == None:
+			player = inst.media_list_player_new()
+		player.set_media_list(playlist)
+		isVideo = bool([fn for fn in filelist if isVideoFile(fn)])
+
 		mplayer = player.get_media_player()
 		mplayer.event_manager().event_attach(event.MediaPlayerOpening, on_media_opening)
-		if isVideo:
-			set_audio_device(MP4_SPEAKER)
-		else:
-			set_audio_device(MP3_SPEAKER)
+		set_audio_device(MP4_SPEAKER if isVideo else MP3_SPEAKER)
 		player.set_playback_mode(vlc.PlaybackMode.loop)
 		player.play()
 		threading.Timer(1, lambda:mplayer.audio_set_volume(100)).start()
@@ -460,7 +455,7 @@ def send_wol(mac, ip='255.255.255.255'):
 		traceback.print_exc()
 		return False
 
-@app.route('/lgtv_on/<tv_name>')
+@app.route('/tv_on/<tv_name>')
 def tv_on_if_off(tv_name, wait_ready=False):
 	tvinfo = tv2lginfo[tv_name]
 	if not ping(tvinfo['ip']):
@@ -469,12 +464,12 @@ def tv_on_if_off(tv_name, wait_ready=False):
 			while os.system(f'./miniconda3/bin/lgtv --name {tv_name} audioVolume')!=0:
 				time.sleep(0.1)
 
-@app.route('/lgtv/<name>/<cmd>')
-def lgtv(name='', cmd=''):
+@app.route('/tv/<name>/<cmd>')
+def tv(name='', cmd=''):
 	return RUN(f'./miniconda3/bin/lgtv --name {name} {cmd}')
 
-@app.route('/lgtvVolume/<name>/<vol>')
-def lgtvVolume(name='', vol=''):
+@app.route('/tvVolume/<name>/<vol>')
+def tvVolume(name='', vol=''):
 	try:
 		value = int(vol)
 		if not vol[0].isdigit():
@@ -493,45 +488,46 @@ def ws_init(sock):
 	while sock.connected:
 		try:
 			cmd = sock.receive()
-			lgtv_wscmd(key, cmd)
+			tv_wscmd(key, cmd)
 		except:
 			traceback.print_exc()
 	ip2websock.pop(key)
 
-def set_playlist(ip, lst, ii, randomize):
-	if randomize: random.shuffle(lst)
-	ip2tvdata[ip].update({'playlist': lst, 'cur_ii': ii, 'shuffled': randomize})
-	return lst[ii], len(lst)
-
-@app.route('/webPlay/<tm_info>/<path:filename>')
-def webPlay(tm_info, filename):
+def load_playable(ip, tm_info, filename):
 	fullname, n = SHARED_PATH+filename, 1
 	tm_sec, ii, randomize = ([int(float(i)) for i in tm_info.split()]+[0,0])[:3]
-	markers = ip2tvdata[request.remote_addr]['markers']
-	if filename.lower().endswith('.m3u'):
+	tvd = ip2tvdata[ip]
+	if fullname.lower().endswith('.m3u'):
 		lst = [i for L in open(fullname).readlines() for i in [mrl2path(L)] if i]
 	elif os.path.isdir(fullname):
-		lst = sorted([f'{fullname}/{f}' for f in os.listdir(fullname) if '.'+f.split('.')[-1] in media_file_exts])
+		lst = sorted([f'{fullname}/{f}' for f in os.listdir(fullname) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
 	else:
 		lst, randomize = [fullname], 0
 	if ii<0 or tm_sec<0:
-		ii, tm_sec = markers.get(hash_lst(lst), [0,0])
-	fullname, n = set_playlist(request.remote_addr, lst, ii, randomize)
-	return render_template('video.html', ssl=int(ssl), n_items=n, file_path=f'/files/{fullname[len(SHARED_PATH):]}#t={tm_sec}')
+		ii, tm_sec = tvd['markers'].get(hash_lst(lst), [0,0])
+	if randomize: random.shuffle(lst)
+	tvd.update({'playlist': lst, 'cur_ii': ii, 'shuffled': randomize})
+	return lst, ii, tm_sec, randomize
 
-@app.route('/lgtv_runjs')
-def lgtv_runjs():
+@app.route('/webPlay/<tm_info>/<path:filename>')
+def webPlay(tm_info, filename):
+	lst, ii, tm_sec, randomize = load_playable(request.remote_addr, tm_info, filename)
+	return render_template('video.html', ssl=int(ssl), ii=ii, listname=''.join(lst[0].split('/')[-2:-1]) or '播放列表',
+		playlist=[i.split('/')[-1] for i in lst], file_path=f'/files/{lst[ii][len(SHARED_PATH):]}#t={tm_sec}')
+
+@app.route('/tv_runjs')
+def tv_runjs():
 	name, cmd = unquote(request.query_string.decode()).split('/', 1)
 	ip2websock[tv2lginfo[name]['ip'] if name in tv2lginfo else name].send(cmd)
 	return 'OK'
 
-@app.route('/lgtvPlay/<name>/<path:listfilename>')
-def lgtvPlay(name, listfilename):
+@app.route('/tvPlay/<name>/<path:listfilename>')
+def tvPlay(name, listfilename):
 	try:
 		tv_name, tm_info = (name.split(' ',1)+[0])[:2]
 		if tv_name in tv2lginfo:
 			tv_on_if_off(tv_name, True)
-			return lgtv(tv_name, f'openBrowserAt "{get_base_url()}/webPlay/{tm_info}/{listfilename}"')
+			return tv(tv_name, f'openBrowserAt "{get_base_url()}/webPlay/{tm_info}/{listfilename}"')
 		else:
 			ws = ip2websock[tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name]
 			return ws.send(f'seturl("{get_base_url()}/webPlay/{tm_info}/{listfilename}")') or 'OK'
@@ -539,8 +535,16 @@ def lgtvPlay(name, listfilename):
 		traceback.print_exc()
 		return str(e)
 
-@app.route('/lgtv_wscmd/<name>/<path:cmd>')
-def lgtv_wscmd(name, cmd):
+def mark(name, tms):
+	tvd = ip2tvdata[tv2lginfo[name]['ip'] if name in tv2lginfo else name]
+	if tvd['shuffled']:
+		return 'Ignored'
+	tvd['markers'].update({hash_lst(tvd['playlist']): [tvd['cur_ii'], tms]})
+	prune_dict(tvd['markers'])
+	save_config(prune_dict(ip2tvdata))
+
+@app.route('/tv_wscmd/<name>/<path:cmd>')
+def tv_wscmd(name, cmd):
 	try:
 		ip = tv2lginfo[name]['ip'] if name in tv2lginfo else name
 		ws = ip2websock[ip]
@@ -554,22 +558,17 @@ def lgtv_wscmd(name, cmd):
 		elif cmd == 'audio_ended':
 			ev_voice.set()
 		elif cmd.startswith('mark '):
-			if tvd['shuffled']:
-				return 'Ignored'
-			tms = float(cmd.split()[1])
-			tvd['markers'].update({hash_lst(tvd['playlist']): [tvd['cur_ii'], tms]})
-			prune_dict(tvd['markers'])
-			save_config(prune_dict(ip2tvdata))
+			mark(name, float(cmd.split()[1]))
 		else:
 			if cmd in ['next', 'prev']:
 				tvd['cur_ii'] = (tvd['cur_ii']+(1 if cmd=='next' else -1))%len(tvd['playlist'])
-			elif cmd.startswith('goto_idx'):
+			elif cmd.startswith('goto_idx '):
 				tvd['cur_ii'] = int(cmd.split()[1])
 			else:
 				ws.send(cmd)
 				return 'OK'
 			fn = tvd['playlist'][tvd['cur_ii']]
-			ws.send(f'setvsrc("/files/{fn[len(SHARED_PATH):]}");v.play()')
+			ws.send(f'setvsrc("/files/{fn[len(SHARED_PATH):]}",{tvd["cur_ii"]})')
 		return 'OK'
 	except Exception as e:
 		return str(e)
@@ -636,7 +635,7 @@ def get_recorder(devs, wait=3):
 def play_audio(fn, block=False, tv_name=None):
 	if tv_name:
 		if block: ev_voice.clear()
-		lgtv_wscmd(tv_name, f'play_audio("/{"voice" if fn==DEFAULT_SPEECH_FILE else fn}",{str(block).lower()})')
+		tv_wscmd(tv_name, f'play_audio("/{"voice" if fn==DEFAULT_SPEECH_FILE else fn}",{str(block).lower()})')
 		if block: ev_voice.wait()
 	else:
 		os.system(f'mplayer -really-quiet -noconsolecontrols {fn}'+('' if block else ' &'))
@@ -682,7 +681,7 @@ class VoicePrompt:
 	def __enter__(self):	# preserve environment
 		global player
 		if self.tv_name:
-			lgtv_wscmd(self.tv_name, 'pause')
+			tv_wscmd(self.tv_name, 'pause')
 		elif player!=None:
 			self.cur_sta = player.is_playing()
 			if self.cur_sta:
@@ -692,7 +691,7 @@ class VoicePrompt:
 
 	def restore(self):
 		if self.tv_name:
-			lgtv_wscmd(self.tv_name, 'resume')
+			tv_wscmd(self.tv_name, 'resume')
 		else:
 			if self.cur_vol != None:
 				set_volume(self.cur_vol)
@@ -737,15 +736,6 @@ def recog_and_play(voice, tv_name, handler):
 		handler(asr_output, tv_name)
 
 
-@app.route('/play_spoken_song')
-@app.route('/play_spoken_song/<path:search_list>')
-def play_spoken_song(search_list=''):
-	if player == None and not search_list:
-		return play_audio('voice/playlist_empty.mp3')
-	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', None, handle_ASR)).start()
-	return 'OK'
-
-
 def _play_drama(name=None):
 	if name==None:
 		cfg = load_config()
@@ -770,7 +760,7 @@ def handle_ASR_drama(obj, tv_name):
 		play_audio('voice/asr_not_found_drama.mp3', True, tv_name)
 	else:
 		play_audio(('voice/asr_found_drama.mp3' if os.path.isdir(SHARED_PATH+flist[ii]) else 'voice/asr_found_movie.mp3'), True, tv_name)
-		lgtvPlay(tv_name, flist[ii])
+		tvPlay(tv_name, flist[ii])
 
 def handle_ASR_item(obj, tv_name):
 	data = ip2tvdata[tv2lginfo[tv_name]['ip']]
@@ -780,7 +770,15 @@ def handle_ASR_item(obj, tv_name):
 		play_audio('voice/asr_not_found.mp3', True, tv_name)
 	else:
 		play_audio('voice/asr_found.mp3', True, tv_name)
-		lgtv_wscmd(tv_name, f'goto_idx {ii}')
+		tv_wscmd(tv_name, f'goto_idx {ii}')
+
+@app.route('/play_spoken_song')
+@app.route('/play_spoken_song/<path:search_list>')
+def play_spoken_song(search_list=''):
+	if player == None and not search_list:
+		return play_audio('voice/playlist_empty.mp3')
+	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', None, handle_ASR)).start()
+	return 'OK'
 
 @app.route('/play_spoken_drama/<tv_name>')
 def play_spoken_drama(tv_name):
@@ -790,6 +788,13 @@ def play_spoken_drama(tv_name):
 @app.route('/play_spoken_item/<tv_name>')
 def play_spoken_item(tv_name):
 	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', tv_name, handle_ASR_item)).start()
+	return 'OK'
+
+@app.route('/play_spoken')
+def play_spoken():
+	dev = request.args.get('dev', None)
+	dev, lst, voice = [request.args.get(param_name, None) for param_name in ['dev', 'lst', 'search_depth', 'voice_hint']]
+	threading.Thread(target=recog_and_play, args=(voice or 'voice/speak_song.mp3', tv_name, handle_ASR_item)).start()
 	return 'OK'
 
 

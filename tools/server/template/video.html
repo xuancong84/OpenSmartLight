@@ -18,33 +18,73 @@ video {
     position: fixed;
     object-fit: cover;
 }
+.playmenu {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  object-fit: cover;
+  z-index: 20;
+  display: none;
+  opacity:0.9;
+  width: 50%; /* Set a width if you like */
+  max-height: 80%;
+  font-weight: bold;
+  overflow-y: auto;
+  text-align: center;
+  vertical-align: middle;
+}
+.playmenu a {
+  background-color: #222; /* Grey background color */
+  color: #fff; /* Black text color */
+  display: block; /* Make the links appear below each other */
+  cursor: pointer;
+  font-size: xx-large;
+  padding: 4px;
+  text-decoration: none; /* Remove underline from links */
+}
+.playmenu a:hover {
+  background-color: #ccc; /* Dark grey background on mouse-over */
+}
 </style>
 </head>
 <body style="background-color:black; overflow: hidden;">
  <video id='video0' autoplay controls onended="ws.send('next')" onplaying="isPlaying=1" onpause="isPlaying=0" 
     onseeked="markCounter=0" ontouchmove="timerRst()" onmousemove="timerRst()">
-   <source type="video/mp4">
  </video>
  <div id="overlay">
   <div class="overlay" style="left:0px; top:50%; transform: translateY(-50%);" onclick="ws.send('prev')">◀</div>
   <div class="overlay" style="right:0px; top:50%; transform: translateY(-50%);" onclick="ws.send('next')">▶</div>
   <div class="overlay" style="left:50%; top:50%; transform: translate(-50%, -50%);" onclick="v.currentTime=0;v.play()">↻</div>
+  <div id="menuIcon" class="overlay" style="left:50%; top:0px; transform: translateX(-50%);" onclick="toggle_menu()">▤</div>
  </div>
+ <div id="menu0" class="playmenu">
+  <h1 class="active" style="background-color: #04AA6D;color: white;margin: 0px; padding: 0px;">{{listname}}</h1>
+  {% for name in playlist %}
+  <a id="a{{loop.index0}}" onclick="ws.send('goto_idx {{loop.index0}}')">{{name}}</a>
+  {% endfor %}
+ </div> 
 
 <script>
 function getById(id_str) { return document.getElementById(id_str); }
 var idleTime = 0;
 var isPlaying = 0, markCounter = 0;
-var n_items = {{n_items}};
+var playlist = {{playlist|tojson}};
+var NN = playlist.length;
 var v = getById("video0");
 var ovl = getById("overlay");
+var menu = getById('menu0');
 const ws = new WebSocket(({{ssl}}?'wss://':'ws://') + location.host + '/ws_init');
-function setvsrc(url){
+function setvsrc(url, ii=0){
   v.src = url;
   var ttl = url.substr(url.indexOf('/',1)+1);
   document.title = ttl.substr(0, ttl.lastIndexOf('.'));
-  ovl.style.display = n_items>1?"":"none";
+  ovl.style.display = NN>1?"":"none";
   v.play();
+  setvidx(ii);
+}
+function setvidx(ii){
+  for(var i=0; i<NN; i++)
+    getById(`a${i}`).style.color = (i==ii?"#1f0":"#eee");
 }
 function play_audio(fn, reply=false){
   var aud = new Audio(fn);
@@ -52,9 +92,13 @@ function play_audio(fn, reply=false){
     aud.onended = ()=>{ws.send('audio_ended')};
   aud.play();
 }
+function toggle_menu(){
+  menu.style.display = menu.style.display?"":"block";
+  getById('menuIcon').textContent = menu.style.display?"▿":"▤";
+}
 function seturl(url){ window.location.href = url; }
 function timerInc() {
-  ovl.style.display = (idleTime>1||n_items<=1)?"none":"";
+  ovl.style.display = ((idleTime>1||NN<=1)&&menu.style.display=="")?"none":"";
   document.body.style.overflow = idleTime>1?"hidden":"";
   idleTime += 1;
   markCounter += isPlaying;
@@ -64,13 +108,13 @@ function timerInc() {
   }
 }
 function timerRst() {
-  ovl.style.display = n_items>1?"":"none";
+  ovl.style.display = NN>1?"":"none";
   document.body.style.overflow = "";
   idleTime = 0;
 }
 ws.addEventListener('message', ev => { setTimeout(ev.data, 1); });
-setvsrc("{{file_path}}")
-document.styleSheets[0].cssRules[0].style.fontSize=`${screen.width/16}px`;
+setvsrc("{{file_path}}",{{ii}})
+document.styleSheets[0].cssRules[0].style.fontSize=menu.style.top=`${screen.width/16}px`;
 setInterval(timerInc, 1000);
 </script>
 </body>
