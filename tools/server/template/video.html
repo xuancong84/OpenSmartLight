@@ -13,10 +13,19 @@
   cursor: pointer;
 }
 video {
-    width: 100vw;
-    height: 100vh;
-    position: fixed;
-    object-fit: cover;
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  object-fit: contain;
+}
+h1 {
+  background-color: #04AA6D;
+  color: white;
+  margin: 0px;
+  padding: 0px;
+  font-size: larger;
+  font-weight: bolder;
+  text-align:center;
 }
 .playmenu {
   position: absolute;
@@ -28,77 +37,101 @@ video {
   opacity:0.9;
   width: 50%; /* Set a width if you like */
   max-height: 80%;
-  font-weight: bold;
-  overflow-y: auto;
-  text-align: center;
   vertical-align: middle;
+  overflow-y: auto;
 }
 .playmenu a {
   background-color: #222; /* Grey background color */
   color: #fff; /* Black text color */
   display: block; /* Make the links appear below each other */
   cursor: pointer;
-  font-size: xx-large;
   padding: 4px;
   text-decoration: none; /* Remove underline from links */
 }
-.playmenu a:hover {
-  background-color: #ccc; /* Dark grey background on mouse-over */
-}
+.playmenu a:hover { background-color: #ccc; }
+.larger { font-size: larger; }
 </style>
 </head>
 <body style="background-color:black; overflow: hidden;">
  <video id='video0' autoplay controls onended="ws.send('next')" onplaying="isPlaying=1" onpause="isPlaying=0" 
     onseeked="markCounter=0" ontouchmove="timerRst()" onmousemove="timerRst()">
  </video>
- <div id="overlay">
+ <div id="ovl">
   <div class="overlay" style="left:0px; top:50%; transform: translateY(-50%);" onclick="ws.send('prev')">◀</div>
   <div class="overlay" style="right:0px; top:50%; transform: translateY(-50%);" onclick="ws.send('next')">▶</div>
-  <div class="overlay" style="left:50%; top:50%; transform: translate(-50%, -50%);" onclick="v.currentTime=0;v.play()">↻</div>
-  <div id="menuIcon" class="overlay" style="left:50%; top:0px; transform: translateX(-50%);" onclick="toggle_menu()">▤</div>
+  <div class="overlay" id="menuIcon0" style="left:50%; top:0px; transform: translateX(-50%);" onclick="toggle_menu(1)">▤</div>
  </div>
- <div id="menu0" class="playmenu">
-  <h1 class="active" style="background-color: #04AA6D;color: white;margin: 0px; padding: 0px;">{{listname}}</h1>
+ <div id="ovl2">
+  <div class="overlay" style="left:50%; top:50%; transform: translate(-50%, -50%);" onclick="v.currentTime=0;v.play()">↻</div>
+  <div class="overlay" id="menuIcon1" style="left:50%; bottom:16px; transform: translateX(-50%);" onclick="toggle_menu(2)">📁</div>
+ </div>
+ <div id="menu0" class="playmenu" style="font-size: xx-large; font-weight: bold; text-align: center;">
+  <h1>{{listname}}</h1>
   {% for name in playlist %}
   <a id="a{{loop.index0}}" onclick="ws.send('goto_idx {{loop.index0}}')">{{name}}</a>
   {% endfor %}
- </div> 
+ </div>
+ <div id="menu1" class="playmenu" style="font-size: xx-large; font-weight: bold; top: 32px; text-align: left"></div>
 
 <script>
 function getById(id_str) { return document.getElementById(id_str); }
 var idleTime = 0;
+var menuMode = 0;
+var ws_func = 0;
 var isPlaying = 0, markCounter = 0;
 var playlist = {{playlist|tojson}};
+var dir_list;
 var NN = playlist.length;
+var cur_dir = "", cur_file;
 var v = getById("video0");
-var ovl = getById("overlay");
-var menu = getById('menu0');
+var ovl = getById("ovl"), ovl2 = getById("ovl2");;
+var menu0 = getById('menu0'), menu1 = getById('menu1');
 const ws = new WebSocket(({{ssl}}?'wss://':'ws://') + location.host + '/ws_init');
 function setvsrc(url, ii=0){
   v.src = url;
+  cur_file = url.indexOf('#')<0 ? url.substr(url.indexOf('files/')+6) : url.substring(url.indexOf('files/')+6, url.indexOf('#'));
+  cur_dir = url.substring(url.indexOf('files/')+6, url.lastIndexOf('/'));
   var ttl = url.substr(url.indexOf('/',1)+1);
-  document.title = ttl.substr(0, ttl.lastIndexOf('.'));
+  document.title = ttl.substring(0, ttl.lastIndexOf('.'));
   ovl.style.display = NN>1?"":"none";
   v.play();
   setvidx(ii);
 }
-function setvidx(ii){
-  for(var i=0; i<NN; i++)
-    getById(`a${i}`).style.color = (i==ii?"#1f0":"#eee");
+function setvidx(ii, L='a'){
+  for(var i=0; getById(L+i)!=null; i++)
+    getById(L+i).style.color = (i==ii?"#1f0":"#eee");
 }
 function play_audio(fn, reply=false){
-  var aud = new Audio(fn);
+  var aud = new Audio(fn+'?'+(new Date().getTime()));
   if(reply)
     aud.onended = ()=>{ws.send('audio_ended')};
   aud.play();
 }
-function toggle_menu(){
-  menu.style.display = menu.style.display?"":"block";
-  getById('menuIcon').textContent = menu.style.display?"▿":"▤";
+function lsdir(tgtDir=null){
+  if(tgtDir!=null) cur_dir=tgtDir.replace(/\/*$/, '');
+  ws_func = 1;
+  ws.send('lsdir '+cur_dir);
+}
+function toggle_menu(mode){
+  menuMode = (menuMode==mode?0:mode);
+  menu0.style.display = menuMode==1?"block":"none";
+  menu1.style.display = menuMode==2?"block":"none";
+  getById('menuIcon0').textContent = menuMode==1?"▿":"▤";
+  getById('menuIcon1').textContent = menuMode==2?"▵":"📁";
+  if(menuMode==2){
+    if(menu1.innerHTML=='') lsdir();
+    else{
+      var ii = -1, i = 0;
+      for(; getById('b'+i)!=null; i++)
+        if(cur_file == (cur_dir?(cur_dir+'/'+getById('b'+i).text):getById('b'+i).text)) ii = i;
+      if(ii>=0) setvidx(ii, 'b');
+    }
+  }
 }
 function seturl(url){ window.location.href = url; }
 function timerInc() {
-  ovl.style.display = ((idleTime>1||NN<=1)&&menu.style.display=="")?"none":"";
+  ovl.style.display = ((idleTime>1||NN<=1)&&!menuMode)?"none":"";
+  ovl2.style.display = (idleTime>1&&!menuMode)?"none":"";
   document.body.style.overflow = idleTime>1?"hidden":"";
   idleTime += 1;
   markCounter += isPlaying;
@@ -109,12 +142,46 @@ function timerInc() {
 }
 function timerRst() {
   ovl.style.display = NN>1?"":"none";
+  ovl2.style.display = "";
   document.body.style.overflow = "";
   idleTime = 0;
 }
-ws.addEventListener('message', ev => { setTimeout(ev.data, 1); });
-setvsrc("{{file_path}}",{{ii}})
-document.styleSheets[0].cssRules[0].style.fontSize=menu.style.top=`${screen.width/16}px`;
+function gotoFile(i){
+  ws_func = 2;
+  ws.send("goto_file "+dir_list[i]);
+  setvidx(i, 'b');
+}
+function showDir(data){
+  ws_func = 0;
+  dir_list = [];
+  menu1.innerHTML = "<h1>Folder</h1>";
+  if(cur_dir){
+    var parent_dir = cur_dir.indexOf('/')>=0 ? cur_dir.split('/').slice(0,-1).join('/') : "";
+    menu1.innerHTML += `<a onclick="lsdir('${parent_dir}')">../</a>`;
+  }
+  var i=0;
+  for(var fn of JSON.parse(data)){
+    fulln = cur_dir?(cur_dir+'/'+fn):fn;
+    if(fn.endsWith('/'))
+      menu1.innerHTML += `<a onclick="lsdir('${fulln}')">${fn}</a>`;
+    else{
+      menu1.innerHTML += `<a id="b${i}" onclick="gotoFile('${i}')" style="color:${fulln.endsWith(cur_file)?"#1f0":"#eee"}">${fn}</a>`;
+      dir_list.push(fulln);
+      i+=1;
+    }
+  }
+}
+function updateList(arr){
+  ws_func = 0;
+  playlist = JSON.parse(arr);
+  NN = playlist.length;
+  menu0.innerHTML = `<h1>${cur_dir}</h1>`;
+  for(var [i,fn] of playlist.entries())
+    menu0.innerHTML += `<a id="a${i}" onclick="ws.send('goto_idx ${i}')">${fn}</a>`;
+}
+ws.addEventListener('message', ev => { ws_func==1?showDir(ev.data):(ws_func==2?updateList(ev.data):setTimeout(ev.data, 1)); });
+setvsrc("{{file_path}}", {{ii}});
+document.styleSheets[0].cssRules[0].style.fontSize=menu0.style.top=menu1.style.bottom=`${screen.width/16}px`;
 setInterval(timerInc, 1000);
 </script>
 </body>

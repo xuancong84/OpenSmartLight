@@ -40,6 +40,7 @@ filepath2songtitle = lambda fn: os.path.basename(unquote(fn)).split('.')[0].lowe
 lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.JAPANESE: 'ja', Language.KOREAN: 'ko'}
 md5 = lambda s: hashlib.md5(s.encode()).hexdigest()
 hash_lst = lambda o: o[0] if len(o)==1 else f'[{o[0]},{len(o)},{md5(str(o))}]'
+ls_media_files = lambda fullpath: sorted([f'{fullpath}/{f}' for f in os.listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
 
 inst = vlc.Instance()
 event = vlc.EventType()
@@ -500,7 +501,7 @@ def load_playable(ip, tm_info, filename):
 	if fullname.lower().endswith('.m3u'):
 		lst = [i for L in open(fullname).readlines() for i in [mrl2path(L)] if i]
 	elif os.path.isdir(fullname):
-		lst = sorted([f'{fullname}/{f}' for f in os.listdir(fullname) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
+		lst = ls_media_files(fullname)
 	else:
 		lst, randomize = [fullname], 0
 	if ii<0 or tm_sec<0:
@@ -559,11 +560,21 @@ def tv_wscmd(name, cmd):
 			ev_voice.set()
 		elif cmd.startswith('mark '):
 			mark(name, float(cmd.split()[1]))
+		elif cmd.startswith('lsdir '):
+			full_dir = SHARED_PATH+cmd.split(' ',1)[1]+'/'
+			lst = [(p+'/' if os.path.isdir(full_dir+p) else p) for p in sorted(os.listdir(full_dir)) if not p.startswith('.')]
+			ws.send(json.dumps(lst))
 		else:
 			if cmd in ['next', 'prev']:
 				tvd['cur_ii'] = (tvd['cur_ii']+(1 if cmd=='next' else -1))%len(tvd['playlist'])
 			elif cmd.startswith('goto_idx '):
 				tvd['cur_ii'] = int(cmd.split()[1])
+			elif cmd.startswith('goto_file '):
+				fn = cmd.split(' ',1)[1].strip('/')
+				flist = ls_media_files(SHARED_PATH+os.path.dirname(fn))
+				tvd['playlist'] = flist
+				tvd['cur_ii'] = [ii for ii,fulln in enumerate(flist) if fulln.endswith('/'+fn)][0]
+				ws.send(json.dumps([s.split('/')[-1] for s in flist]))
 			else:
 				ws.send(cmd)
 				return 'OK'
@@ -667,7 +678,7 @@ def get_ASR_offline():
 def get_ASR_online():
 	try:
 		with open(os.path.expanduser(asr_input), 'rb') as f:
-			r = requests.post(ASR_CLOUD, files={'file': f}, timeout=4)
+			r = requests.post(ASR_CLOUD, files={'file': f}, timeout=5)
 		return json.loads(r.text) if r.status_code==200 else {}
 	except Exception as e:
 		traceback.print_exc()
