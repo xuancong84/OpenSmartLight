@@ -3,7 +3,7 @@
 
 import traceback, argparse, math, requests, string, json, re
 import os, sys, subprocess, random, time, threading, socket
-import pinyin, vlc, pykakasi, mimetypes, hashlib
+import pinyin, vlc, pykakasi, mimetypes
 from collections import *
 from urllib.parse import unquote
 from flask import Flask, request, send_from_directory, render_template, send_file
@@ -38,8 +38,7 @@ ping = lambda ip: os.system(f'ping -W 1 -c 1 {ip}')==0
 mrl2path = lambda t: unquote(t).replace('file://', '').strip() if t.startswith('file://') else (t.strip() if t.startswith('/') else '')
 filepath2songtitle = lambda fn: os.path.basename(unquote(fn)).split('.')[0].lower().strip()
 lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.JAPANESE: 'ja', Language.KOREAN: 'ko'}
-md5 = lambda s: hashlib.md5(s.encode()).hexdigest()
-hash_lst = lambda o: o[0] if len(o)==1 else f'[{o[0]},{len(o)},{md5(str(o))}]'
+is_json_lst = lambda s: s.startswith('["') and s.endswith('"]')
 ls_media_files = lambda fullpath: sorted([f'{fullpath}/{f}' for f in os.listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
 
 inst = vlc.Instance()
@@ -495,23 +494,29 @@ def ws_init(sock):
 	ip2websock.pop(key)
 
 def load_playable(ip, tm_info, filename):
-	fullname, n = SHARED_PATH+filename, 1
+	fullname, n = SHARED_PATH+str(filename), 1
 	tm_sec, ii, randomize = ([int(float(i)) for i in tm_info.split()]+[0,0])[:3]
 	tvd = ip2tvdata[ip]
-	if fullname.lower().endswith('.m3u'):
+	if filename == None:
+		lst = tvd['playlist']
+	elif is_json_lst(filename):
+		lst = json.loads(filename)
+	elif fullname.lower().endswith('.m3u'):
 		lst = [i for L in open(fullname).readlines() for i in [mrl2path(L)] if i]
 	elif os.path.isdir(fullname):
 		lst = ls_media_files(fullname)
 	else:
 		lst, randomize = [fullname], 0
 	if ii<0 or tm_sec<0:
-		ii, tm_sec = tvd['markers'].get(hash_lst(lst), [0,0])
+		ii, tm_sec = tvd['markers'].get(json.dumps(lst), [0,0])
 	if randomize: random.shuffle(lst)
+	lst = [(s if s.startswith(SHARED_PATH) else SHARED_PATH+s) for s in lst]
 	tvd.update({'playlist': lst, 'cur_ii': ii, 'shuffled': randomize})
 	return lst, ii, tm_sec, randomize
 
+@app.route('/webPlay/<tm_info>')
 @app.route('/webPlay/<tm_info>/<path:filename>')
-def webPlay(tm_info, filename):
+def webPlay(tm_info, filename=None):
 	lst, ii, tm_sec, randomize = load_playable(request.remote_addr, tm_info, filename)
 	return render_template('video.html', ssl=int(ssl), ii=ii, listname=''.join(lst[0].split('/')[-2:-1]) or '播放列表',
 		playlist=[i.split('/')[-1] for i in lst], file_path=f'/files/{lst[ii][len(SHARED_PATH):]}#t={tm_sec}')
@@ -522,25 +527,29 @@ def tv_runjs():
 	ip2websock[tv2lginfo[name]['ip'] if name in tv2lginfo else name].send(cmd)
 	return 'OK'
 
+def _tvPlay(name, listfilename):
+	tv_name, tm_info = (name.split(' ',1)+[0])[:2]
+	if is_json_lst(listfilename):
+		tvd = ip2tvdata[tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name]
+		tvd['playlist'] = json.loads(listfilename)
+		listfilename = ''
+	if tv_name in tv2lginfo:
+		tv_on_if_off(tv_name, True)
+		return tv(tv_name, f'openBrowserAt "{get_base_url()}/webPlay/{tm_info}/{listfilename}"')
+	else:
+		ws = ip2websock[tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name]
+		return ws.send(f'seturl("{get_base_url()}/webPlay/{tm_info}/{listfilename}")') or 'OK'
+
 @app.route('/tvPlay/<name>/<path:listfilename>')
 def tvPlay(name, listfilename):
-	try:
-		tv_name, tm_info = (name.split(' ',1)+[0])[:2]
-		if tv_name in tv2lginfo:
-			tv_on_if_off(tv_name, True)
-			return tv(tv_name, f'openBrowserAt "{get_base_url()}/webPlay/{tm_info}/{listfilename}"')
-		else:
-			ws = ip2websock[tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name]
-			return ws.send(f'seturl("{get_base_url()}/webPlay/{tm_info}/{listfilename}")') or 'OK'
-	except Exception as e:
-		traceback.print_exc()
-		return str(e)
+	threading.Thread(target=_tvPlay, args=(name, listfilename)).start()
+	return 'OK'
 
 def mark(name, tms):
 	tvd = ip2tvdata[tv2lginfo[name]['ip'] if name in tv2lginfo else name]
 	if tvd['shuffled']:
 		return 'Ignored'
-	tvd['markers'].update({hash_lst(tvd['playlist']): [tvd['cur_ii'], tms]})
+	tvd['markers'].update({json.dumps(tvd['playlist']): [tvd['cur_ii'], tms]})
 	prune_dict(tvd['markers'])
 	save_config(prune_dict(ip2tvdata))
 
@@ -747,21 +756,18 @@ def recog_and_play(voice, tv_name, handler):
 		handler(asr_output, tv_name)
 
 
-def _play_drama(name=None):
-	if name==None:
-		cfg = load_config()
-		last_drama = cfg.get('last_drama', '')
-		dict_drama = cfg.get('dict_drama', {})
-		if not last_drama:
-			recog_and_play(voice='', handler=_play_drama)
+def _play_last(name=None):
+	tvd = ip2tvdata[tv2lginfo[name]['ip'] if name in tv2lginfo else name]
+	pl = tvd.get('playlist', json.loads(list(tvd['markers'].items())[-1][0]))
+	ii, tms = tvd['markers'].get(json.dumps(pl), [tvd.get('cur_ii', 0), 0])
+	if name in tv2lginfo:
+		tv_on_if_off(name, True)
+	tvPlay(f'{name} -1', json.dumps(pl))
 
-	return 'OK'
-
-@app.route('/play_drama')
-@app.route('/play_drama/<tv_name>/<name>')
-def play_drama(tv_name=None, name=None):
-	print(f'play_drama: {name}')
-	threading.Thread(target=_play_drama, args=(name,)).start()
+@app.route('/play_last')
+@app.route('/play_last/<tv_name>')
+def play_last(tv_name=None):
+	threading.Thread(target=_play_last, args=(tv_name,)).start()
 	return 'OK'
 
 def handle_ASR_drama(obj, tv_name):
