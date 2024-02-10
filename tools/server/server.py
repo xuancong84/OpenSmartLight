@@ -36,10 +36,9 @@ get_alnum = lambda t: ''.join([c for c in t if c in string.ascii_letters+string.
 get_volume = lambda: RUN("amixer get Master | awk -F'[][]' '/Left:/ { print $2 }'").rstrip('%\n')
 ping = lambda ip: os.system(f'ping -W 1 -c 1 {ip}')==0
 mrl2path = lambda t: unquote(t).replace('file://', '').strip() if t.startswith('file://') else (t.strip() if t.startswith('/') else '')
-filepath2songtitle = lambda fn: os.path.basename(unquote(fn)).split('.')[0].lower().strip()
 lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.JAPANESE: 'ja', Language.KOREAN: 'ko'}
 is_json_lst = lambda s: s.startswith('["') and s.endswith('"]')
-ls_media_files = lambda fullpath: sorted([f'{fullpath}/{f}' for f in os.listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
+ls_media_files = lambda fullpath: sorted([f'{fullpath}/{f}'.replace('//','/') for f in os.listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
 
 inst = vlc.Instance()
 event = vlc.EventType()
@@ -59,7 +58,7 @@ isJustAfterBoot = True if sys.platform=='darwin' else float(open('/proc/uptime')
 random.seed(time.time())
 ASR_server_running = ASR_cloud_running = False
 lang_detector = LanguageDetectorBuilder.from_languages(*lang2id.keys()).build()
-
+LOG = lambda s: print(f'LOG: {s}')
 
 def Try(fn, default=None):
 	try:
@@ -86,6 +85,10 @@ def prune_dict(dct, limit=10):
 	while len(dct)>limit:
 		dct.pop(list(dct.keys())[0])
 	return dct
+
+def filepath2songtitle(fn):
+	s = os.path.basename(unquote(fn)).split('.')[0].lower().strip()
+	return os.path.basename(os.path.dirname(unquote(fn)))+' '+s if s.isdigit() else s
 
 def get_local_IP():
 	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -192,7 +195,7 @@ def custom_cmdline(cmd, wait=False):
 
 @app.route('/files/<path:filename>')
 def get_file(filename):
-	return send_from_directory(SHARED_PATH, filename, conditional=True)
+	return send_from_directory(SHARED_PATH, filename.strip('/'), conditional=True)
 
 @app.route('/favicon.ico')
 def get_favicon():
@@ -555,6 +558,7 @@ def mark(name, tms):
 
 @app.route('/tv_wscmd/<name>/<path:cmd>')
 def tv_wscmd(name, cmd):
+	LOG(name+':'+cmd)
 	try:
 		ip = tv2lginfo[name]['ip'] if name in tv2lginfo else name
 		ws = ip2websock[ip]
