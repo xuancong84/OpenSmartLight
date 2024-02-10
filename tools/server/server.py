@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+DEBUG_LOG = True
+
 import traceback, argparse, math, requests, string, json, re
 import os, sys, subprocess, random, time, threading, socket
 import pinyin, vlc, pykakasi, mimetypes
@@ -58,7 +60,7 @@ isJustAfterBoot = True if sys.platform=='darwin' else float(open('/proc/uptime')
 random.seed(time.time())
 ASR_server_running = ASR_cloud_running = False
 lang_detector = LanguageDetectorBuilder.from_languages(*lang2id.keys()).build()
-LOG = lambda s: print(f'LOG: {s}')
+LOG = lambda s: print(f'LOG: {s}') if DEBUG_LOG else None
 
 def Try(fn, default=None):
 	try:
@@ -239,13 +241,12 @@ def on_media_opening(_):
 		isFirst = False
 
 @app.route('/play/<tm_info>/<path:filename>')
-def play(name=''):
+def play(tm_info, filename=''):
 	global inst, player, playlist, filelist, mplayer, isVideo
 	try:
 		filelist, ii, tm_sec, randomize = load_playable(None, tm_info, filename)
 
 		stop()
-		filelist = [i for L in open(fn).readlines() for i in [mrl2path(L)] if i]
 		playlist = inst.media_list_new(filelist)
 		if player == None:
 			player = inst.media_list_player_new()
@@ -558,7 +559,7 @@ def mark(name, tms):
 
 @app.route('/tv_wscmd/<name>/<path:cmd>')
 def tv_wscmd(name, cmd):
-	LOG(name+':'+cmd)
+	LOG(name+' : '+cmd)
 	try:
 		ip = tv2lginfo[name]['ip'] if name in tv2lginfo else name
 		ws = ip2websock[ip]
@@ -573,6 +574,7 @@ def tv_wscmd(name, cmd):
 			ev_voice.set()
 		elif cmd.startswith('mark '):
 			mark(name, float(cmd.split()[1]))
+			tv(name, 'screenOn')
 		elif cmd.startswith('lsdir '):
 			full_dir = SHARED_PATH+cmd.split(' ',1)[1]+'/'
 			lst = [(p+'/' if os.path.isdir(full_dir+p) else p) for p in sorted(os.listdir(full_dir)) if not p.startswith('.')]
