@@ -15,7 +15,7 @@ from pydub import AudioSegment
 from gtts import gTTS
 from lingua import Language, LanguageDetectorBuilder
 
-from lib.an2cn import num2zh
+from lib.an2cn import *
 from lib.DefaultRevisionDict import *
 from device_config import *
 SHARED_PATH = os.path.expanduser(SHARED_PATH).rstrip('/')+'/'
@@ -41,6 +41,7 @@ mrl2path = lambda t: unquote(t).replace('file://', '').strip() if t.startswith('
 lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.JAPANESE: 'ja', Language.KOREAN: 'ko'}
 is_json_lst = lambda s: s.startswith('["') and s.endswith('"]')
 ls_media_files = lambda fullpath: sorted([f'{fullpath}/{f}'.replace('//','/') for f in os.listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
+ls_subdir = lambda fullpath: sorted([g.rstrip('/')+'/' for f in os.listdir(fullpath) for g in [f'{fullpath}/{f}'.replace('//','/')] if not f.startswith('.') and os.path.isdir(g)])
 
 inst = vlc.Instance()
 event = vlc.EventType()
@@ -100,7 +101,7 @@ def get_local_IP():
 local_IP = get_local_IP()
 load_config = lambda: Try(lambda: InfiniteDefaultRevisionDict().from_json(open(DEFAULT_CONFIG_FILE)), InfiniteDefaultRevisionDict())
 save_config = lambda obj: exec(f"with open('{DEFAULT_CONFIG_FILE}','w') as fp: obj.to_json(fp, indent=1)")
-get_base_url = lambda: f'{"https" if ssl else "http"}://{local_IP}:{port}/'
+get_base_url = lambda: f'{"https" if ssl else "http"}://{local_IP}:{port}'
 
 # Detect language, invoke Google-translate TTS and play the speech audio
 def prepare_TTS(txt, fn=DEFAULT_SPEECH_FILE):
@@ -180,6 +181,35 @@ def findSong(name, lang=None, flist=filelist):
 	if translit_name and res>=0:
 		return res
 
+	return None
+
+def findMedia(name, lang=None, stack=0, episode=None, base_path=SHARED_PATH):
+	stem = name
+	if episode == None:
+		episode = ''
+		if lang=='zh' and stem.endswith('集'):
+			stem = stem[:-1]
+		while stem[-1].isdigit() or (lang=='zh' and stem[-1] in NORMAL_CN_NUMBER):
+			episode = stem[-1] + episode
+			stem = stem[:-1]
+		if lang=='zh' and stem.endswith('第'):
+			stem = stem[:-1]
+		episode = int(episode) if episode.isdigit() else ''
+	f_lst = ls_media_files(base_path)
+	res = findSong(name, lang, f_lst)
+	if res!=None:
+		return f_lst[res]
+	d_lst = ls_subdir(base_path)
+	res = findSong(stem, lang, d_lst)
+	if res!=None:
+		if episode and len(ls_media_files(d_lst[res]))>=episode:
+			return (d_lst[res], episode-1)
+		return d_lst[res]
+	if stack<MAX_WALK_LEVEL:
+		for d in d_lst:
+			res = findMedia(stem, lang, stack+1, episode, d)
+			if res != None:
+				return res
 	return None
 
 
@@ -353,7 +383,7 @@ def normalize_vol(song=''):
 def playFrom(name='', lang=None):
 	global player
 	try:
-		ii = findSong(name, lang=lang)
+		ii = name if type(name)==int else findSong(name, lang=lang)
 		assert ii!=None
 		player.play_item_at_index(ii)
 	except Exception as e:
@@ -776,16 +806,28 @@ def play_last(tv_name=None):
 	threading.Thread(target=_play_last, args=(tv_name,)).start()
 	return 'OK'
 
-def handle_ASR_drama(obj, tv_name):
-	flist = os.listdir(SHARED_PATH)
-	ii = findSong(obj['text'], obj['language'], flist)
-	if ii == None:
+def handle_ASR_indir(obj, tv_name):
+	res = findMedia(obj['text'], obj['language'])
+	if res == None:
 		play_audio('voice/asr_not_found_drama.mp3', True, tv_name)
 	else:
-		play_audio(('voice/asr_found_drama.mp3' if os.path.isdir(SHARED_PATH+flist[ii]) else 'voice/asr_found_movie.mp3'), True, tv_name)
-		tvPlay(tv_name, flist[ii])
+		if type(res)==tuple:
+			res, epi = res if type(res)==tuple else (res, None)
+			short_path = res[len(SHARED_PATH):]
+			play_audio('voice/asr_found_drama.mp3', True, tv_name)
+			if tv_name==None:
+				play(f'0 {epi}', short_path)
+			else:
+				tvPlay(f'{tv_name} 0 {epi}', short_path)
+		else:
+			short_path = res[len(SHARED_PATH):]
+			play_audio(('voice/asr_found_drama.mp3' if os.path.isdir(res) else 'voice/asr_found_movie.mp3'), True, tv_name)
+			if tv_name == None:
+				play('-1' if os.path.isdir(res) else '0', short_path)
+			else:
+				tvPlay(tv_name+(' -1' if os.path.isdir(res) else ' 0'), short_path)
 
-def handle_ASR_item(obj, tv_name):
+def handle_ASR_inlst(obj, tv_name):
 	data = ip2tvdata[tv2lginfo[tv_name]['ip']]
 	lst = data['playlist']
 	ii = findSong(obj['text'], obj['language'], lst)
@@ -793,31 +835,30 @@ def handle_ASR_item(obj, tv_name):
 		play_audio('voice/asr_not_found.mp3', True, tv_name)
 	else:
 		play_audio('voice/asr_found.mp3', True, tv_name)
-		tv_wscmd(tv_name, f'goto_idx {ii}')
+		playFrom(ii) if tv_name==None else tv_wscmd(tv_name, f'goto_idx {ii}')
 
-@app.route('/play_spoken_song')
-@app.route('/play_spoken_song/<path:search_list>')
-def play_spoken_song(search_list=''):
-	if player == None and not search_list:
-		return play_audio('voice/playlist_empty.mp3')
-	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', None, handle_ASR)).start()
-	return 'OK'
+# @app.route('/play_spoken_song')
+# @app.route('/play_spoken_song/<path:search_list>')
+# def play_spoken_song(search_list=''):
+# 	if player == None and not search_list:
+# 		return play_audio('voice/playlist_empty.mp3')
+# 	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', None, handle_ASR)).start()
+# 	return 'OK'
 
+@app.route('/play_spoken_indir')
+@app.route('/play_spoken_drama')
+@app.route('/play_spoken_indir/<tv_name>')
 @app.route('/play_spoken_drama/<tv_name>')
-def play_spoken_drama(tv_name):
-	threading.Thread(target=recog_and_play, args=('voice/speak_drama.mp3', tv_name, handle_ASR_drama)).start()
+def play_spoken_drama(tv_name=None):
+	threading.Thread(target=recog_and_play, args=('voice/speak_drama.mp3', tv_name, handle_ASR_indir)).start()
 	return 'OK'
 
-@app.route('/play_spoken_item/<tv_name>')
-def play_spoken_item(tv_name):
-	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', tv_name, handle_ASR_item)).start()
-	return 'OK'
-
-@app.route('/play_spoken')
-def play_spoken():
-	dev = request.args.get('dev', None)
-	dev, lst, voice = [request.args.get(param_name, None) for param_name in ['dev', 'lst', 'search_depth', 'voice_hint']]
-	threading.Thread(target=recog_and_play, args=(voice or 'voice/speak_song.mp3', tv_name, handle_ASR_item)).start()
+@app.route('/play_spoken_inlst')
+@app.route('/play_spoken_song')
+@app.route('/play_spoken_inlst/<tv_name>')
+@app.route('/play_spoken_song/<tv_name>')
+def play_spoken_song(tv_name=None):
+	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', tv_name, handle_ASR_inlst)).start()
 	return 'OK'
 
 
