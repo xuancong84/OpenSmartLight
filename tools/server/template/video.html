@@ -10,7 +10,11 @@
   z-index: 10;
   color:gold;
   font-weight: bold;
+  line-height: 1;
   cursor: pointer;
+}
+:root {
+  --edge-pad: 32px;
 }
 video {
   width: 100%;
@@ -59,11 +63,11 @@ h1 {
  <div id="ovl">
   <div class="overlay" style="left:0px; top:50%; transform: translateY(-50%);" onclick="ws.send('prev')">◀</div>
   <div class="overlay" style="right:0px; top:50%; transform: translateY(-50%);" onclick="ws.send('next')">▶</div>
-  <div class="overlay" id="menuIcon0" style="left:50%; top:0px; transform: translateX(-50%);" onclick="toggle_menu(1)">▤</div>
+  <div class="overlay" id="menuIcon0" style="left:50%; top:var(--edge-pad); transform: translateX(-50%);" onclick="toggle_menu(1)">▤</div>
  </div>
  <div id="ovl2">
   <div class="overlay" style="left:50%; top:50%; transform: translate(-50%, -50%);" onclick="v.currentTime=0;v.play()">↻</div>
-  <div class="overlay" id="menuIcon1" style="left:50%; bottom:16px; transform: translateX(-50%);" onclick="toggle_menu(2)">📁</div>
+  <div class="overlay" id="menuIcon1" style="left:50%; bottom:var(--edge-pad); transform: translateX(-50%);" onclick="toggle_menu(2)">📁</div>
  </div>
  <div id="menu0" class="playmenu" style="font-size: xx-large; font-weight: bold; text-align: center;">
   <h1>{{listname}}</h1>
@@ -96,6 +100,11 @@ function setvsrc(url, ii=0){
   ovl.style.display = NN>1?"":"none";
   v.play();
   setvidx(ii);
+  if(url.indexOf('#t=')>0){ // old TV browser does not support play from position in URL
+    var tm = Number(url.substr(url.indexOf('#t=')+3));
+    while(!('currentTime' in v));
+    setTimeout(`if(v.currentTime<${tm})v.currentTime=${tm}`, 2000);
+  }
 }
 function setvidx(ii, L='a'){
   for(var i=0; getById(L+i)!=null; i++)
@@ -181,7 +190,9 @@ function updateList(arr){
 }
 ws.addEventListener('message', ev => { ws_func==1?showDir(ev.data):(ws_func==2?updateList(ev.data):setTimeout(ev.data, 1)); });
 setvsrc("{{file_path}}", {{ii}});
-document.styleSheets[0].cssRules[0].style.fontSize=menu0.style.top=menu1.style.bottom=`${screen.width/16}px`;
+var edge_pad = Number(getComputedStyle(document.documentElement).getPropertyValue('--edge-pad').slice(0,-2));
+document.styleSheets[0].cssRules[0].style.fontSize=`${screen.width/16}px`;
+menu0.style.top=menu1.style.bottom=`${screen.width/16+edge_pad}px`;
 setInterval(timerInc, 1000);
 </script>
 </body>
