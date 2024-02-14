@@ -326,6 +326,7 @@ class An2Cn(object):
 			output_an += numeral_list[int(data)]
 		return output_an
 
+
 g_An2Cn = An2Cn()
 digit2low = {
 	'.': "点",
@@ -378,3 +379,39 @@ def num2zh(txt):
 			if len(cks)>1:
 				out += ''.join([digit2low[c] for c in cks[1]])
 	return out
+
+
+### Convert Chinese numerals to arabic number string, e.g.
+# '七百六十五万两千三百二十四' => '7652324'
+# '三百八十五万点五零四二' => '3850000.5042'
+# '零〇七' => '007'
+fst_zh2num = {
+	"〇": "零",
+	"两": "二",
+	"点": lambda t: t+'.',
+	"零": lambda t: t+'0' if ('.' in t or set(t)=={'0'} or t=='') else t,
+	"一": lambda t: t+'1' if ('.' in t or set(t)=={'0'}) else t[:-1]+'1',
+	"二": lambda t: t+'2' if ('.' in t or set(t)=={'0'}) else t[:-1]+'2',
+	"三": lambda t: t+'3' if ('.' in t or set(t)=={'0'}) else t[:-1]+'3',
+	"四": lambda t: t+'4' if ('.' in t or set(t)=={'0'}) else t[:-1]+'4',
+	"五": lambda t: t+'5' if ('.' in t or set(t)=={'0'}) else t[:-1]+'5',
+	"六": lambda t: t+'6' if ('.' in t or set(t)=={'0'}) else t[:-1]+'6',
+	"七": lambda t: t+'7' if ('.' in t or set(t)=={'0'}) else t[:-1]+'7',
+	"八": lambda t: t+'8' if ('.' in t or set(t)=={'0'}) else t[:-1]+'8',
+	"九": lambda t: t+'9' if ('.' in t or set(t)=={'0'}) else t[:-1]+'9',
+	"十": lambda t: t[:-2]+(t[-1] if t else '1')+'0',
+	"百": lambda t: t[:-3]+t[-1]+'00',
+	"千": lambda t: t[:-4]+t[-1]+'000',
+	"万": lambda t: t[:-8]+t[-4:]+'0000',
+	"亿": lambda t: t[:-16]+t[-8:]+'00000000',
+}
+
+def zh2num(txt):
+	out = ''
+	for c in txt:
+		if c not in fst_zh2num:
+			return txt
+		tgt = fst_zh2num[c]
+		out = fst_zh2num[tgt](out) if type(tgt)==str else tgt(out)
+	return out
+
