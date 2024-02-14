@@ -15,7 +15,7 @@ from pydub import AudioSegment
 from gtts import gTTS
 from lingua import Language, LanguageDetectorBuilder
 
-from lib.an2cn import *
+from lib.ChineseNumber import *
 from lib.DefaultRevisionDict import *
 from device_config import *
 SHARED_PATH = os.path.expanduser(SHARED_PATH).rstrip('/')+'/'
@@ -41,7 +41,7 @@ mrl2path = lambda t: unquote(t).replace('file://', '').strip() if t.startswith('
 lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.JAPANESE: 'ja', Language.KOREAN: 'ko'}
 is_json_lst = lambda s: s.startswith('["') and s.endswith('"]')
 ls_media_files = lambda fullpath: sorted([f'{fullpath}/{f}'.replace('//','/') for f in os.listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
-ls_subdir = lambda fullpath: sorted([g.rstrip('/')+'/' for f in os.listdir(fullpath) for g in [f'{fullpath}/{f}'.replace('//','/')] if not f.startswith('.') and os.path.isdir(g)])
+ls_subdir = lambda fullpath: sorted([g.rstrip('/') for f in os.listdir(fullpath) for g in [f'{fullpath}/{f}'.replace('//','/')] if not f.startswith('.') and os.path.isdir(g)])
 
 inst = vlc.Instance()
 event = vlc.EventType()
@@ -90,8 +90,8 @@ def prune_dict(dct, limit=10):
 	return dct
 
 def filepath2songtitle(fn):
-	s = os.path.basename(unquote(fn)).split('.')[0].lower().strip()
-	return os.path.basename(os.path.dirname(unquote(fn)))+' '+s if s.isdigit() else s
+	s = os.path.basename(unquote(fn).rstrip('/')).split('.')[0].lower().strip()
+	return os.path.basename(os.path.dirname(unquote(fn).rstrip('/')))+s if s.isdigit() else s
 
 def get_local_IP():
 	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -134,22 +134,24 @@ def isVideoFile(fn):
 			return True
 	return False
 
-def str_search(name, name_list, mode=3):
+def str_search(name, name_list):
 	# 1. exact full match
 	if name in name_list:
-		return name_list.index(name)
+		return [ii for ii,name1 in enumerate(name_list) if name==name1]
 
 	# 2. exact substring match
 	res = [[ii, len(it)-len(name)] for ii,it in enumerate(name_list) if name in it]
-	return sorted(res, key=lambda t:t[1])[0][0] if res else -1
+	return [it[0] for it in sorted(res, key=lambda t:t[1])] if res else []
 
-def findSong(name, lang=None, flist=filelist):
+def findSong(name, lang=None, flist=filelist, unique=False):
 	name = name.lower().strip()
 	name_list = [filepath2songtitle(fn) for fn in flist]
 
 	# 1. exact full match of original form
 	if name in name_list:
-		return name_list.index(name)
+		res = [ii for ii,name1 in enumerate(name_list) if name==name1]
+		if len(res)==1 or not unique:
+			return res[0]
 
 	# 2. match by pinyin if Chinese or unknown
 	if lang in [None, 'zh']:
@@ -157,8 +159,8 @@ def findSong(name, lang=None, flist=filelist):
 		pinyin_list = [get_alnum(fuzzy_pinyin(to_pinyin(num2zh(n)))) for n in name_list]
 		pinyin_name = get_alnum(fuzzy_pinyin(to_pinyin(num2zh(name))))
 		res = str_search(pinyin_name, pinyin_list)
-		if pinyin_name and res>=0:
-			return res
+		if pinyin_name and res and (len(res)==1 or not unique):
+			return res[0]
 
 	# 3. match by romaji if Japanese or unknown
 	if lang in [None, 'ja']:
@@ -166,26 +168,26 @@ def findSong(name, lang=None, flist=filelist):
 		romaji_list = [get_alpha(to_romaji(n)) for n in name_list]
 		romaji_name = get_alpha(to_romaji(name))
 		res = str_search(romaji_name, romaji_list)
-		if romaji_name and res>=0:
-			return res
+		if romaji_name and res and (len(res)==1 or not unique):
+			return res[0]
 
 	# 4. substring match
 	res = str_search(name, name_list)
-	if res>=0:
-		return res
+	if res and (len(res)==1 or not unique):
+		return res[0]
 	
 	# 5. match by transliteration
 	translit_list = [get_alpha(fuzzy_pinyin(unidecode(n))) for n in name_list]
 	translit_name = get_alpha(fuzzy_pinyin(unidecode(name)))
 	res = str_search(translit_name, translit_list)
-	if translit_name and res>=0:
-		return res
+	if translit_name and res and (len(res)==1 or not unique):
+		return res[0]
 
 	return None
 
-def findMedia(name, lang=None, stack=0, episode=None, base_path=SHARED_PATH):
-	stem = name
+def findMedia(name, lang=None, stack=0, stem=None, episode=None, base_path=SHARED_PATH):
 	if episode == None:
+		stem = name
 		episode = ''
 		if lang=='zh' and stem.endswith('集'):
 			stem = stem[:-1]
@@ -194,20 +196,27 @@ def findMedia(name, lang=None, stack=0, episode=None, base_path=SHARED_PATH):
 			stem = stem[:-1]
 		if lang=='zh' and stem.endswith('第'):
 			stem = stem[:-1]
-		episode = int(episode) if episode.isdigit() else ''
+		episode = Try(lambda: int(episode if episode.isdigit() else zh2num(episode)), '')
 	f_lst = ls_media_files(base_path)
-	res = findSong(name, lang, f_lst)
-	if res!=None:
-		return f_lst[res]
 	d_lst = ls_subdir(base_path)
-	res = findSong(stem, lang, d_lst)
+	lst = f_lst+d_lst
+	res = findSong(name, lang, lst)
+	if res==None and name!=stem:
+		res = findSong(stem, lang, lst)
 	if res!=None:
-		if episode and len(ls_media_files(d_lst[res]))>=episode:
-			return (d_lst[res], episode-1)
-		return d_lst[res]
+		item = lst[res]
+		if os.path.isfile(item):
+			return item
+		lst2 = ls_media_files(item)
+		res = findSong(name, lang, lst2, True)	# full match takes precedence
+		if res!=None:
+			return (item, res)
+		if episode and len(lst2)>=episode:
+			return (item, episode-1)
+		return item
 	if stack<MAX_WALK_LEVEL:
 		for d in d_lst:
-			res = findMedia(stem, lang, stack+1, episode, d)
+			res = findMedia(name, lang, stack+1, stem, episode, d)
 			if res != None:
 				return res
 	return None
@@ -270,28 +279,27 @@ def on_media_opening(_):
 		threading.Timer(wait_tm+2, show_subtitle).start()
 		isFirst = False
 
+def _play(tm_info, filename=''):
+	global inst, player, playlist, filelist, mplayer, isVideo
+	filelist, ii, tm_sec, randomize = load_playable(None, tm_info, filename)
+
+	stop()
+	playlist = inst.media_list_new(filelist)
+	if player == None:
+		player = inst.media_list_player_new()
+	player.set_media_list(playlist)
+	isVideo = bool([fn for fn in filelist if isVideoFile(fn)])
+
+	mplayer = player.get_media_player()
+	mplayer.event_manager().event_attach(event.MediaPlayerOpening, on_media_opening)
+	set_audio_device(MP4_SPEAKER if isVideo else MP3_SPEAKER)
+	player.set_playback_mode(vlc.PlaybackMode.loop)
+	player.play()
+	threading.Timer(1, lambda:mplayer.audio_set_volume(100)).start()
+
 @app.route('/play/<tm_info>/<path:filename>')
 def play(tm_info, filename=''):
-	global inst, player, playlist, filelist, mplayer, isVideo
-	try:
-		filelist, ii, tm_sec, randomize = load_playable(None, tm_info, filename)
-
-		stop()
-		playlist = inst.media_list_new(filelist)
-		if player == None:
-			player = inst.media_list_player_new()
-		player.set_media_list(playlist)
-		isVideo = bool([fn for fn in filelist if isVideoFile(fn)])
-
-		mplayer = player.get_media_player()
-		mplayer.event_manager().event_attach(event.MediaPlayerOpening, on_media_opening)
-		set_audio_device(MP4_SPEAKER if isVideo else MP3_SPEAKER)
-		player.set_playback_mode(vlc.PlaybackMode.loop)
-		player.play()
-		threading.Timer(1, lambda:mplayer.audio_set_volume(100)).start()
-	except Exception as e:
-		traceback.print_exc()
-		return str(e)
+	threading.Thread(target=_play, args=(tm_info, filename)).start()
 	return 'OK'
 
 @app.route('/pause')
@@ -336,8 +344,8 @@ def rewind():
 
 def get_bak_fn(fn):
 	dirname = os.path.dirname(fn)
-	Try(lambda: os.makedirs(dirname+'/orig'))
-	return f'{dirname}/orig/{os.path.basename(fn)}'
+	Try(lambda: os.makedirs(dirname+'/.orig'))
+	return f'{dirname}/.orig/{os.path.basename(fn)}'
 
 remote_addr = None
 def _normalize_vol(song):
@@ -828,8 +836,7 @@ def handle_ASR_indir(obj, tv_name):
 				tvPlay(tv_name+(' -1' if os.path.isdir(res) else ' 0'), short_path)
 
 def handle_ASR_inlst(obj, tv_name):
-	data = ip2tvdata[tv2lginfo[tv_name]['ip']]
-	lst = data['playlist']
+	lst = filelist if tv_name==None else ip2tvdata[tv2lginfo[tv_name]['ip']]['playlist']
 	ii = findSong(obj['text'], obj['language'], lst)
 	if ii == None:
 		play_audio('voice/asr_not_found.mp3', True, tv_name)
