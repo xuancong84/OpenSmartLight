@@ -161,6 +161,10 @@ def findSong(name, lang=None, flist=filelist, unique=False):
 		res = str_search(pinyin_name, pinyin_list)
 		if pinyin_name and res and (len(res)==1 or not unique):
 			return res[0]
+		pinyin_list = [get_alpha(fuzzy_pinyin(to_pinyin(num2zh(n)))) for n in name_list]
+		pinyin_name = get_alpha(fuzzy_pinyin(to_pinyin(num2zh(name))))
+		if pinyin_name and res and (len(res)==1 or not unique):
+			return res[0]
 
 	# 3. match by romaji if Japanese or unknown
 	if lang in [None, 'ja']:
@@ -709,16 +713,6 @@ def record_audio(tm_sec=5, file_path=DEFAULT_RECORDING_FILE):
 
 
 # For ASR server
-def handle_ASR(obj, _):
-	if type(obj)!=dict:
-		return play_audio('voice/asr_error.mp3')
-	if not obj['text']:
-		play_audio('voice/asr_fail.mp3')
-	elif playFrom(obj['text'], obj['language'])=='OK':
-		play_audio('voice/asr_found.mp3')
-	else:
-		play_audio('voice/asr_not_found.mp3')
-
 def get_ASR_offline():
 	try:
 		CANCEL_FLAG = False
@@ -788,9 +782,11 @@ def recog_and_play(voice, tv_name, handler):
 		# try offline ASR if cloud ASR fails
 		if type(asr_output)==str or not asr_output:
 			if asr_model == None:
-				return play_audio('voice/offline_asr_not_available.mp3', False, tv_name)
+				play_audio('voice/offline_asr_not_available.mp3', True, tv_name)
+				return
 			if ASR_server_running:
-				return play_audio('voice/unfinished_offline_asr.mp3', False, tv_name)
+				play_audio('voice/unfinished_offline_asr.mp3', True, tv_name)
+				return
 			play_audio('voice/wait_for_asr.mp3', False, tv_name)
 
 			context.restore()
@@ -873,23 +869,20 @@ def play_spoken_song(tv_name=None):
 @app.route('/ecovacs', defaults={'name': '', 'cmd':''})
 @app.route('/ecovacs/<name>/<cmd>')
 def ecovacs(name='', cmd=''):
-	return RUN(f'./ecovacs-cmd.sh {name} {cmd}')
+	return RUN(f'./ecovacs-cmd.sh {name} {cmd} &')
 
 
 # For pikaraoke
 @app.route('/KTV/<cmd>')
 def KTV(cmd):
-	try:
-		if cmd=='on':
-			stop()
-			set_audio_device(KTV_SPEAKER)
-			P_ktv = subprocess.Popen(['~/projects/pikaraoke/run-no-vocal.sh'], shell=True)
-		elif cmd=='off':
-			P_ktv.kill()
-			unset_audio_device(KTV_SPEAKER)
-		return 'OK'
-	except Exception as e:
-		return str(e)
+	if cmd=='on':
+		stop()
+		set_audio_device(KTV_SPEAKER)
+		P_ktv = subprocess.Popen(['~/projects/pikaraoke/run-no-vocal.sh'], shell=True)
+	elif cmd=='off':
+		P_ktv.kill()
+		unset_audio_device(KTV_SPEAKER)
+	return 'OK'
 
 
 if __name__ == '__main__':
