@@ -17,7 +17,6 @@ class RC():
 		self.gap_tol = gap_tol
 		self.recv_dur = recv_dur
 		self.proto = proto
-		gc.collect()
 
 	def recv(self):
 		#print('Receiving RC data ...')

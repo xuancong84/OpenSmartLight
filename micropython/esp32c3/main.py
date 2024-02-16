@@ -4,7 +4,7 @@ from array import array
 from time import ticks_us, ticks_diff
 from math import sqrt
 from microWebSrv import MicroWebSrv as MWS
-from machine import Pin, UART, PWM, ADC
+from machine import Pin, UART, PWM, ADC, reset, reset_cause
 gc.collect()
 
 
@@ -382,6 +382,8 @@ else:
 			digitalWrite(PIN_DEBUG_LED, 0)
 			time.sleep(intv)
 
+gc.collect()
+
 if use_BLE:
 	from lib_BLE import *
 if type(PIN_ASR_IN) == int:
@@ -394,8 +396,6 @@ if type(PIN_RF_IN)==int or type(PIN_RF_OUT)==int:
 	rfc = RF433RC(PIN_RF_IN, PIN_RF_OUT)
 if type(PIN_IR_IN)==int or type(PIN_IR_OUT)==int:
 	irc = IRRC(PIN_IR_IN, PIN_IR_OUT)
-
-gc.collect()
 
 ### MAIN function
 def run():
@@ -411,3 +411,11 @@ def run():
 		g.server.run()
 	except Exception as e:
 		sys.print_exception(e)
+
+gc.collect()
+
+if isFile('debug') and reset_cause()!=1:
+	sys.exit()
+
+run()
+reset()
