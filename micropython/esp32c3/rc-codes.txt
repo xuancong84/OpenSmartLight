@@ -7,6 +7,7 @@ SLF	沙发吊灯关闭	嗯	1		['SLS', 'exec("g.SL=-1")'] if g.SL>=0 else None
 PLS	钢琴房吊灯开关	嗯	1		{'data': [8142, 794, 174, 314, 654, 313, 653, 316, 651, 792, 176, 312, 656, 312, 653, 790, 184, 787, 182, 307, 659, 785, 182, 783, 186, 302, 665, 779, 187, 777, 191, 298, 677, 297, 668, 776, 192, 773, 195, 293, 673, 772, 196, 292, 676, 293, 674, 294, 679, 297, 670, 774, 194, 294, 672, 772, 195, 770, 197, 767, 201, 288, 679, 764, 202, 289], 'init_level': 0, 'protocol': 'RF433'}
 PLN	钢琴房吊灯开启	嗯	1		['PLS', 'exec("g.PL=1")'] if g.PL<=0 else None
 PLF	钢琴房吊灯关闭	嗯	1		['PLS', 'exec("g.PL=-1")'] if g.PL>=0 else None
+PLC	钢琴房吊灯换色	嗯	1	PLC	['PLF', 'PLN']
 DFN	餐厅吊扇开启｜餐桌吊扇开启	好的	1		'DFM'
 DFS	餐厅吊扇关闭｜餐桌吊扇关闭	好的	1		{'data': [8128, 799, 182, 797, 186, 793, 189, 790, 191, 788, 195, 785, 198, 297, 684, 299, 688, 784, 197, 782, 200, 779, 202, 777, 205, 775, 208, 288, 693, 773, 208, 772, 218, 285, 696, 771, 211, 768, 214, 282, 701, 282, 698, 769, 212, 768, 216, 280, 708, 282, 698, 284, 697, 286, 695, 287, 694, 773, 208, 772, 212, 284, 697, 770, 212, 285], 'init_level': 0, 'protocol': 'RF433'}
 DFM	餐厅吊扇中档｜餐桌吊扇中档	好的	1		{'data': [8149, 783, 200, 780, 202, 777, 205, 775, 208, 771, 212, 769, 215, 281, 701, 282, 705, 769, 213, 767, 216, 764, 219, 762, 221, 759, 224, 272, 709, 758, 224, 756, 234, 269, 712, 756, 226, 754, 229, 267, 715, 268, 713, 271, 709, 758, 225, 755, 236, 268, 712, 756, 227, 269, 713, 756, 226, 753, 230, 750, 234, 263, 717, 751, 232, 265], 'init_level': 0, 'protocol': 'RF433'}
@@ -63,21 +64,21 @@ MLI	客厅音乐灯调亮	好的	1	MLA	'http://192.168.50.7/rc_run?MLI'
 MLD	客厅音乐灯调暗	好的	1	MLA	'http://192.168.50.7/rc_run?MLD'
 MPN	蓝牙播放器开启	好的	1		'http://192.168.50.7/rc_run?L2N'
 MPF	蓝牙播放器关闭	好的	1		'http://192.168.50.7/rc_run?L2F'
-MPS	蓝牙音乐开启播放	好的	1		['BSN', 'http://192.168.50.3:8883/play/0 0 -1/Music']
+MPS	蓝牙音乐开启播放	好的	1		['BSN', 'http://192.168.50.3:8883/play/0 0 1/Desktop/musics.m3u']
 MPE	蓝牙音乐停止关闭	好的	1		['http://192.168.50.3:8883/stop','BSF']
 MPP	播放器暂停	好的	1		'http://192.168.50.3:8883/pause'
 MPR	播放器继续播放	好的	1		'http://192.168.50.3:8883/resume'
 LLN	客厅灯带开启	嗯	1		{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': 0x3b230000000000000032000090}
 LLF	客厅灯带关闭	嗯	1		{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': 0x3b240000000000000032000091}
-LLC	客厅灯带换色	好的	1	LLC	{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': bytes(g.Cmsg+[sum(g.Cmsg)&0xff])}, Exec('g.C=(1 if g.C+1>=8 else g.C+1);g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]')
+LLC	客厅灯带换色	好的	1	LLC	[{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': bytes(g.Cmsg+[sum(g.Cmsg)&0xff])}, Exec('g.C=(1 if g.C+1>=8 else g.C+1);g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]')]
 LLT	客厅灯带不断变色	好的	1		{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': b'8%\x012\x90'}
 __init__	系统初始化		9		exec('machine.freq(80000000);g.DL=g.SL=g.PL=0;PIN_RF_IN=7;PIN_RF_OUT=6;PIN_ASR_IN=1;PIN_DEBUG_LED=12;use_BLE=True;g.C=1;g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]')
 __postinit__	后期初始化		9		SetTimer('pianoFan', 300, True, lambda: execRC('PFF' if '08:00:00'<getTimeString()<'22:00:00' else ''))
-DLC	餐桌吊灯换色	好的	1		['DLS', 'DLS']
-SLC	沙发吊灯换色	好的	1		['SLS' ,'SLS']
+DLC	餐桌吊灯换色	好的	1	DLC	['DLS', 'DLS']
+SLC	沙发吊灯换色	好的	1	SLC	['SLS' ,'SLS']
 BLN	阳台灯开启	嗯	1		'http://192.168.50.8/rc_run?L2N'
 BLF	阳台灯关闭	嗯	1		'http://192.168.50.8/rc_run?L2F'
-BLC	阳台灯换色	嗯	1		['BLF','BLN']
+BLC	阳台灯换色	嗯	1	BLC	['BLF','BLN']
 MRLN	主人房吊灯开启	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151bab2174d24cbfa2171f3ca55160a1f}
 MRLF	主人房吊灯关闭	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba32174d24cbfa8171221b55c7d6bc}
 GRLN	客人房吊灯开启	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151bab2178d24cbfa58716c1555896706}
@@ -108,9 +109,9 @@ LTVVU	电视机音量增加	好的	1	LTVV	'http://192.168.50.3:8883/tvVolume/liv
 LTVVD	电视机音量降低	好的	1	LTVV	'http://192.168.50.3:8883/tvVolume/livingTV/-3'
 MTVVU	主人房电视机音量增加	好的	1		'http://192.168.50.3:8883/tvVolume/masterTV/+2'
 MTVVD	主人房电视机音量降低	好的	1		'http://192.168.50.3:8883/tvVolume/masterTV/-2'
-VPS	蓝牙视频开启播放	好的	1		['LTVN', 'http://192.168.50.3:8883/play/0 0 -1/KTV']
+VPS	蓝牙视频开启播放	好的	1		['LTVN', 'http://192.168.50.3:8883/play/0 0 1/KTV']
 VPE	蓝牙视频停止关闭	好的	1		['http://192.168.50.3:8883/stop', 'LTVF']
-VPR	蓝牙视频开播	好的	1		'http://192.168.50.3:8883/play/0 0 -1/KTV'
+VPR	蓝牙视频开播	好的	1		'http://192.168.50.3:8883/play/0 0 1/KTV'
 VPT	蓝牙视频停播	好的	1		'http://192.168.50.3:8883/stop'
 MPSN	播放器显示字幕	好的	1		'http://192.168.50.3:8883/subtitle/True'
 MPSF	播放器隐藏字幕	好的	1		'http://192.168.50.3:8883/subtitle/False'
@@ -141,7 +142,7 @@ YYYY	今昔是何年		2		asr_print(f'read_date {getDateString()[:4]}')
 	再暗些		MLA_MLD		[]
 	再下一曲		MPP_MPPN		'MPPN'
 	再上一曲		MPP_MPPP		'MPPP'
-	再换色		MLC_MLC LLC_LLC		[]
+	再换色		PLC_PLC MLC_MLC LLC_LLC DLC_DLC SLC_SLC BLC_BLC		[]
 0	已完成				
 1	请稍候				
 2	操作成功				
@@ -159,7 +160,7 @@ PRST	播放器播报当前歌曲名称				'http://192.168.50.3:8883/report_song_
 TIME_ASK	小美请播报当前时间				[asr_write(f'a5c9%02x%02x0a'%(int(its[0]), int(its[1]))) for its in [getTimeString().split(':')]]
 DATE_ASK	小美请播报当前日期				[asr_write(f'a5c80%s0%s0%s0%s%02x%02x%02x0a'%(y[0],y[1],y[2],y[3],int(its[1]), int(its[2]),getWeekdayNum())) for its in [getDateString().split('-')] for y in [its[0]]]
 PPS	播放器播放指定歌曲				'http://192.168.50.3:8883/play_spoken_song'
-MPSR	蓝牙音乐开播				'http://192.168.50.3:8883/play/0 0 -1/Music'
+MPSR	蓝牙音乐开播				'http://192.168.50.3:8883/play/0 0 1/Music'
 LTVPV	电视机播放视频				'http://192.168.50.3:8883/tvPlay/livingTV 0 0 1/KTV'
 LTVPD	电视机播放电视剧|电视机播放电影				'http://192.168.50.3:8883/play_last/livingTV'
 LTVPS	电视机暂停播放				'http://192.168.50.3:8883/tv_wscmd/livingTV/pause'
@@ -172,9 +173,9 @@ MTVPS	主人房电视机暂停播放				'http://192.168.50.3:8883/tv_wscmd/maste
 MTVRS	主人房电视机继续播放				'http://192.168.50.3:8883/tv_wscmd/masterTV/resume'
 MTVNX	主人房电视机跳到下一集|主人房电视机跳到下一曲				'http://192.168.50.3:8883/tv_wscmd/masterTV/next'
 MTVPR	主人房电视机跳回上一集|主人房电视机跳回上一曲				'http://192.168.50.3:8883/tv_wscmd/masterTV/prev'
-LTVPSV	电视机播放指定视频				'http://192.168.50.3:8883/play_spoken_item/livingTV'
+LTVPSV	电视机播放指定视频				'http://192.168.50.3:8883/play_spoken_song/livingTV'
 LTVPSD	电视机播放指定电视剧|电视机播放指定电影				'http://192.168.50.3:8883/play_spoken_drama/livingTV'
-MTVPSV	主人房电视机播放指定视频				'http://192.168.50.3:8883/play_spoken_item/masterTV'
+MTVPSV	主人房电视机播放指定视频				'http://192.168.50.3:8883/play_spoken_song/masterTV'
 MTVPSD	主人房电视机播放指定电视剧|主人房电视机播放指定电影				'http://192.168.50.3:8883/play_spoken_drama/masterTV'
 MACAIRPD	苹果笔记本播放电视剧｜苹果电脑播放电视剧				'http://192.168.50.3:8883/custom_cmdline/macair_play'
 LTVRCP	电视机播报当前视频名称|电视机播报当前歌曲名称				'http://192.168.50.3:8883/report_song_title/livingTV'
