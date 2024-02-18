@@ -18,7 +18,8 @@ processing 1009 \
 speak_drama 1024 \
 speak_song 1008 \
 unfinished_offline_asr 1023 \
-wait_for_asr 1021
+wait_for_asr 1021 \
+cur_song_title 11111
 )
 
 need_pad=' 1027 1026 '
@@ -31,7 +32,7 @@ for i in `seq 0 2 $[${#objs[@]}-1]`; do
 		mv "$fout" "$fout.mp3"
 		ffmpeg -y -i "$fout.mp3" -af "apad=pad_dur=200ms" "$fout"
 	fi
-	wget -O /dev/null "http://192.168.50.3:8883/tv_runjs?livingTV/play_audio('/voice/`basename $fout`')"
-	sleep 5
+	#wget -O /dev/null "http://192.168.50.3:8883/tv_runjs?masterTV/play_audio('/voice/`basename $fout`')"
+	#sleep 5
 done
 

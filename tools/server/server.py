@@ -17,6 +17,7 @@ from lingua import Language, LanguageDetectorBuilder
 
 from lib.ChineseNumber import *
 from lib.DefaultRevisionDict import *
+from lib.gTranslateTTS import gTransTTS
 from device_config import *
 SHARED_PATH = os.path.expanduser(SHARED_PATH).rstrip('/')+'/'
 
@@ -38,10 +39,12 @@ get_alnum = lambda t: ''.join([c for c in t if c in string.ascii_letters+string.
 get_volume = lambda: RUN("amixer get Master | awk -F'[][]' '/Left:/ { print $2 }'").rstrip('%\n')
 ping = lambda ip: os.system(f'ping -W 1 -c 1 {ip}')==0
 mrl2path = lambda t: unquote(t).replace('file://', '').strip() if t.startswith('file://') else (t.strip() if t.startswith('/') else '')
-lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.JAPANESE: 'ja', Language.KOREAN: 'ko'}
+lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.JAPANESE: 'ja', Language.KOREAN: 'ko', Language.THAI: 'th', 
+	Language.RUSSIAN: 'ru', Language.HINDI: 'hi', Language.GREEK: 'el', Language.ARABIC: 'ar', Language.VIETNAMESE: 'vi', Language.HEBREW: 'he'}
 is_json_lst = lambda s: s.startswith('["') and s.endswith('"]')
 ls_media_files = lambda fullpath: sorted([f'{fullpath}/{f}'.replace('//','/') for f in os.listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
 ls_subdir = lambda fullpath: sorted([g.rstrip('/') for f in os.listdir(fullpath) for g in [f'{fullpath}/{f}'.replace('//','/')] if not f.startswith('.') and os.path.isdir(g)])
+load_m3u = lambda fn: [i for L in open(fn).readlines() for i in [mrl2path(L)] if i]
 
 inst = vlc.Instance()
 event = vlc.EventType()
@@ -105,9 +108,14 @@ get_base_url = lambda: f'{"https" if ssl else "http"}://{local_IP}:{port}'
 
 # Detect language, invoke Google-translate TTS and play the speech audio
 def prepare_TTS(txt, fn=DEFAULT_SPEECH_FILE):
-	lang_id = lang2id[lang_detector.detect_language_of(txt)]
-	tts = gTTS(txt, lang=lang_id)
-	tts.save(fn)
+	lang_id = Try(lambda: lang2id[lang_detector.detect_language_of(txt)], 'km')
+	LOG(f'TTS txt="{txt}" lang_id={lang_id}')
+	try:
+		tts = gTTS(txt, lang=lang_id)
+		tts.save(fn+'.mp3')
+	except:
+		gTransTTS(txt, lang_id, fn+'.mp3')
+	os.system(f'ffmpeg -y -i "{fn}.mp3" -af "adelay=300ms:all=true,volume=2" "{fn}"')
 
 def play_TTS(txt, tv_name=None):
 	txts = txt if type(txt)==list else [txt]
@@ -548,7 +556,7 @@ def load_playable(ip, tm_info, filename):
 	elif is_json_lst(filename):
 		lst = json.loads(filename)
 	elif fullname.lower().endswith('.m3u'):
-		lst = [i for L in open(fullname).readlines() for i in [mrl2path(L)] if i]
+		lst = load_m3u(fullname)
 	elif os.path.isdir(fullname):
 		lst = ls_media_files(fullname)
 	else:
@@ -763,7 +771,7 @@ class VoicePrompt:
 
 
 # This function might take very long time, must be run in a separate thread
-def recog_and_play(voice, tv_name, handler):
+def recog_and_play(voice, tv_name, path_name, handler):
 	global player, asr_model, ASR_cloud_running, ASR_server_running
 
 	with VoicePrompt(tv_name) as context:
@@ -793,7 +801,7 @@ def recog_and_play(voice, tv_name, handler):
 			asr_output = get_ASR_offline()
 
 		print(f'ASR result: {asr_output}', file=sys.stderr)
-		handler(asr_output, tv_name)
+		handler(asr_output, tv_name, path_name)
 
 
 def _play_last(name=None):
@@ -810,8 +818,8 @@ def play_last(tv_name=None):
 	threading.Thread(target=_play_last, args=(tv_name,)).start()
 	return 'OK'
 
-def handle_ASR_indir(obj, tv_name):
-	res = findMedia(obj['text'], obj['language'])
+def handle_ASR_indir(obj, tv_name, rel_path):
+	res = findMedia(obj['text'], obj['language'], base_path=SHARED_PATH+rel_path)
 	if res == None:
 		play_audio('voice/asr_not_found_drama.mp3', True, tv_name)
 	else:
@@ -831,37 +839,32 @@ def handle_ASR_indir(obj, tv_name):
 			else:
 				tvPlay(tv_name+(' -1' if os.path.isdir(res) else ' 0'), short_path)
 
-def handle_ASR_inlst(obj, tv_name):
-	lst = filelist if tv_name==None else ip2tvdata[tv2lginfo[tv_name]['ip']]['playlist']
+def handle_ASR_inlst(obj, tv_name, lst_filename):
+	lst = load_m3u(SHARED_PATH+lst_filename) if lst_filename else ip2tvdata[tv2lginfo[tv_name]['ip'] if tv_name else None]['playlist']
 	ii = findSong(obj['text'], obj['language'], lst)
 	if ii == None:
 		play_audio('voice/asr_not_found.mp3', True, tv_name)
 	else:
 		play_audio('voice/asr_found.mp3', True, tv_name)
-		playFrom(ii) if tv_name==None else tv_wscmd(tv_name, f'goto_idx {ii}')
-
-# @app.route('/play_spoken_song')
-# @app.route('/play_spoken_song/<path:search_list>')
-# def play_spoken_song(search_list=''):
-# 	if player == None and not search_list:
-# 		return play_audio('voice/playlist_empty.mp3')
-# 	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', None, handle_ASR)).start()
-# 	return 'OK'
+		if lst_filename:
+			pass
+		else:
+			playFrom(ii) if tv_name==None else tv_wscmd(tv_name, f'goto_idx {ii}')
 
 @app.route('/play_spoken_indir')
-@app.route('/play_spoken_drama')
 @app.route('/play_spoken_indir/<tv_name>')
-@app.route('/play_spoken_drama/<tv_name>')
-def play_spoken_drama(tv_name=None):
-	threading.Thread(target=recog_and_play, args=('voice/speak_drama.mp3', tv_name, handle_ASR_indir)).start()
+@app.route('/play_spoken_indir/<tv_name>/<path:rel_path>')
+def play_spoken_drama(tv_name=None, rel_path=''):
+	threading.Thread(target=recog_and_play, args=('voice/speak_drama.mp3', tv_name, rel_path, handle_ASR_indir)).start()
 	return 'OK'
 
 @app.route('/play_spoken_inlst')
 @app.route('/play_spoken_song')
 @app.route('/play_spoken_inlst/<tv_name>')
 @app.route('/play_spoken_song/<tv_name>')
-def play_spoken_song(tv_name=None):
-	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', tv_name, handle_ASR_inlst)).start()
+@app.route('/play_spoken_inlst/<tv_name>/<path:lst_filename>')
+def play_spoken_song(tv_name=None, lst_filename=''):
+	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', tv_name, lst_filename, handle_ASR_inlst)).start()
 	return 'OK'
 
 
