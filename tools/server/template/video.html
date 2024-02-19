@@ -13,9 +13,9 @@
   line-height: 1;
   cursor: pointer;
 }
-:root {
-  --edge-pad: 32px;
-}
+:root { --edge-pad: 100px; }
+.hoverShow { opacity: 0; }
+.hoverShow:hover { opacity: 1; }
 video {
   width: 100%;
   height: 100%;
@@ -29,7 +29,6 @@ h1 {
   padding: 0px;
   font-size: larger;
   font-weight: bolder;
-  text-align:center;
 }
 .playmenu {
   position: absolute;
@@ -54,21 +53,26 @@ h1 {
 }
 .playmenu a:hover { background-color: #ccc; }
 .larger { font-size: larger; }
+.vsb { margin-top: 8px; }
 </style>
 </head>
 <body style="background-color:black; overflow: hidden;">
- <video id='video0' autoplay controls onended="ws.send('next')" onplaying="isPlaying=1" onpause="isPlaying=0" 
+ <video id='video0' autoplay controls onended="ws.send('next')" onclick="clickvid(event)" onplaying="isPlaying=1" onpause="isPlaying=0" 
     onseeked="markCounter=0" ontouchmove="timerRst()" onmousemove="timerRst()">
  </video>
  <div id="ovl">
-  <div class="overlay" style="left:0px; top:50%; transform: translateY(-50%);" onclick="ws.send('prev')">◀</div>
-  <div class="overlay" style="right:0px; top:50%; transform: translateY(-50%);" onclick="ws.send('next')">▶</div>
-  <div class="overlay" id="menuIcon0" style="left:50%; top:var(--edge-pad); transform: translateX(-50%);" onclick="toggle_menu(1)">▤</div>
+  <div class="overlay" style="left:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('prev')">◀</div>
+  <div class="overlay" style="right:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('next')">▶</div>
+  <div class="overlay" id="menuIcon0" style="left:50%; top:0px; transform: translateX(-50%);" onclick="toggle_menu(1)" title="当前播放列表">▤</div>
  </div>
  <div id="ovl2">
-  <div class="overlay" style="left:50%; top:50%; transform: translate(-50%, -50%);" onclick="v.currentTime=0;v.play()">↻</div>
-  <div class="overlay" id="menuIcon1" style="left:50%; bottom:var(--edge-pad); transform: translateX(-50%);" onclick="toggle_menu(2)">📁</div>
+  <div class="overlay" style="left:50%; top:calc(50% - 50px); transform: translate(-50%, -50%);" onclick="v.currentTime=0;v.play()" title="重头开始播放">↻</div>
+  <div class="overlay" id="menuIcon1" style="left:50%; bottom:var(--edge-pad); transform: translateX(-50%);" onclick="toggle_menu(2)" title="浏览文件夹">📁</div>
  </div>
+ <div class="overlay hoverShow" style="left:0px; bottom:var(--edge-pad);" title="播放指定文件（树莓派录音）" onclick="ws.send('play_spoken_indir')">🎤</div>
+ <div class="overlay hoverShow" id="recButton" style="left:0px; top:16px; display:none" title="播放指定文件（本地录音）" onclick="play_recorded()">🎙</div>
+ <div class="overlay hoverShow" style="right:0px; top:16px;" onclick="ws.send('report_title')" title="播报当前歌曲名称">🗣</div>
+ <div class="overlay hoverShow" style="right:0px; bottom:var(--edge-pad);" onclick="toggle_hide([T2Sframe,S2Tframe])" title="显示详情（语音识别及语音合成）">💬</div>
  <div id="menu0" class="playmenu" style="font-size: xx-large; font-weight: bold; text-align: center;">
   <h1>{{listname}}</h1>
   {% for name in playlist %}
@@ -76,8 +80,20 @@ h1 {
   {% endfor %}
  </div>
  <div id="menu1" class="playmenu" style="font-size: xx-large; font-weight: bold; top: 32px; text-align: left"></div>
+ <div id="S2Tframe" style="background-color: #04AA6D; position: absolute; opacity:0.8; font-size: x-large; font-weight: bold; top: 30%; left:5%; width:20%;">
+  <h1>【语音识别详情】</h1>
+  <h1>语种：<span id="S2Tlang">{{S2T_lang}}</span></h1>
+  <h1 class="vsb">识别文本：<br><span id="S2Ttext">{{S2T_text}}</span></h1>
+  <h1 class="vsb">匹配文件名：<br><span id="S2Tmatch">{{S2T_match}}</span></h1>
+ </div>
+ <div id="T2Sframe" style="background-color: #04AA6D; position: absolute; opacity:0.8; font-size: x-large; font-weight: bold; top: 30%; left:75%; width:20%;">
+  <h1>【语音合成详情】</h1>
+  <h1>语种：<span id="T2Slang">{{T2S_lang}}</span></h1>
+  <h1 class="vsb">文本：<br><span id="T2Stext">{{T2S_text}}</span></h1>
+ </div>
 
 <script>
+const pass = () => {};
 function getById(id_str) { return document.getElementById(id_str); }
 var idleTime = 0;
 var menuMode = 0;
@@ -88,8 +104,11 @@ var dir_list;
 var NN = playlist.length;
 var cur_dir = "", cur_file;
 var v = getById("video0");
-var ovl = getById("ovl"), ovl2 = getById("ovl2");
-var menu0 = getById('menu0'), menu1 = getById('menu1');
+var recorder = null;
+var audios;
+// Set global object handles
+for(var vname of ['ovl', 'ovl2', 'menu0', 'menu1', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'T2Slang', 'S2Ttext', 'T2Stext', 'S2Tmatch', 'recButton'])
+  window.eval(`var ${vname} = getById("${vname}")`);
 const ws = new WebSocket(({{ssl}}?'wss://':'ws://') + location.host + '/ws_init');
 function setvsrc(url, ii=0){
   v.src = url;
@@ -111,11 +130,36 @@ function setvidx(ii, L='a'){
     getById(L+i).style.color = (i==ii?"#1f0":"#eee");
 }
 function play_audio(fn, reply=false){
-  var aud = new Audio(fn+'?'+(new Date().getTime()));
+  var aud = new Audio(fn);
   if(reply)
     aud.onended = ()=>{ws.send('audio_ended')};
   aud.play();
 }
+function play_recorded(){
+  if(recorder.state=='inactive'){
+    v.pause();
+    audios = [];
+    var aud = new Audio('/voice/speak_file_click.mp3');
+    aud.onended = ()=>{
+      recorder.start();
+      recButton.style.opacity=1;
+      recButton.style.color='red';
+      recButton.style.backgroundColor='green';
+    };
+    aud.play();
+  }else
+    recorder.stop();
+}
+function onRecStop(){
+  v.play();
+  recButton.style.opacity='';
+  recButton.style.color='';
+  recButton.style.backgroundColor='';
+  var blob = new Blob(audios, { type: "audio/webm" });
+  const req = new XMLHttpRequest();
+  req.open("POST", '/play_recorded', true);
+  req.send(blob);
+};
 function lsdir(tgtDir=null){
   if(tgtDir!=null) cur_dir=tgtDir.replace(/\/*$/, '');
   ws_func = 1;
@@ -136,6 +180,31 @@ function toggle_menu(mode){
       if(ii>=0) setvidx(ii, 'b');
     }
   }
+}
+function getCookie(cookieName) {
+  var name = cookieName + "=";
+  var decodedCookie = decodeURIComponent(document.cookie);
+  var ca = decodedCookie.split(';');
+  for (var i = 0; i < ca.length; i++) {
+    var c = ca[i];
+    while (c.charAt(0) == ' ') {
+      c = c.substring(1);
+    }
+    if (c.indexOf(name) == 0) {
+      return c.substring(name.length, c.length);
+    }
+  }
+  return "";
+}
+function toggle_hide(objs){
+  var disp = objs[0].style.display=='none'?'block':'none';
+  for(var obj of objs) obj.style.display=disp;
+  document.cookie = `infoDisp=${disp}; path=/`;
+}
+function clickvid(e){
+  e.preventDefault();
+  if(menuMode) toggle_menu(0);
+  else v.paused?v.play():v.pause();
 }
 function seturl(url){ window.location.href = url; }
 function timerInc() {
@@ -189,11 +258,24 @@ function updateList(arr){
     menu0.innerHTML += `<a id="a${i}" onclick="ws.send('goto_idx ${i}')">${fn}</a>`;
 }
 ws.addEventListener('message', ev => { ws_func==1?showDir(ev.data):(ws_func==2?updateList(ev.data):setTimeout(ev.data, 1)); });
-setvsrc("{{file_path}}", {{ii}});
+setvsrc("{{file_path|safe}}", {{cur_ii}});
 var edge_pad = Number(getComputedStyle(document.documentElement).getPropertyValue('--edge-pad').slice(0,-2));
 document.styleSheets[0].cssRules[0].style.fontSize=`${screen.width/16}px`;
-menu0.style.top=menu1.style.bottom=`${screen.width/16+edge_pad}px`;
+menu0.style.top=`${screen.width/16}px`;
+menu1.style.bottom=`${screen.width/16+edge_pad}px`;
 setInterval(timerInc, 1000);
+setInterval("ws.send('pass')", 60000);  // keep web-socket alive
+if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+  navigator.mediaDevices.getUserMedia({audio: true,},)
+    .then((stream) => {
+      recorder = new MediaRecorder(stream, {mimeType: 'audio/webm'}); recButton.style.display='block';
+      recorder.ondataavailable = (e) => { audios.push(e.data); if(recorder.state=='inactive') onRecStop(); };})
+    .catch((err) => { console.error(`The following getUserMedia error occurred: ${err}`);
+  });
+} else {
+  console.log("getUserMedia not supported on your browser!");
+}
+T2Sframe.style.display = S2Tframe.style.display = getCookie('infoDisp');
 </script>
 </body>
 </html>

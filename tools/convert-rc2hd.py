@@ -53,7 +53,7 @@ def get_3lists(rc_):
 		if len(reqL)>1:
 			out = []
 			for p in reqL.split():
-				s,t = p.split('_')
+				s,t = p.split('_') if '_' in p else (p,p)
 				assert s in SPL2int, 'src (source) must be in SPL2int (special level map)'
 				assert t in cmd2int, 'tgt (target) must be in SPL2int (special level map)'
 				out += [str(SPL2int[s]*1000 + cmd2int[t])]

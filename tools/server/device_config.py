@@ -1,11 +1,13 @@
 
 # all fields must be set, if absent put ''
-KTV_SPEAKER='EC:52:32:4F:07:56'
+#KTV_SPEAKER='EC:52:32:4F:07:56'
+KTV_SPEAKER='10:3C:88:17:20:78'
 MP3_SPEAKER='54:B7:E5:9E:F4:14'
 MP4_SPEAKER=['hdmi', 'audio.stereo']
 MIC_RECORDER='usb'
-DEFAULT_RECORDING_FILE='/dev/shm/speech.m4a'
-DEFAULT_SPEECH_FILE='/dev/shm/speak.mp3'
+TMP_DIR='/dev/shm'
+DEFAULT_RECORDING_FILE=f'{TMP_DIR}/speech.m4a'
+DEFAULT_SPEECH_FILE=f'{TMP_DIR}/speak.mp3'
 DEFAULT_CONFIG_FILE='.config.json'
 LG_TV_CONFIG_FILE='~/.lgtv/config.json'
 SHARED_PATH='~/Public'

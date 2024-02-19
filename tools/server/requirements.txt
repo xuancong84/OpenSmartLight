@@ -10,5 +10,7 @@ pinyin
 pykakasi
 gTTS
 lingua-language-detector
+language_data
+langcodes
 unidecode
 git+https://github.com/klattimer/LGWebOSRemote.git
