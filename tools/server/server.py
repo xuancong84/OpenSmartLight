@@ -7,13 +7,15 @@ import traceback, argparse, math, requests, string, json, re
 import os, sys, subprocess, random, time, threading, socket
 import pinyin, vlc, pykakasi, mimetypes
 from collections import *
+from io import StringIO
 from urllib.parse import unquote
 from flask import Flask, request, send_from_directory, render_template, send_file
 from flask_sock import Sock
 from unidecode import unidecode
-from pydub import AudioSegment
+from pydub import AudioSegment as AudSeg
 from gtts import gTTS
 from lingua import Language, LanguageDetectorBuilder
+from langcodes import Language as LC
 
 from lib.ChineseNumber import *
 from lib.DefaultRevisionDict import *
@@ -39,8 +41,10 @@ get_alnum = lambda t: ''.join([c for c in t if c in string.ascii_letters+string.
 get_volume = lambda: RUN("amixer get Master | awk -F'[][]' '/Left:/ { print $2 }'").rstrip('%\n')
 ping = lambda ip: os.system(f'ping -W 1 -c 1 {ip}')==0
 mrl2path = lambda t: unquote(t).replace('file://', '').strip() if t.startswith('file://') else (t.strip() if t.startswith('/') else '')
-lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.JAPANESE: 'ja', Language.KOREAN: 'ko', Language.THAI: 'th', 
-	Language.RUSSIAN: 'ru', Language.HINDI: 'hi', Language.GREEK: 'el', Language.ARABIC: 'ar', Language.VIETNAMESE: 'vi', Language.HEBREW: 'he'}
+lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.HINDI: 'hi', Language.SPANISH: 'es', Language.FRENCH: 'fr',
+	Language.ARABIC: 'ar', Language.BENGALI: 'bn', Language.RUSSIAN: 'ru', Language.PORTUGUESE: 'pt', Language.URDU: 'ur',
+	Language.INDONESIAN:'id', Language.GERMAN: 'de', Language.JAPANESE: 'ja', Language.TURKISH: 'tr', Language.TAMIL: 'ta',
+	Language.VIETNAMESE: 'vi', Language.KOREAN: 'ko', Language.THAI: 'th', Language.GREEK: 'el', Language.HEBREW: 'he', Language.MALAY: 'ms'}
 is_json_lst = lambda s: s.startswith('["') and s.endswith('"]')
 ls_media_files = lambda fullpath: sorted([f'{fullpath}/{f}'.replace('//','/') for f in os.listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
 ls_subdir = lambda fullpath: sorted([g.rstrip('/') for f in os.listdir(fullpath) for g in [f'{fullpath}/{f}'.replace('//','/')] if not f.startswith('.') and os.path.isdir(g)])
@@ -79,8 +83,16 @@ def Eval(cmd, default=None):
 		return default
 
 def RUN(cmd, shell=True, timeout=3, **kwargs):
-	ret = subprocess.check_output(cmd, shell=shell, **kwargs)
+	ret = subprocess.check_output(cmd, shell=shell, timeout=timeout, **kwargs)
 	return ret if type(ret)==str else ret.decode()
+
+def _runsys(cmd, event):
+	os.system(cmd)
+	if event!=None:
+		event.set()
+
+def RUNSYS(cmd, event=None):
+	threading.Thread(target=_runsys, args=(cmd, event)).start()
 
 def fuzzy_pinyin(txt):
 	for src, tgt in FUZZY_PINYIN.items():
@@ -93,7 +105,7 @@ def prune_dict(dct, limit=10):
 	return dct
 
 def filepath2songtitle(fn):
-	s = os.path.basename(unquote(fn).rstrip('/')).split('.')[0].lower().strip()
+	s = os.path.basename(unquote(fn).rstrip('/')).split('.')[0].strip()
 	return os.path.basename(os.path.dirname(unquote(fn).rstrip('/')))+s if s.isdigit() else s
 
 def get_local_IP():
@@ -116,6 +128,7 @@ def prepare_TTS(txt, fn=DEFAULT_SPEECH_FILE):
 	except:
 		gTransTTS(txt, lang_id, fn+'.mp3')
 	os.system(f'ffmpeg -y -i "{fn}.mp3" -af "adelay=300ms:all=true,volume=2" "{fn}"')
+	return lang_id, txt
 
 def play_TTS(txt, tv_name=None):
 	txts = txt if type(txt)==list else [txt]
@@ -153,7 +166,7 @@ def str_search(name, name_list):
 
 def findSong(name, lang=None, flist=filelist, unique=False):
 	name = name.lower().strip()
-	name_list = [filepath2songtitle(fn) for fn in flist]
+	name_list = [filepath2songtitle(fn).lower() for fn in flist]
 
 	# 1. exact full match of original form
 	if name in name_list:
@@ -306,8 +319,10 @@ def _play(tm_info, filename=''):
 	mplayer.event_manager().event_attach(event.MediaPlayerOpening, on_media_opening)
 	set_audio_device(MP4_SPEAKER if isVideo else MP3_SPEAKER)
 	player.set_playback_mode(vlc.PlaybackMode.loop)
-	player.play()
+	player.play_item_at_index(ii)
 	threading.Timer(1, lambda:mplayer.audio_set_volume(100)).start()
+	if tm_sec>0:
+		threading.Timer(1000, lambda:player.set_position(tm_sec)).start()
 
 @app.route('/play/<tm_info>/<path:filename>')
 def play(tm_info, filename=''):
@@ -374,7 +389,7 @@ def _normalize_vol(song):
 	fn = fn if sid<0 else mrl2path(filelist[sid])
 	assert os.path.isfile(fn)
 	play_audio('voice/processing.mp3')
-	audio = AudioSegment.from_file(fn)
+	audio = AudSeg.from_file(fn)
 	if isVideoFile(fn):
 		if not os.path.exists(get_bak_fn(fn+'.m4a')):
 			audio.export(get_bak_fn(fn+'.m4a'), format='ipod')
@@ -474,24 +489,34 @@ def vlcvolume(cmd=''):
 # For LG TV
 ip2websock = {}
 # ip2tvdata: {'IP':{'playlist':[full filenames], 'cur_ii': current_index, 'shuffled': bool (save play position if false), 
-# 	'markers':[(key1,val1),...]}}
+# 	'markers':[(key1,val1),...], 'T2Slang':'', 'T2Stext':'', 'S2Tlang':'', 'S2Ttext':''}}
 ip2tvdata = load_config()
 tv2lginfo = Try(lambda: json.load(open(os.path.expanduser(LG_TV_CONFIG_FILE))), {})
 
-def _report_song_title(tv_name):
-	if tv_name:
-		data = ip2tvdata[tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name]
-		prepare_TTS(filepath2songtitle(data['playlist'][data['cur_ii']]))
-	else:
-		prepare_TTS(filepath2songtitle(mrl2path(mplayer.get_media().get_mrl())))
+# Set T2S/S2T info
+def setInfo(tv_name, text, lang, prefix, match=None):
+	langName = LC.get(lang).display_name('zh')
+	ip = tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name
+	ws, tvd = ip2websock[ip], ip2tvdata[ip]
+	ws.send(f'{prefix}lang.textContent="{langName}";{prefix}text.textContent="{text}";'+(f'{prefix}match.textContent="{match}"' if match!=None else ''))
+	tvd.update({f'{prefix}_lang': langName, f'{prefix}_text': text}|({} if match==None else {f'{prefix}_match': match}))
+
+def _report_title(tv_name):
 	with VoicePrompt(tv_name) as context:
-		play_audio('voice/cur_song_title.mp3', True, tv_name)
+		ev = play_audio('voice/cur_song_title.mp3', False, tv_name)
+		if tv_name:
+			data = ip2tvdata[tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name]
+			langId, txt = prepare_TTS(filepath2songtitle(data['playlist'][data['cur_ii']]))
+			setInfo(tv_name, txt, langId, 'T2S')
+		else:
+			prepare_TTS(filepath2songtitle(mrl2path(mplayer.get_media().get_mrl())))
+		ev.wait()
 		play_audio(DEFAULT_SPEECH_FILE, True, tv_name)
 
-@app.route('/report_song_title')
-@app.route('/report_song_title/<tv_name>')
-def report_song_title(tv_name=None):
-	threading.Thread(target=_report_song_title, args=(tv_name,)).start()
+@app.route('/report_title')
+@app.route('/report_title/<tv_name>')
+def report_title(tv_name=None):
+	threading.Thread(target=_report_title, args=(tv_name,)).start()
 	return 'OK'
 
 def send_wol(mac, ip='255.255.255.255'):
@@ -520,7 +545,12 @@ def tv_on_if_off(tv_name, wait_ready=False):
 
 @app.route('/tv/<name>/<cmd>')
 def tv(name='', cmd=''):
-	return RUN(f'./miniconda3/bin/lgtv --name {name} {cmd}')
+	for i in range(3):
+		try:
+			return RUN(f'./miniconda3/bin/lgtv --name {name} {cmd}')
+		except:
+			pass
+	return 'Failed after trying 3 times!'
 
 @app.route('/tvVolume/<name>/<vol>')
 def tvVolume(name='', vol=''):
@@ -560,7 +590,8 @@ def load_playable(ip, tm_info, filename):
 	elif os.path.isdir(fullname):
 		lst = ls_media_files(fullname)
 	else:
-		lst, randomize = [fullname], 0
+		lst, randomize = ls_media_files(os.path.dirname(fullname)), 0
+		ii = lst.index(fullname)
 	if ii<0 or tm_sec<0:
 		ii, tm_sec = tvd['markers'].get(json.dumps(lst), [0,0])
 	if randomize: random.shuffle(lst)
@@ -572,8 +603,12 @@ def load_playable(ip, tm_info, filename):
 @app.route('/webPlay/<tm_info>/<path:filename>')
 def webPlay(tm_info, filename=None):
 	lst, ii, tm_sec, randomize = load_playable(request.remote_addr, tm_info, filename)
-	return render_template('video.html', ssl=int(ssl), ii=ii, listname=''.join(lst[0].split('/')[-2:-1]) or '播放列表',
-		playlist=[i.split('/')[-1] for i in lst], file_path=f'/files/{lst[ii][len(SHARED_PATH):]}#t={tm_sec}')
+	tvd = ip2tvdata[request.remote_addr]
+	return render_template('video.html', ssl=int(request.scheme=='https'),
+		listname=''.join(lst[0].split('/')[-2:-1]) or '播放列表',
+		playlist=[i.split('/')[-1] for i in lst],
+		file_path=f'/files/{lst[ii][len(SHARED_PATH):]}#t={tm_sec}',
+		**{n:tvd.get(n,'') for n in ['T2S_text', 'T2S_lang', 'S2T_text', 'S2T_lang', 'S2T_match', 'cur_ii']})
 
 @app.route('/tv_runjs')
 def tv_runjs():
@@ -581,7 +616,7 @@ def tv_runjs():
 	ip2websock[tv2lginfo[name]['ip'] if name in tv2lginfo else name].send(cmd)
 	return 'OK'
 
-def _tvPlay(name, listfilename):
+def _tvPlay(name, listfilename, url_root):
 	tv_name, tm_info = (name.split(' ',1)+[0])[:2]
 	if is_json_lst(listfilename):
 		tvd = ip2tvdata[tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name]
@@ -589,14 +624,14 @@ def _tvPlay(name, listfilename):
 		listfilename = ''
 	if tv_name in tv2lginfo:
 		tv_on_if_off(tv_name, True)
-		return tv(tv_name, f'openBrowserAt "{get_base_url()}/webPlay/{tm_info}/{listfilename}"')
+		return tv(tv_name, f'openBrowserAt "{url_root}/webPlay/{tm_info}/{listfilename}"')
 	else:
 		ws = ip2websock[tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name]
-		return ws.send(f'seturl("{get_base_url()}/webPlay/{tm_info}/{listfilename}")') or 'OK'
+		return ws.send(f'seturl("{url_root}/webPlay/{tm_info}/{listfilename}")') or 'OK'
 
 @app.route('/tvPlay/<name>/<path:listfilename>')
 def tvPlay(name, listfilename):
-	threading.Thread(target=_tvPlay, args=(name, listfilename)).start()
+	threading.Thread(target=_tvPlay, args=(name, listfilename, request.url_root.rstrip('/'))).start()
 	return 'OK'
 
 def mark(name, tms):
@@ -622,6 +657,12 @@ def tv_wscmd(name, cmd):
 			ws.send('v.currentTime=0')
 		elif cmd == 'audio_ended':
 			ev_voice.set()
+		elif cmd == 'play_spoken_inlst':
+			play_spoken_song(name)
+		elif cmd == 'play_spoken_indir':
+			play_spoken_drama(name)
+		elif cmd == 'report_title':
+			report_title(name)
 		elif cmd.startswith('mark '):
 			mark(name, float(cmd.split()[1]))
 			tv(name, 'screenOn')
@@ -699,22 +740,14 @@ def get_recorder(devs, wait=3):
 		return res[-1][1]
 	return '0'
 
-## VLC Player on RPI has a bug that all VLC instances share a single volume, so this cannot be used
-# def play_audio(fn, block=False):
-# 	p = vlc.MediaPlayer(fn)
-# 	p.audio_set_volume(100)
-# 	p.play()
-# 	if block:
-# 		while not p.is_playing():pass
-# 		while p.is_playing():pass
-
 def play_audio(fn, block=False, tv_name=None):
+	ev_voice.clear()
 	if tv_name:
-		if block: ev_voice.clear()
-		tv_wscmd(tv_name, f'play_audio("/{"voice" if fn==DEFAULT_SPEECH_FILE else fn}",{str(block).lower()})')
-		if block: ev_voice.wait()
+		tv_wscmd(tv_name, f'play_audio("/{f"voice?{random.randint(0,999999)}" if fn==DEFAULT_SPEECH_FILE else fn}",true)')
 	else:
-		os.system(f'mplayer -really-quiet -noconsolecontrols {fn}'+('' if block else ' &'))
+		RUNSYS(f'mplayer -really-quiet -noconsolecontrols {fn}', ev_voice)
+	if block: ev_voice.wait()
+	return ev_voice
 
 def record_audio(tm_sec=5, file_path=DEFAULT_RECORDING_FILE):
 	os.system(f'ffmpeg -y -f pulse -i {get_recorder(MIC_RECORDER)} -ac 1 -t {tm_sec} {file_path}')
@@ -771,15 +804,15 @@ class VoicePrompt:
 
 
 # This function might take very long time, must be run in a separate thread
-def recog_and_play(voice, tv_name, path_name, handler):
+def recog_and_play(voice, tv_name, path_name, handler, url_root):
 	global player, asr_model, ASR_cloud_running, ASR_server_running
 
 	with VoicePrompt(tv_name) as context:
 		# record speech
-		set_volume(VOICE_VOL)
-		play_audio(voice, True, tv_name)
-		record_audio()
-		time.sleep(0)
+		if voice:
+			set_volume(VOICE_VOL)
+			play_audio(voice, True, tv_name)
+			record_audio()
 
 		# try cloud ASR
 		if ASR_CLOUD and not ASR_cloud_running:
@@ -801,7 +834,7 @@ def recog_and_play(voice, tv_name, path_name, handler):
 			asr_output = get_ASR_offline()
 
 		print(f'ASR result: {asr_output}', file=sys.stderr)
-		handler(asr_output, tv_name, path_name)
+		handler(asr_output, tv_name, path_name, url_root.rstrip('/'))
 
 
 def _play_last(name=None):
@@ -818,36 +851,40 @@ def play_last(tv_name=None):
 	threading.Thread(target=_play_last, args=(tv_name,)).start()
 	return 'OK'
 
-def handle_ASR_indir(obj, tv_name, rel_path):
-	res = findMedia(obj['text'], obj['language'], base_path=SHARED_PATH+rel_path)
+def handle_ASR_indir(asr_out, tv_name, rel_path, url_root):
+	res = findMedia(asr_out['text'], asr_out['language'], base_path=SHARED_PATH+rel_path)
+	setInfo(tv_name, asr_out["text"], asr_out['language'], 'S2T', '' if res==None else \
+		(ls_media_files(res[0])[res[1]][len(SHARED_PATH):] if type(res)==tuple else res[len(SHARED_PATH):]))
 	if res == None:
-		play_audio('voice/asr_not_found_drama.mp3', True, tv_name)
+		play_audio('voice/asr_not_found_drama.mp3' if rel_path else 'voice/asr_not_found_file.mp3', True, tv_name)
 	else:
 		if type(res)==tuple:
 			res, epi = res if type(res)==tuple else (res, None)
 			short_path = res[len(SHARED_PATH):]
-			play_audio('voice/asr_found_drama.mp3', True, tv_name)
+			play_audio('voice/asr_found_drama.mp3' if rel_path else 'voice/asr_found_file.mp3', True, tv_name)
 			if tv_name==None:
-				play(f'0 {epi}', short_path)
+				_play(f'0 {epi}', short_path)
 			else:
-				tvPlay(f'{tv_name} 0 {epi}', short_path)
+				_tvPlay(f'{tv_name} 0 {epi}', short_path, url_root)
 		else:
 			short_path = res[len(SHARED_PATH):]
-			play_audio(('voice/asr_found_drama.mp3' if os.path.isdir(res) else 'voice/asr_found_movie.mp3'), True, tv_name)
+			play_audio(('voice/asr_found_drama.mp3' if os.path.isdir(res) else 'voice/asr_found_movie.mp3')
+				if rel_path else 'voice/asr_found_file.mp3', True, tv_name)
 			if tv_name == None:
-				play('-1' if os.path.isdir(res) else '0', short_path)
+				_play('-1' if os.path.isdir(res) else '0', short_path)
 			else:
-				tvPlay(tv_name+(' -1' if os.path.isdir(res) else ' 0'), short_path)
+				_tvPlay(tv_name+(' -1' if os.path.isdir(res) else ' 0'), short_path, url_root)
 
-def handle_ASR_inlst(obj, tv_name, lst_filename):
+def handle_ASR_inlst(asr_out, tv_name, lst_filename, url_root):
 	lst = load_m3u(SHARED_PATH+lst_filename) if lst_filename else ip2tvdata[tv2lginfo[tv_name]['ip'] if tv_name else None]['playlist']
-	ii = findSong(obj['text'], obj['language'], lst)
+	ii = findSong(asr_out['text'], asr_out['language'], lst)
+	setInfo(tv_name, asr_out["text"], asr_out['language'], 'S2T', '' if ii==None else lst[ii][len(SHARED_PATH):])
 	if ii == None:
 		play_audio('voice/asr_not_found.mp3', True, tv_name)
 	else:
 		play_audio('voice/asr_found.mp3', True, tv_name)
 		if lst_filename:
-			pass
+			_tvPlay(f'{tv_name} 0 {ii}', json.dumps(lst)) if tv_name else play(f'0 {ii}', json.dumps(lst), url_root)
 		else:
 			playFrom(ii) if tv_name==None else tv_wscmd(tv_name, f'goto_idx {ii}')
 
@@ -855,7 +892,7 @@ def handle_ASR_inlst(obj, tv_name, lst_filename):
 @app.route('/play_spoken_indir/<tv_name>')
 @app.route('/play_spoken_indir/<tv_name>/<path:rel_path>')
 def play_spoken_drama(tv_name=None, rel_path=''):
-	threading.Thread(target=recog_and_play, args=('voice/speak_drama.mp3', tv_name, rel_path, handle_ASR_indir)).start()
+	threading.Thread(target=recog_and_play, args=('voice/speak_drama.mp3', tv_name, rel_path, handle_ASR_indir, request.url_root)).start()
 	return 'OK'
 
 @app.route('/play_spoken_inlst')
@@ -864,9 +901,16 @@ def play_spoken_drama(tv_name=None, rel_path=''):
 @app.route('/play_spoken_song/<tv_name>')
 @app.route('/play_spoken_inlst/<tv_name>/<path:lst_filename>')
 def play_spoken_song(tv_name=None, lst_filename=''):
-	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', tv_name, lst_filename, handle_ASR_inlst)).start()
+	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', tv_name, lst_filename, handle_ASR_inlst, request.url_root)).start()
 	return 'OK'
 
+@app.route('/play_recorded', methods=['POST'])
+def play_recorded():
+	with open(f'{TMP_DIR}/rec.webm', 'wb') as fp:
+		fp.write(request.data)
+	AudSeg.from_file(f'{TMP_DIR}/rec.webm', format='webm').export(DEFAULT_RECORDING_FILE, 'ipod')
+	threading.Thread(target=recog_and_play, args=('', request.remote_addr, '', handle_ASR_indir, request.url_root)).start()
+	return 'OK'
 
 # For Ecovacs
 @app.route('/ecovacs', defaults={'name': '', 'cmd':''})
@@ -908,5 +952,6 @@ if __name__ == '__main__':
 	else:
 		asr_model = None
 
-	app.run(host='0.0.0.0', port=port, ssl_context='adhoc' if ssl else None)
+	if not ssl: threading.Thread(target=lambda:app.run(host='0.0.0.0', port=port+1, threaded = True, ssl_context=('cert.pem', 'key.pem'))).start()
+	app.run(host='0.0.0.0', port=port, threaded = True, ssl_context=('cert.pem', 'key.pem') if ssl else None)
 

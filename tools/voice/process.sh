@@ -19,6 +19,9 @@ speak_drama 1024 \
 speak_song 1008 \
 unfinished_offline_asr 1023 \
 wait_for_asr 1021 \
+asr_found_file 1028 \
+speak_file_click 1029 \
+asr_not_found_file 1030 \
 cur_song_title 11111
 )
 
