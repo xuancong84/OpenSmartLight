@@ -49,6 +49,7 @@ is_json_lst = lambda s: s.startswith('["') and s.endswith('"]')
 ls_media_files = lambda fullpath: sorted([f'{fullpath}/{f}'.replace('//','/') for f in os.listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
 ls_subdir = lambda fullpath: sorted([g.rstrip('/') for f in os.listdir(fullpath) for g in [f'{fullpath}/{f}'.replace('//','/')] if not f.startswith('.') and os.path.isdir(g)])
 load_m3u = lambda fn: [i for L in open(fn).readlines() for i in [mrl2path(L)] if i]
+get_url_root = lambda r: r.url_root.rstrip('/') if r.url_root.count(':')>=2 else r.url_root.rstrip('/')+f':{r.server[1]}'
 
 inst = vlc.Instance()
 event = vlc.EventType()
@@ -631,7 +632,7 @@ def _tvPlay(name, listfilename, url_root):
 
 @app.route('/tvPlay/<name>/<path:listfilename>')
 def tvPlay(name, listfilename):
-	threading.Thread(target=_tvPlay, args=(name, listfilename, request.url_root.rstrip('/'))).start()
+	threading.Thread(target=_tvPlay, args=(name, listfilename, get_url_root(request))).start()
 	return 'OK'
 
 def mark(name, tms):
@@ -892,7 +893,7 @@ def handle_ASR_inlst(asr_out, tv_name, lst_filename, url_root):
 @app.route('/play_spoken_indir/<tv_name>')
 @app.route('/play_spoken_indir/<tv_name>/<path:rel_path>')
 def play_spoken_drama(tv_name=None, rel_path=''):
-	threading.Thread(target=recog_and_play, args=('voice/speak_drama.mp3', tv_name, rel_path, handle_ASR_indir, request.url_root)).start()
+	threading.Thread(target=recog_and_play, args=('voice/speak_drama.mp3', tv_name, rel_path, handle_ASR_indir, get_url_root(request))).start()
 	return 'OK'
 
 @app.route('/play_spoken_inlst')
@@ -901,7 +902,7 @@ def play_spoken_drama(tv_name=None, rel_path=''):
 @app.route('/play_spoken_song/<tv_name>')
 @app.route('/play_spoken_inlst/<tv_name>/<path:lst_filename>')
 def play_spoken_song(tv_name=None, lst_filename=''):
-	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', tv_name, lst_filename, handle_ASR_inlst, request.url_root)).start()
+	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', tv_name, lst_filename, handle_ASR_inlst, get_url_root(request))).start()
 	return 'OK'
 
 @app.route('/play_recorded', methods=['POST'])
@@ -909,7 +910,7 @@ def play_recorded():
 	with open(f'{TMP_DIR}/rec.webm', 'wb') as fp:
 		fp.write(request.data)
 	AudSeg.from_file(f'{TMP_DIR}/rec.webm', format='webm').export(DEFAULT_RECORDING_FILE, 'ipod')
-	threading.Thread(target=recog_and_play, args=('', request.remote_addr, '', handle_ASR_indir, request.url_root)).start()
+	threading.Thread(target=recog_and_play, args=('', request.remote_addr, '', handle_ASR_indir, get_url_root(request))).start()
 	return 'OK'
 
 # For Ecovacs
