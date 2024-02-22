@@ -80,24 +80,27 @@ def get_rc_code(key):
 	if f' {key} ' not in g.rc_set:
 		return None
 	try:
-		with open(RCFILE) as fp:
-			for L in fp:
-				gc.collect()
-				its = L.split('\t')
-				if key == its[0]:
-					return eval(its[-1])
+		fp = open(RCFILE)
+		for L in fp:
+			gc.collect()
+			its = L.split('\t')
+			if key == its[0]:
+				fp.close()
+				return eval(its[-1])
+		fp.close()
 	except Exception as e:
 		prt(e)
 	return None
 
 def save_file(fn, gen):
 	try:
-		with open(fn, 'wb') as fp:
-			for L in gen:
-				fp.write(L)
-				gc.collect()
+		fp = open(fn, 'wb')
+		for L in gen:
+			fp.write(L)
+			gc.collect()
 		if fn==RCFILE:
 			build_rc()
+		fp.close()
 		return 'Save OK'
 	except Exception as e:
 		prt(e)

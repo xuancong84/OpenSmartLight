@@ -5,7 +5,7 @@ deebot-t8[cli]
 flask
 flask-sock
 jinja2
-whisper
+openai-whisper
 pinyin
 pykakasi
 gTTS

@@ -105,8 +105,7 @@ var NN = playlist.length;
 var cur_dir = "", cur_file;
 var v = getById("video0");
 var recorder = null;
-var audios;
-var start_time;
+var audios, start_time, recorder_timeout;
 // Set global object handles
 for(var vname of ['ovl', 'ovl2', 'menu0', 'menu1', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'T2Slang', 'S2Ttext', 'T2Stext', 'S2Tmatch', 'recButton'])
   window.eval(`var ${vname} = getById("${vname}")`);
@@ -147,11 +146,13 @@ function play_recorded(){
       recButton.style.color='red';
       recButton.style.backgroundColor='green';
       start_time=Date.now();
-      setTimeout("recorder.stop()", 31000);
+      recorder_timeout = setTimeout("recorder.stop()", 31000);
     };
     aud.play();
-  }else
+  }else{
     recorder.stop();
+    clearTimeout(recorder_timeout);
+  }
 }
 function onRecStop(){
   v.play();
