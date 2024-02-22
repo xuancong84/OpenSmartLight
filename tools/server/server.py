@@ -14,12 +14,13 @@ from flask_sock import Sock
 from unidecode import unidecode
 from pydub import AudioSegment as AudSeg
 from gtts import gTTS
-from lingua import Language, LanguageDetectorBuilder
+from lingua import LanguageDetectorBuilder
 from langcodes import Language as LC
 
 from lib.ChineseNumber import *
 from lib.DefaultRevisionDict import *
 from lib.gTranslateTTS import gTransTTS
+from lib.settings import *
 from device_config import *
 SHARED_PATH = os.path.expanduser(SHARED_PATH).rstrip('/')+'/'
 
@@ -31,9 +32,6 @@ app.url_map.strict_slashes = False
 app.config['TEMPLATES_AUTO_RELOAD'] = True	##DEBUG
 sock = Sock(app)
 KKS = pykakasi.kakasi()
-video_file_exts = ['.mp4', '.mkv', '.avi', '.mpg', '.mpeg']
-audio_file_exts = ['.mp3', '.m4a']
-media_file_exts = video_file_exts + audio_file_exts
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
 to_romaji = lambda t: ' '.join([its['hepburn'] for its in KKS.convert(t)])
 get_alpha = lambda t: ''.join([c for c in t if c in string.ascii_letters])
@@ -41,15 +39,12 @@ get_alnum = lambda t: ''.join([c for c in t if c in string.ascii_letters+string.
 get_volume = lambda: RUN("amixer get Master | awk -F'[][]' '/Left:/ { print $2 }'").rstrip('%\n')
 ping = lambda ip: os.system(f'ping -W 1 -c 1 {ip}')==0
 mrl2path = lambda t: unquote(t).replace('file://', '').strip() if t.startswith('file://') else (t.strip() if t.startswith('/') else '')
-lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.HINDI: 'hi', Language.SPANISH: 'es', Language.FRENCH: 'fr',
-	Language.ARABIC: 'ar', Language.BENGALI: 'bn', Language.RUSSIAN: 'ru', Language.PORTUGUESE: 'pt', Language.URDU: 'ur',
-	Language.INDONESIAN:'id', Language.GERMAN: 'de', Language.JAPANESE: 'ja', Language.TURKISH: 'tr', Language.TAMIL: 'ta',
-	Language.VIETNAMESE: 'vi', Language.KOREAN: 'ko', Language.THAI: 'th', Language.GREEK: 'el', Language.HEBREW: 'he', Language.MALAY: 'ms'}
 is_json_lst = lambda s: s.startswith('["') and s.endswith('"]')
 ls_media_files = lambda fullpath: sorted([f'{fullpath}/{f}'.replace('//','/') for f in os.listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
 ls_subdir = lambda fullpath: sorted([g.rstrip('/') for f in os.listdir(fullpath) for g in [f'{fullpath}/{f}'.replace('//','/')] if not f.startswith('.') and os.path.isdir(g)])
 load_m3u = lambda fn: [i for L in open(fn).readlines() for i in [mrl2path(L)] if i]
 get_url_root = lambda r: r.url_root.rstrip('/') if r.url_root.count(':')>=2 else r.url_root.rstrip('/')+f':{r.server[1]}'
+translit = lambda t: unidecode(t).lower()
 
 inst = vlc.Instance()
 event = vlc.EventType()
@@ -95,8 +90,8 @@ def _runsys(cmd, event):
 def RUNSYS(cmd, event=None):
 	threading.Thread(target=_runsys, args=(cmd, event)).start()
 
-def fuzzy_pinyin(txt):
-	for src, tgt in FUZZY_PINYIN.items():
+def fuzzy(txt, dct=FUZZY_PINYIN):
+	for src, tgt in dct.items():
 		txt = txt.replace(src, tgt)
 	return txt
 
@@ -169,6 +164,11 @@ def findSong(name, lang=None, flist=filelist, unique=False):
 	name = name.lower().strip()
 	name_list = [filepath2songtitle(fn).lower() for fn in flist]
 
+	# 0. pre-transform
+	if lang == 'el':
+		name = fuzzy(name, FUZZY_GREEK)
+		name_list = [fuzzy(n, FUZZY_GREEK) for n in name_list]
+
 	# 1. exact full match of original form
 	if name in name_list:
 		res = [ii for ii,name1 in enumerate(name_list) if name==name1]
@@ -178,13 +178,13 @@ def findSong(name, lang=None, flist=filelist, unique=False):
 	# 2. match by pinyin if Chinese or unknown
 	if lang in [None, 'zh']:
 		# 3. pinyin full match
-		pinyin_list = [get_alnum(fuzzy_pinyin(to_pinyin(num2zh(n)))) for n in name_list]
-		pinyin_name = get_alnum(fuzzy_pinyin(to_pinyin(num2zh(name))))
+		pinyin_list = [get_alnum(fuzzy(to_pinyin(num2zh(n)))) for n in name_list]
+		pinyin_name = get_alnum(fuzzy(to_pinyin(num2zh(name))))
 		res = str_search(pinyin_name, pinyin_list)
 		if pinyin_name and res and (len(res)==1 or not unique):
 			return res[0]
-		pinyin_list = [get_alpha(fuzzy_pinyin(to_pinyin(num2zh(n)))) for n in name_list]
-		pinyin_name = get_alpha(fuzzy_pinyin(to_pinyin(num2zh(name))))
+		pinyin_list = [get_alpha(fuzzy(to_pinyin(num2zh(n)))) for n in name_list]
+		pinyin_name = get_alpha(fuzzy(to_pinyin(num2zh(name))))
 		if pinyin_name and res and (len(res)==1 or not unique):
 			return res[0]
 
@@ -203,8 +203,8 @@ def findSong(name, lang=None, flist=filelist, unique=False):
 		return res[0]
 	
 	# 5. match by transliteration
-	translit_list = [get_alpha(fuzzy_pinyin(unidecode(n))) for n in name_list]
-	translit_name = get_alpha(fuzzy_pinyin(unidecode(name)))
+	translit_list = [get_alpha(fuzzy(translit(n))) for n in name_list]
+	translit_name = get_alpha(fuzzy(translit(name)))
 	res = str_search(translit_name, translit_list)
 	if translit_name and res and (len(res)==1 or not unique):
 		return res[0]
@@ -835,7 +835,12 @@ def recog_and_play(voice, tv_name, path_name, handler, url_root):
 			asr_output = get_ASR_offline()
 
 		print(f'ASR result: {asr_output}', file=sys.stderr)
-		handler(asr_output, tv_name, path_name, url_root.rstrip('/'))
+		if asr_output=={} or type(asr_output)==str:
+			play_audio('voice/asr_error.mp3', True, tv_name)
+		elif not asr_output['text']:
+			play_audio('voice/asr_fail.mp3', True, tv_name)
+		else:
+			handler(asr_output, tv_name, path_name, url_root.rstrip('/'))
 
 
 def _play_last(name=None):
@@ -893,16 +898,16 @@ def handle_ASR_inlst(asr_out, tv_name, lst_filename, url_root):
 @app.route('/play_spoken_indir/<tv_name>')
 @app.route('/play_spoken_indir/<tv_name>/<path:rel_path>')
 def play_spoken_drama(tv_name=None, rel_path=''):
-	threading.Thread(target=recog_and_play, args=('voice/speak_drama.mp3', tv_name, rel_path, handle_ASR_indir, get_url_root(request))).start()
+	threading.Thread(target=recog_and_play, args=('voice/speak_drama.mp3', None if tv_name=='None' else tv_name,
+		rel_path, handle_ASR_indir, get_url_root(request))).start()
 	return 'OK'
 
 @app.route('/play_spoken_inlst')
-@app.route('/play_spoken_song')
 @app.route('/play_spoken_inlst/<tv_name>')
-@app.route('/play_spoken_song/<tv_name>')
 @app.route('/play_spoken_inlst/<tv_name>/<path:lst_filename>')
 def play_spoken_song(tv_name=None, lst_filename=''):
-	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', tv_name, lst_filename, handle_ASR_inlst, get_url_root(request))).start()
+	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', None if tv_name=='None' else tv_name, 
+		lst_filename, handle_ASR_inlst, get_url_root(request))).start()
 	return 'OK'
 
 @app.route('/play_recorded', methods=['POST'])

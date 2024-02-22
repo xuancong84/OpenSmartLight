@@ -1,0 +1,8 @@
+flask
+flask-sock
+openai-whisper
+numpy
+torch>=1.5.1
+tqdm>=4.30
+librosa
+soundfile
