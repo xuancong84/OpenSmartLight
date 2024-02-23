@@ -5,7 +5,7 @@ DEBUG_LOG = True
 
 import traceback, argparse, math, requests, string, json, re
 import os, sys, subprocess, random, time, threading, socket
-import pinyin, vlc, pykakasi, mimetypes
+import pinyin, vlc, pykakasi, mimetypes, signal
 from collections import *
 from io import StringIO
 from urllib.parse import unquote
@@ -498,9 +498,9 @@ tv2lginfo = Try(lambda: json.load(open(os.path.expanduser(LG_TV_CONFIG_FILE))), 
 def setInfo(tv_name, text, lang, prefix, match=None):
 	langName = LC.get(lang).display_name('zh')
 	ip = tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name
-	ws, tvd = ip2websock[ip], ip2tvdata[ip]
-	ws.send(f'{prefix}lang.textContent="{langName}";{prefix}text.textContent="{text}";'+(f'{prefix}match.textContent="{match}"' if match!=None else ''))
-	tvd.update({f'{prefix}_lang': langName, f'{prefix}_text': text}|({} if match==None else {f'{prefix}_match': match}))
+	ip2tvdata[ip].update({f'{prefix}_lang': langName, f'{prefix}_text': text}|({} if match==None else {f'{prefix}_match': match}))
+	if ip:
+		ip2websock[ip].send(f'{prefix}lang.textContent="{langName}";{prefix}text.textContent="{text}";'+(f'{prefix}match.textContent="{match}"' if match!=None else ''))
 
 def _report_title(tv_name):
 	with VoicePrompt(tv_name) as context:
@@ -542,7 +542,8 @@ def tv_on_if_off(tv_name, wait_ready=False):
 		send_wol(tvinfo['mac'])
 		if wait_ready:
 			while os.system(f'./miniconda3/bin/lgtv --name {tv_name} audioVolume')!=0:
-				time.sleep(0.1)
+				time.sleep(1)
+	return 'OK'
 
 @app.route('/tv/<name>/<cmd>')
 def tv(name='', cmd=''):
@@ -709,11 +710,11 @@ def set_audio_device(devs, wait=3):
 			if dev.count(':')==5:
 				connectble(dev)
 				patn = dev.replace(':', '_')
+				time.sleep(1)
 			out = [L.split() for L in list_sinks().splitlines()]
 			res = [its[0] for its in out if patn in its[1]]
 			if res:
 				return os.system(f'pactl set-default-sink {res[0]}')==0
-			time.sleep(1)
 	return (os.system(f'pactl set-default-sink {out[0][0]}')==0) if out else False
 
 def unset_audio_device(devs):
@@ -928,12 +929,14 @@ def ecovacs(name='', cmd=''):
 # For pikaraoke
 @app.route('/KTV/<cmd>')
 def KTV(cmd):
+	global P_ktv
 	if cmd=='on':
 		stop()
-		set_audio_device(KTV_SPEAKER)
-		P_ktv = subprocess.Popen(['~/projects/pikaraoke/run-no-vocal.sh'], shell=True)
+		tv_on_if_off(KTV_SCREEN, True)
+		set_audio_device(KTV_SPEAKER, 5)
+		P_ktv = subprocess.Popen(['~/projects/pikaraoke/run-cloud.sh'], shell=True, preexec_fn=os.setsid)
 	elif cmd=='off':
-		P_ktv.kill()
+		os.killpg(os.getpgid(P_ktv.pid), signal.SIGKILL)
 		unset_audio_device(KTV_SPEAKER)
 	return 'OK'
 

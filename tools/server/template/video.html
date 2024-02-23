@@ -118,6 +118,7 @@ function setvsrc(url, ii=0){
   document.title = ttl.substring(0, ttl.lastIndexOf('.'));
   ovl.style.display = NN>1?"":"none";
   v.play();
+  markCounter = 0;
   setvidx(ii);
   if(url.indexOf('#t=')>0){ // old TV browser does not support play from position in URL
     var tm = Number(url.substr(url.indexOf('#t=')+3));
@@ -265,9 +266,10 @@ function updateList(arr){
 ws.addEventListener('message', ev => { ws_func==1?showDir(ev.data):(ws_func==2?updateList(ev.data):setTimeout(ev.data, 1)); });
 setvsrc("{{file_path|safe}}", {{cur_ii}});
 var edge_pad = Number(getComputedStyle(document.documentElement).getPropertyValue('--edge-pad').slice(0,-2));
-document.styleSheets[0].cssRules[0].style.fontSize=`${screen.width/16}px`;
-menu0.style.top=`${screen.width/16}px`;
-menu1.style.bottom=`${screen.width/16+edge_pad}px`;
+var scr_size = Math.max(screen.width, screen.height);
+document.styleSheets[0].cssRules[0].style.fontSize=`${scr_size/16}px`;
+menu0.style.top=`${scr_size/16}px`;
+menu1.style.bottom=`${scr_size/16+edge_pad}px`;
 setInterval(timerInc, 1000);
 setInterval("ws.send('pass')", 60000);  // keep web-socket alive
 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
