@@ -1,4 +1,5 @@
-import os, string, pykakasi, pinyin
+import os, sys, io, string, json, subprocess, yt_dlp
+import pykakasi, pinyin, logging, requests, shutil
 from unidecode import unidecode
 from urllib.parse import unquote
 
@@ -7,7 +8,8 @@ from lib.settings import *
 from device_config import *
 
 KKS = pykakasi.kakasi()
-filelist = []
+filelist, cookies_opt = [], []
+downloading_songs = {}
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
 translit = lambda t: unidecode(t).lower()
 get_alpha = lambda t: ''.join([c for c in t if c in string.ascii_letters])
@@ -23,6 +25,7 @@ def Try(fn, default=None):
 	except Exception as e:
 		return str(e) if default=='ERROR_MSG' else default
 
+get_filesize = lambda fn: Try(lambda: os.path.getsize(fn), 0)
 
 def fuzzy(txt, dct=FUZZY_PINYIN):
 	for src, tgt in dct.items():
@@ -132,3 +135,66 @@ def findMedia(name, lang=None, stack=0, stem=None, episode=None, base_path=SHARE
 			if res != None:
 				return res
 	return None
+
+
+# For yt-dlp
+def call_yt_dlp(argv, get_stdout = False):
+	ret_code = 0
+	if get_stdout:
+		old_stdout = sys.stdout
+		sys.stdout = io.StringIO()
+	try:
+		yt_dlp.main(argv)
+	except SystemExit as e:
+		ret_code = e.code
+	if get_stdout:
+		ret_stdout = sys.stdout
+		sys.stdout = old_stdout
+		return ret_stdout.getvalue()
+	return ret_code
+
+def get_yt_dlp_json(url):
+	out_json = call_yt_dlp(['-j', url], True).strip()
+	if not out_json.startswith('{'):
+		out_json = out_json[out_json.find('{'):]
+	return json.loads(out_json)
+
+def get_video_file_basename(url):
+	try:
+		info_json = get_yt_dlp_json(url)
+		filename = f"{info_json['title']}.{info_json['ext']}"
+	except:
+		logging.error("Error parsing video id from url: " + url)
+		return get_alnum(url.split('//')[-1])+'.mp4'
+	
+	return filename
+
+def download_video(song_url, include_subtitles, high_quality, redownload):
+	logging.info("Downloading video: " + song_url)
+	downloading_songs[song_url] = 1
+	out_bn = get_video_file_basename(song_url)
+	tmp_fn = os.path.expanduser(f'{DOWNLOAD_PATH}/tmp/{out_bn}')
+	out_fn = os.path.expanduser(f'{DOWNLOAD_PATH}/{out_bn}')
+
+	# If file already present, skip downloading
+	if get_filesize(out_fn)==0 or redownload:
+		opt_quality = ['-f', 'bestvideo[height<=1080]+bestaudio[abr<=160]'] if high_quality else ['-f', 'mp4+m4a']
+		opt_sub = ['--sub-langs', 'all', '--embed-subs'] if include_subtitles else []
+		cmd = ['--fixup', 'force', '--socket-timeout', '3', '-R', 'infinite', '--remux-video', 'mp4'] \
+			+ cookies_opt + opt_quality + ["-o", tmp_fn] + opt_sub + [song_url]
+		logging.info("Youtube-dl command: " + " ".join(cmd))
+		rc = call_yt_dlp(cmd)
+		if get_filesize(tmp_fn)==0:
+			logging.error("Error code while downloading, retrying without format options ...")
+			cmd = ["-o", tmp_fn, '--socket-timeout', '3', '-R', 'infinite'] + [song_url]
+			logging.debug("Youtube-dl command: " + " ".join(cmd))
+			rc = call_yt_dlp(cmd)
+		if get_filesize(tmp_fn):
+			logging.debug("Song successfully downloaded: " + song_url)
+			shutil.move(tmp_fn, out_fn)
+			downloading_songs[song_url] = 0
+		else:
+			logging.error("Error downloading song: " + song_url)
+			downloading_songs[song_url] = -1
+
+	return out_fn if get_filesize(out_fn) else ''
