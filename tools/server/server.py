@@ -3,9 +3,9 @@
 
 DEBUG_LOG = True
 
-import traceback, argparse, math, requests, json, re
+import traceback, argparse, math, requests, json, re, webbrowser
 import os, sys, subprocess, random, time, threading, socket
-import vlc, signal
+import vlc, signal, qrcode, qrcode.image.svg
 from collections import *
 from io import StringIO
 from flask import Flask, request, send_from_directory, render_template, send_file
@@ -540,6 +540,8 @@ def tv_wscmd(name, cmd):
 			ws.send('v.currentTime=0')
 		elif cmd == 'audio_ended':
 			ev_voice.set()
+		elif cmd == 'hideQR':
+			ws.send('QRcontainer.style.opacity=0;')
 		elif cmd == 'play_spoken_inlst':
 			play_spoken_song(name)
 		elif cmd == 'play_spoken_indir':
@@ -822,6 +824,49 @@ def KTV(cmd):
 	return 'OK'
 
 
+# For smartphone console
+qr_str = ''
+@app.route('/QR')
+def prepare_QR():
+	global qr_str
+	if not qr_str:
+		qr = qrcode.QRCode(image_factory=qrcode.image.svg.SvgPathImage)
+		qr.add_data(get_url_root(request)+'/mobile/'+request.remote_addr)
+		qr.make()
+		img = qr.make_image()
+		qr_str = img.to_string(encoding='unicode')
+	return qr_str
+
+@app.route('/mobile/<ip_addr>')
+def mobile(ip_addr):
+	return render_template('yt-dlp.html', target=ip_addr)
+
+def _download_and_play(target_ip, action, song_url):
+	target_ip = target_ip.split('?')[-1]
+	enqueue, include_subtitles, high_quality, redownload = [bool(int(action)>>i&1) for i in range(4)]
+	fn = download_video(song_url, include_subtitles, high_quality, redownload)
+	if enqueue and fn:
+		tv_wscmd(target_ip, f'goto_file {fn[len(SHARED_PATH):]}')
+
+@app.route('/download')
+def download():
+	threading.Thread(target=_download_and_play, args=unquote(request.full_path).split(' ', 2)).start()
+	return 'Download started ...'
+
+
+def get_default_browser_cookie():
+	def_cookie_loc = defaultdict(lambda:'')
+	def_cookie_loc['firefox'] = '$HOME/.mozilla/firefox/'
+	def_cookie_loc['chrome'] = '$HOME/.config/google-chrome/'
+	def_cookie_loc['chromium'] = '$HOME/.config/chromium/'
+	try:
+		default_browser = webbrowser.get().name.lower().split('-')[0]
+	except:
+		return ''
+	ret = os.path.expandvars(def_cookie_loc[default_browser])
+	return f'{default_browser}:{ret}' if ret else ''
+
+
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(usage='$0 [options]', description='launch the smart home server',
 			formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -829,11 +874,24 @@ if __name__ == '__main__':
 	parser.add_argument('--ssl', '-ssl', help='server port number', action='store_true')
 	parser.add_argument('--asr', '-a', help='host ASR server', action='store_true')
 	parser.add_argument('--asr-model', '-am', default='base', help='ASR model to load')
-	parser.add_argument('--hide-subtitle', '-nosub', help='ASR model to load', action='store_true')
-	opt=parser.parse_args()
+	parser.add_argument('--hide-subtitle', '-nosub', help='whether to hide subtitles', action='store_true')
+	parser.add_argument('--browser-cookies', '-c', default = "auto",
+		help = "YouTube downloader can use browser cookies from the specified path (see the --cookies-from-browser option of yt-dlp), it can also be auto (default): automatically determine based on OS; none: do not use any browser cookies",
+	)
+
+	opt = parser.parse_args()
 	globals().update(vars(opt))
 
 	subtitle = not hide_subtitle
+
+	# Set browser cookies location for YouTube downloader
+	if browser_cookies.lower() == 'none':
+		cookies_opt = []
+	elif browser_cookies.lower() == 'auto':
+		path = get_default_browser_cookie()
+		cookies_opt = ['--cookies-from-browser', path] if path else []
+	else:
+		cookies_opt = ['--cookies-from-browser', browser_cookies]
 
 	if asr:
 		import whisper

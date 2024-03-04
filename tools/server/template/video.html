@@ -57,7 +57,7 @@ h1 {
 </style>
 </head>
 <body style="background-color:black; overflow: hidden;">
- <video id='video0' autoplay controls onended="ws.send('next')" onclick="clickvid(event)" onplaying="isPlaying=1" onpause="isPlaying=0" 
+ <video id='video0' autoplay controls onended="ws.send('next')" onclick="clickvid(event)"
     onseeked="markCounter=0" ontouchmove="timerRst()" onmousemove="timerRst()">
  </video>
  <div id="ovl">
@@ -69,9 +69,15 @@ h1 {
   <div class="overlay" style="left:50%; top:calc(50% - 50px); transform: translate(-50%, -50%);" onclick="v.currentTime=0;v.play()" title="重头开始播放">↻</div>
   <div class="overlay" id="menuIcon1" style="left:50%; bottom:var(--edge-pad); transform: translateX(-50%);" onclick="toggle_menu(2)" title="浏览文件夹">📁</div>
  </div>
- <div class="overlay hoverShow" style="left:0px; bottom:var(--edge-pad);" title="播放指定文件（树莓派录音）" onclick="ws.send('play_spoken_indir')">🎤</div>
- <div class="overlay hoverShow" id="recButton" style="left:0px; top:16px; display:none" title="播放指定文件（本地录音）" onclick="play_recorded()">🎙</div>
+ <div class="overlay hoverShow" style="left:0px; top:16px;" >
+  <span id="recButton" title="播放指定文件（本地录音）" onclick="play_recorded()">🎙</span>
+  <span title="播放指定文件（树莓派录音）" onclick="ws.send('play_spoken_indir')">🎤</span>
+ </div>
  <div class="overlay hoverShow" style="right:0px; top:16px;" onclick="ws.send('report_title')" title="播报当前歌曲名称">🗣</div>
+ <div class="overlay" style="left:0px; bottom:var(--edge-pad);">
+  <span class="hoverShow" title="复制视频链接然后扫码下载播放" onclick="showQR()">📱</span>
+  <span id="QRcontainer" style="background-color: #fff; opacity: 0; display: inline-flex;"></span>
+ </div>
  <div class="overlay hoverShow" style="right:0px; bottom:var(--edge-pad);" onclick="toggle_hide([T2Sframe,S2Tframe])" title="显示详情（语音识别及语音合成）">💬</div>
  <div id="menu0" class="playmenu" style="font-size: xx-large; font-weight: bold; text-align: center;">
   <h1>{{listname}}</h1>
@@ -98,7 +104,7 @@ function getById(id_str) { return document.getElementById(id_str); }
 var idleTime = 0;
 var menuMode = 0;
 var ws_func = 0;
-var isPlaying = 0, markCounter = 0;
+var passCounter = 0, markCounter = 0;
 var playlist = {{playlist|tojson}};
 var dir_list;
 var NN = playlist.length;
@@ -106,8 +112,9 @@ var cur_dir = "", cur_file;
 var v = getById("video0");
 var recorder = null;
 var audios, start_time, recorder_timeout;
+
 // Set global object handles
-for(var vname of ['ovl', 'ovl2', 'menu0', 'menu1', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'T2Slang', 'S2Ttext', 'T2Stext', 'S2Tmatch', 'recButton'])
+for(var vname of ['ovl', 'ovl2', 'menu0', 'menu1', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'T2Slang', 'S2Ttext', 'T2Stext', 'S2Tmatch', 'recButton', 'QRcontainer'])
   window.eval(`var ${vname} = getById("${vname}")`);
 const ws = new WebSocket(({{ssl}}?'wss://':'ws://') + location.host + '/ws_init');
 function setvsrc(url, ii=0){
@@ -118,12 +125,24 @@ function setvsrc(url, ii=0){
   document.title = ttl.substring(0, ttl.lastIndexOf('.'));
   ovl.style.display = NN>1?"":"none";
   v.play();
-  markCounter = 0;
+  passCounter = markCounter = 0;
   setvidx(ii);
   if(url.indexOf('#t=')>0){ // old TV browser does not support play from position in URL
     var tm = Number(url.substr(url.indexOf('#t=')+3));
     while(!('currentTime' in v));
     setTimeout(`if(v.currentTime<${tm})v.currentTime=${tm}`, 2000);
+  }
+}
+function showQR(){
+  QRcontainer.style.opacity = 1-QRcontainer.style.opacity;
+  if(QRcontainer.style.opacity && QRcontainer.innerHTML==""){
+    const req = new XMLHttpRequest();
+    req.open("GET", '/QR', true);
+    req.onload = (ev)=>{
+      QRcontainer.width = QRcontainer.height = `${scr_size/8}px`;
+      QRcontainer.innerHTML = ev.target.responseText;
+    };
+    req.send();
   }
 }
 function setvidx(ii, L='a'){
@@ -165,7 +184,7 @@ function onRecStop(){
   const req = new XMLHttpRequest();
   req.open("POST", '/play_recorded', true);
   req.send(blob);
-};
+}
 function lsdir(tgtDir=null){
   if(tgtDir!=null) cur_dir=tgtDir.replace(/\/*$/, '');
   ws_func = 1;
@@ -218,10 +237,14 @@ function timerInc() {
   ovl2.style.display = (idleTime>1&&!menuMode)?"none":"";
   document.body.style.overflow = idleTime>1?"hidden":"";
   idleTime += 1;
-  markCounter += isPlaying;
+  markCounter += (1-v.paused);
+  passCounter += v.paused;
   if(markCounter>60){
     markCounter = 0;
     ws.send(`mark ${v.currentTime}`);
+  }else if(passCounter>60){
+    passCounter = 0;
+    ws.send('pass');
   }
 }
 function timerRst() {
@@ -271,11 +294,10 @@ document.styleSheets[0].cssRules[0].style.fontSize=`${scr_size/16}px`;
 menu0.style.top=`${scr_size/16}px`;
 menu1.style.bottom=`${scr_size/16+edge_pad}px`;
 setInterval(timerInc, 1000);
-setInterval("ws.send('pass')", 60000);  // keep web-socket alive
 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
   navigator.mediaDevices.getUserMedia({audio: true,},)
     .then((stream) => {
-      recorder = new MediaRecorder(stream, {mimeType: 'audio/webm'}); recButton.style.display='block';
+      recorder = new MediaRecorder(stream, {mimeType: 'audio/webm'}); recButton.style.display='inline';
       recorder.ondataavailable = (e) => { audios.push(e.data); if(recorder.state=='inactive') onRecStop(); };})
     .catch((err) => { console.error(`The following getUserMedia error occurred: ${err}`);
   });
