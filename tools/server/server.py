@@ -487,7 +487,7 @@ def load_playable(ip, tm_info, filename):
 def webPlay(tm_info, filename=None):
 	lst, ii, tm_sec, randomize = load_playable(request.remote_addr, tm_info, filename)
 	tvd = ip2tvdata[request.remote_addr]
-	return render_template('video.html', ssl=int(request.scheme=='https'),
+	return render_template('video.html',
 		listname=''.join(lst[0].split('/')[-2:-1]) or '播放列表',
 		playlist=[i.split('/')[-1] for i in lst],
 		file_path=f'/files/{lst[ii][len(SHARED_PATH):]}#t={tm_sec}',
@@ -900,6 +900,7 @@ if __name__ == '__main__':
 	else:
 		asr_model = None
 
-	if not ssl: threading.Thread(target=lambda:app.run(host='0.0.0.0', port=port+1, threaded = True, ssl_context=('cert.pem', 'key.pem'))).start()
+	if not ssl:
+		threading.Thread(target=lambda:app.run(host='0.0.0.0', port=port+1, threaded = True, ssl_context=('cert.pem', 'key.pem'))).start()
 	app.run(host='0.0.0.0', port=port, threaded = True, ssl_context=('cert.pem', 'key.pem') if ssl else None)
 
