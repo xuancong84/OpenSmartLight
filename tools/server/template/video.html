@@ -116,7 +116,14 @@ var audios, start_time, recorder_timeout;
 // Set global object handles
 for(var vname of ['ovl', 'ovl2', 'menu0', 'menu1', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'T2Slang', 'S2Ttext', 'T2Stext', 'S2Tmatch', 'recButton', 'QRcontainer'])
   window.eval(`var ${vname} = getById("${vname}")`);
-const ws = new WebSocket(({{ssl}}?'wss://':'ws://') + location.host + '/ws_init');
+
+function create_wsock(){
+  var ws = new WebSocket((window.location.href.startsWith('https:')?'wss://':'ws://') + location.host + '/ws_init');
+  ws.addEventListener('message', ev => { ws_func==1?showDir(ev.data):(ws_func==2?updateList(ev.data):setTimeout(ev.data, 1)); });
+  return ws;
+}
+var ws = create_wsock();
+
 function setvsrc(url, ii=0){
   v.src = url;
   cur_file = url.indexOf('#')<0 ? url.substr(url.indexOf('files/')+6) : url.substring(url.indexOf('files/')+6, url.indexOf('#'));
@@ -233,6 +240,10 @@ function clickvid(e){
 }
 function seturl(url){ window.location.href = url; }
 function timerInc() {
+  // keep websocket connection
+  if(ws.readyState>1) ws = create_wsock();
+
+  // show overlay upon mouse move
   ovl.style.display = ((idleTime>1||NN<=1)&&!menuMode)?"none":"";
   ovl2.style.display = (idleTime>1&&!menuMode)?"none":"";
   document.body.style.overflow = idleTime>1?"hidden":"";
@@ -286,23 +297,22 @@ function updateList(arr){
   for(var [i,fn] of playlist.entries())
     menu0.innerHTML += `<a id="a${i}" onclick="ws.send('goto_idx ${i}')">${fn}</a>`;
 }
-ws.addEventListener('message', ev => { ws_func==1?showDir(ev.data):(ws_func==2?updateList(ev.data):setTimeout(ev.data, 1)); });
 setvsrc("{{file_path|safe}}", {{cur_ii}});
 var edge_pad = Number(getComputedStyle(document.documentElement).getPropertyValue('--edge-pad').slice(0,-2));
 var scr_size = Math.max(screen.width, screen.height);
 document.styleSheets[0].cssRules[0].style.fontSize=`${scr_size/16}px`;
 menu0.style.top=`${scr_size/16}px`;
 menu1.style.bottom=`${scr_size/16+edge_pad}px`;
-setInterval(timerInc, 1000);
+setInterval(timerInc, 2000);
 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
   navigator.mediaDevices.getUserMedia({audio: true,},)
     .then((stream) => {
       recorder = new MediaRecorder(stream, {mimeType: 'audio/webm'}); recButton.style.display='inline';
       recorder.ondataavailable = (e) => { audios.push(e.data); if(recorder.state=='inactive') onRecStop(); };})
-    .catch((err) => { console.error(`The following getUserMedia error occurred: ${err}`);
+    .catch((err) => { console.error(`getUserMedia error: ${err}`); recButton.style.display='none';
   });
 } else {
-  console.log("getUserMedia not supported on your browser!");
+  console.log("getUserMedia not supported on your browser!"); recButton.style.display='none';
 }
 T2Sframe.style.display = S2Tframe.style.display = getCookie('infoDisp');
 </script>
