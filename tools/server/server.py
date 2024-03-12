@@ -422,7 +422,7 @@ def tv_on_if_off(tv_name, wait_ready=False):
 	if not ping(tvinfo['ip']):
 		send_wol(tvinfo['mac'])
 		if wait_ready:
-			while os.system(f'./miniconda3/bin/lgtv --name {tv_name} audioVolume')!=0:
+			while os.system(f'{LG_TV_BIN} --name {tv_name} audioVolume')!=0:
 				time.sleep(1)
 	return 'OK'
 
@@ -430,7 +430,7 @@ def tv_on_if_off(tv_name, wait_ready=False):
 def tv(name='', cmd=''):
 	for i in range(3):
 		try:
-			return RUN(f'./miniconda3/bin/lgtv --name {name} {cmd}')
+			return RUN(f'{LG_TV_BIN} --name {name} {cmd}')
 		except:
 			pass
 	return 'Failed after trying 3 times!'
@@ -440,10 +440,10 @@ def tvVolume(name='', vol=''):
 	try:
 		value = int(vol)
 		if not vol[0].isdigit():
-			ret = RUN(f'./miniconda3/bin/lgtv --name {name} audioVolume')
+			ret = RUN(f'{LG_TV_BIN} --name {name} audioVolume')
 			L = ret[ret.find('"volume":'):]
 			value += int(L[L.find(' '):L.find(',')])
-		return RUN(f'./miniconda3/bin/lgtv --name {name} setVolume {value}')
+		return RUN(f'{LG_TV_BIN} --name {name} setVolume {value}')
 	except Exception as e:
 		return str(e)
 

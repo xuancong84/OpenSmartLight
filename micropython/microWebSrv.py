@@ -22,15 +22,6 @@ try :
 except :
 	pass
 
-def YieldFile(filepath, blksz=1024):
-	size = stat(filepath)[6]
-	buf = bytearray(blksz)
-	with open(filepath, 'rb') as fp:
-		while size>0:
-			x = fp.readinto(buf)
-			size -= x
-			yield buf[:x]
-
 class MicroWebSrvRoute :
 	def __init__(self, route, method, func, routeArgNames, routeRegex) :
 		self.route         = route        
@@ -640,10 +631,28 @@ class MicroWebSrv :
 
 		# ------------------------------------------------------------------------
 
-		def WriteResponseFile(self, obj, contentType=None, headers=None) :
+		def WriteResponseFile(self, filepath, contentType=None, headers=None):
 			try:
-				obj, size = (YieldFile(obj),stat(obj)[6]) if type(obj) == str else (obj,0)
+				size = stat(filepath)[6]
 				self._writeBeforeContent(200, headers, contentType, None, size)
+				buf = bytearray(1024)
+				fp = open(filepath, 'rb')
+				while size>0:
+					x = fp.readinto(buf)
+					size -= x
+					if not self._write(buf[:x]):
+						return False
+				return True
+			except Exception as e:
+				if DEBUG:
+					print(e)
+			self.WriteResponseNotFound()
+			return False
+
+		# ------------------------------------------------------------------------
+		def WriteResponseYield(self, obj, contentType=None, headers=None) :
+			try:
+				self._writeBeforeContent(200, headers, contentType, None, 0)
 				for ba in obj:
 					if not self._write(ba):
 						return False

@@ -47,6 +47,8 @@ LTVN	客厅电视机开启	好的	1		[{'protocol': 'WOL', 'data': '64:95:6C:39:3
 LTVF	客厅电视机关闭	好的	1		{'protocol': 'CAP', 'filename': 'livingTVoff.tcp'}
 MTVN	主人房电视机开启	好的	1		[{'protocol': 'WOL', 'data': '74:e6:b8:20:1d:db'},{'protocol': 'WOL', 'data': '64:cb:e9:04:18:3a'}]
 MTVF	主人房电视机关闭	好的	1		{'protocol': 'CAP', 'filename': 'masterTVoff.tcp'}
+CTVN	客人房电视机开启	好的	1		[{'protocol': 'WOL', 'data': '7c:64:6c:b9:05:6e'},{'protocol': 'WOL', 'data': 'b8:16:5f:72:06:6c'}]
+CTVF	客人房电视机关闭	好的	1		'http://192.168.50.3:8883/tv/commonTV/off'
 _KF	进入用餐模式	好的	1		['LFN', 'DLN']
 _CW	退出用餐模式	好的	1		['LFF', 'DLF', 'DFS']
 _KF1	开饭喽	已进入用餐模式	2		'_KF'
@@ -73,7 +75,7 @@ LLF	客厅灯带关闭	嗯	1		{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT':
 LLC	客厅灯带换色	好的	1	LLC	[{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': bytes(g.Cmsg+[sum(g.Cmsg)&0xff])}, Exec('g.C=(1 if g.C+1>=8 else g.C+1);g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]')]
 LLT	客厅灯带不断变色	好的	1		{'protocol': 'TCP', 'IP': '192.168.50.22', 'PORT': 5577, 'data': b'8%\x012\x90'}
 __init__	系统初始化		9		exec('machine.freq(80000000);g.DL=g.SL=g.PL=0;PIN_RF_IN=7;PIN_RF_OUT=6;PIN_ASR_IN=1;PIN_DEBUG_LED=12;use_BLE=True;g.C=1;g.Cmsg=[0x31, 0xee if g.C&1 else 0, 0xee if g.C&2 else 0, 0xee if g.C&4 else 0, 0, 0, 0xf]')
-__postinit__	后期初始化		9		SetTimer('pianoFan', 300, True, lambda: execRC('PFF' if '08:00:00'<getTimeString()<'22:00:00' else ''))
+__postinit__	后期初始化		9		SetTimer('pianoFan', 300, True, lambda: execRC('PFF' if '08:00:00'<getTimeString()<'22:00:00' else '')),Exec('g.D=False')
 DLC	餐桌吊灯换色	好的	1	DLC	['DLS', 'DLS']
 SLC	沙发吊灯换色	好的	1	SLC	['SLS' ,'SLS']
 BLN	阳台灯开启	嗯	1		'http://192.168.50.8/rc_run?L2N'
@@ -107,8 +109,10 @@ MPPN	播放器跳到下一曲|播放器跳到下一集	好的	1	MPP	'http://192.
 MPPP	播放器跳回上一曲|播放器跳回上一集	好的	1	MPP	'http://192.168.50.3:8883/previous'
 LTVVU	电视机音量增加	好的	1	LTVV	'http://192.168.50.3:8883/tvVolume/livingTV/+3'
 LTVVD	电视机音量降低	好的	1	LTVV	'http://192.168.50.3:8883/tvVolume/livingTV/-3'
-MTVVU	主人房电视机音量增加	好的	1		'http://192.168.50.3:8883/tvVolume/masterTV/+2'
-MTVVD	主人房电视机音量降低	好的	1		'http://192.168.50.3:8883/tvVolume/masterTV/-2'
+MTVVU	主人房电视机音量增加	好的	1	MTVV	'http://192.168.50.3:8883/tvVolume/masterTV/+2'
+MTVVD	主人房电视机音量降低	好的	1	MTVV	'http://192.168.50.3:8883/tvVolume/masterTV/-2'
+CTVVU	客人房电视机音量增加	好的	1	CTVV	'http://192.168.50.3:8883/tvVolume/commonTV/+2'
+CTVVD	客人房电视机音量降低	好的	1	CTVV	'http://192.168.50.3:8883/tvVolume/commonTV/-2'
 VPS	蓝牙视频开启播放	好的	1		['LTVN', 'http://192.168.50.3:8883/play/0 0 1/KTV']
 VPE	蓝牙视频停止关闭	好的	1		['http://192.168.50.3:8883/stop', 'LTVF']
 VPR	蓝牙视频开播	好的	1		'http://192.168.50.3:8883/play/0 0 1/KTV'
@@ -118,10 +122,10 @@ MPSF	播放器隐藏字幕	好的	1		'http://192.168.50.3:8883/subtitle/False'
 VLCVU	播放软件音量增加	好的	1	VLCV	'http://192.168.50.3:8883/vlcvolme/up'
 VLCVD	播放软件音量降低	好的	1	VLCV	'http://192.168.50.3:8883/vlcvolme/down'
 MPAVN	播放器调整当前歌曲音量		1		'http://192.168.50.3:8883/normalize_vol/'
-APPS	蓝牙音乐播放指定歌曲		1		'http://192.168.50.3:8883/play_spoken_song'
-MPPS	蓝牙视频播放指定歌曲		1		'http://192.168.50.3:8883/play_spoken_song'
-KTVN	进入卡拉欧嘿模式	好的	1		'http://192.168.50.3:8883/KTV/on'
-KTVF	退出卡拉欧嘿模式	好的	1		'http://192.168.50.3:8883/KTV/off'
+PPSS	播放器播放指定歌曲｜播放器播放指定音乐		1		'http://192.168.50.3:8883/play_spoken_inlst'
+PPSD	播放器播放指定电视剧｜播放器播放指定电影		1		'http://192.168.50.3:8883/play_spoken_indir'
+KTVN	进入卡拉欧嘿模式	好的	1		['KTVPN','http://192.168.50.3:8883/KTV/on']
+KTVF	退出卡拉欧嘿模式	好的	1		['http://192.168.50.3:8883/KTV/off','KTVPF']
 SVU	系统音量增加	好的	1	SVA	asr_print('volume_up')
 SVD	系统音量减小	好的	1	SVA	asr_print('volume_down')
 HEAR	能听见吗	我能听见	2		
@@ -132,17 +136,17 @@ DATE2	今天啥日期		2		'DATE'
 DDMM	今天几月几号		2		asr_print(f'read_date {getDateString()[-5:]}')
 WEEK	今天星期几		2		asr_print(f'read_week {getWeekdayNum()}')
 YYYY	今昔是何年		2		asr_print(f'read_date {getDateString()[:4]}')
-	再大些		LFA_LFU RFA_RFU SVA_SVU BSVA_BSVU LTVV_LTVVU VLCV_VLCVU		[]
-	再小些		LFA_LFD RFA_RFD SVA_SVD BSVA_BSVD LTVV_LTVVD VLCV_VLCVD		[]
+	再大些		LFA_LFU RFA_RFU SVA_SVU BSVA_BSVU LTVV_LTVVU VLCV_VLCVU MTVV_MTVVU CTVV_CTVVU		[]
+	再小些		LFA_LFD RFA_RFD SVA_SVD BSVA_BSVD LTVV_LTVVD VLCV_VLCVD MTVV_MTVVD CTVV_CTVVD		[]
 	再快些		LFA_LFU RFA_RFU		[]
 	再慢些		LFA_LFD RFA_RFD		[]
-	再响些		SVA_SVU BSVA_BSVU LTVV_LTVVU VLCV_VLCVU		[]
-	再轻些		SVA_SVD BSVA_BSVD LTVV_LTVVD VLCV_VLCVD		[]
+	再响些		SVA_SVU BSVA_BSVU LTVV_LTVVU VLCV_VLCVU MTVV_MTVVU CTVV_CTVVU		[]
+	再轻些		SVA_SVD BSVA_BSVD LTVV_LTVVD VLCV_VLCVD MTVV_MTVVD CTVV_CTVVD		[]
 	再亮些		MLA_MLI		[]
 	再暗些		MLA_MLD		[]
-	再下一曲		MPP_MPPN		'MPPN'
-	再上一曲		MPP_MPPP		'MPPP'
-	再换色		PLC_PLC MLC_MLC LLC_LLC DLC_DLC SLC_SLC BLC_BLC		[]
+	再下一曲|再下集		MPP_MPPN LTVNP_LTVNX CTVNP_CTVNX		[]
+	再上一曲|再上集		MPP_MPPP LTVNP_LTVPR CTVNP_CTVPR		[]
+	再换色		PLC MLC LLC DLC SLC BLC		[]
 0	已完成				
 1	请稍候				
 2	操作成功				
@@ -156,27 +160,38 @@ YYYY	今昔是何年		2		asr_print(f'read_date {getDateString()[:4]}')
 10	正在识别				
 11	处理完毕				
 12	重新开始播放该歌曲				
-PRST	播放器播报当前歌曲名称				'http://192.168.50.3:8883/report_song_title'
+PRST	播放器播报当前歌曲名称				'http://192.168.50.3:8883/report_title'
 TIME_ASK	小美请播报当前时间				[asr_write(f'a5c9%02x%02x0a'%(int(its[0]), int(its[1]))) for its in [getTimeString().split(':')]]
 DATE_ASK	小美请播报当前日期				[asr_write(f'a5c80%s0%s0%s0%s%02x%02x%02x0a'%(y[0],y[1],y[2],y[3],int(its[1]), int(its[2]),getWeekdayNum())) for its in [getDateString().split('-')] for y in [its[0]]]
-PPS	播放器播放指定歌曲				'http://192.168.50.3:8883/play_spoken_song'
+PPSF	播放器播放指定文件				'http://192.168.50.3:8883/play_spoken_indir'
 MPSR	蓝牙音乐开播				'http://192.168.50.3:8883/play/0 0 1/Music'
-LTVPV	电视机播放视频				'http://192.168.50.3:8883/tvPlay/livingTV 0 0 1/KTV'
+LTVPV	电视机播放歌曲音乐				'http://192.168.50.3:8883/tvPlay/livingTV 0 0 1/KTV'
 LTVPD	电视机播放电视剧|电视机播放电影				'http://192.168.50.3:8883/play_last/livingTV'
 LTVPS	电视机暂停播放				'http://192.168.50.3:8883/tv_wscmd/livingTV/pause'
 LTVRS	电视机继续播放				'http://192.168.50.3:8883/tv_wscmd/livingTV/resume'
-LTVNX	电视机跳到下一集|电视机跳到下一曲				'http://192.168.50.3:8883/tv_wscmd/livingTV/next'
-LTVPR	电视机跳回上一集|电视机跳回上一曲				'http://192.168.50.3:8883/tv_wscmd/livingTV/prev'
-MTVPV	主人房电视机播放视频				'http://192.168.50.3:8883/tvPlay/masterTV 0 0 1/Desktop/videos.m3u'
+LTVNX	电视机跳到下一集|电视机跳到下一曲			LTVNP	'http://192.168.50.3:8883/tv_wscmd/livingTV/next'
+LTVPR	电视机跳回上一集|电视机跳回上一曲			LTVNP	'http://192.168.50.3:8883/tv_wscmd/livingTV/prev'
+MTVPV	主人房电视机播放歌曲音乐				'http://192.168.50.3:8883/tvPlay/masterTV 0 0 1/KTV'
 MTVPD	主人房电视机播放电视剧|主人房电视机播放电影				'http://192.168.50.3:8883/play_last/masterTV'
 MTVPS	主人房电视机暂停播放				'http://192.168.50.3:8883/tv_wscmd/masterTV/pause'
 MTVRS	主人房电视机继续播放				'http://192.168.50.3:8883/tv_wscmd/masterTV/resume'
-MTVNX	主人房电视机跳到下一集|主人房电视机跳到下一曲				'http://192.168.50.3:8883/tv_wscmd/masterTV/next'
-MTVPR	主人房电视机跳回上一集|主人房电视机跳回上一曲				'http://192.168.50.3:8883/tv_wscmd/masterTV/prev'
-LTVPSV	电视机播放指定视频				'http://192.168.50.3:8883/play_spoken_song/livingTV'
-LTVPSD	电视机播放指定电视剧|电视机播放指定电影				'http://192.168.50.3:8883/play_spoken_drama/livingTV'
-MTVPSV	主人房电视机播放指定视频				'http://192.168.50.3:8883/play_spoken_song/masterTV'
-MTVPSD	主人房电视机播放指定电视剧|主人房电视机播放指定电影				'http://192.168.50.3:8883/play_spoken_drama/masterTV'
+MTVNX	主人房电视机跳到下一集|主人房电视机跳到下一曲			MTVNP	'http://192.168.50.3:8883/tv_wscmd/masterTV/next'
+MTVPR	主人房电视机跳回上一集|主人房电视机跳回上一曲			MTVNP	'http://192.168.50.3:8883/tv_wscmd/masterTV/prev'
+LTVPSV	电视机播放指定歌曲｜电视机播放指定音乐				'http://192.168.50.3:8883/play_spoken_inlst/livingTV'
+LTVPSD	电视机播放指定电视剧|电视机播放指定电影				'http://192.168.50.3:8883/play_spoken_indir/livingTV'
+MTVPSV	主人房电视机播放指定歌曲｜主人房电视机播放指定音乐				'http://192.168.50.3:8883/play_spoken_inlst/masterTV'
+MTVPSD	主人房电视机播放指定电视剧|主人房电视机播放指定电影				'http://192.168.50.3:8883/play_spoken_indir/masterTV'
 MACAIRPD	苹果笔记本播放电视剧｜苹果电脑播放电视剧				'http://192.168.50.3:8883/custom_cmdline/macair_play'
-LTVRCP	电视机播报当前视频名称|电视机播报当前歌曲名称				'http://192.168.50.3:8883/report_song_title/livingTV'
-MTVRCP	主人房电视机播报当前视频名称|主人房电视机播报当前歌曲名称				'http://192.168.50.3:8883/report_song_title/masterTV'
+LTVRCP	电视机播报当前视频名称|电视机播报当前歌曲名称				'http://192.168.50.3:8883/report_title/livingTV'
+MTVRCP	主人房电视机播报当前视频名称|主人房电视机播报当前歌曲名称				'http://192.168.50.3:8883/report_title/masterTV'
+KTVPN	卡拉欧剋机开启	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'0201011bffff00ee1bc878f64a4491542fb40e6e1b2120a5443c1ea5e2a6dd'}
+KTVPF	卡拉欧剋机关闭	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'0201011bffff00ee1bc878f64a4491562fb40e6ecaf0f38b95edcf743364c4'}
+CTVPV	客人房电视机播放歌曲音乐				'http://192.168.50.3:8883/tvPlay/commonTV 0 0 1/KTV'
+CTVPD	客人房电视机播放电视剧|客人房电视机播放电影				'http://192.168.50.3:8883/play_last/commonTV'
+CTVPS	客人房电视机暂停播放				'http://192.168.50.3:8883/tv_wscmd/commonTV/pause'
+CTVRS	客人房电视机继续播放				'http://192.168.50.3:8883/tv_wscmd/commonTV/resume'
+CTVNX	客人房电视机跳到下一集|客人房电视机跳到下一曲			CTVNP	'http://192.168.50.3:8883/tv_wscmd/commonTV/next'
+CTVPR	客人房电视机跳回上一集|客人房电视机跳回上一曲			CTVNP	'http://192.168.50.3:8883/tv_wscmd/commonTV/prev'
+CTVPSV	客人房电视机播放指定歌曲｜客人房电视机播放指定音乐				'http://192.168.50.3:8883/play_spoken_inlst/commonTV'
+CTVPSD	客人房电视机播放指定电视剧|客人房电视机播放指定电影				'http://192.168.50.3:8883/play_spoken_indir/commonTV'
+CTVRCP	客人房电视机播报当前视频名称|客人房电视机播报当前歌曲名称				'http://192.168.50.3:8883/report_title/commonTV'

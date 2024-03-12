@@ -73,8 +73,14 @@ def start_wifi():
 def build_rc():
 	if not isFile(RCFILE):
 		open(RCFILE, 'w').close()
-	g.rc_set = ' '+' '.join([L.split('\t')[0] for L in open(RCFILE)])+' '
-	gc.collect()
+	fp = open(RCFILE)
+	g.rc_set = ' '
+	while True:
+		L = fp.readline()
+		if not L:break
+		g.rc_set += L.split('\t')[0]+' '
+		del L
+	fp.close()
 
 def get_rc_code(key):
 	if f' {key} ' not in g.rc_set:
@@ -98,9 +104,11 @@ def save_file(fn, gen):
 		for L in gen:
 			fp.write(L)
 			gc.collect()
+		fp.close()
+		del fp
 		if fn==RCFILE:
 			build_rc()
-		fp.close()
+		gc.collect()
 		return 'Save OK'
 	except Exception as e:
 		prt(e)
@@ -274,7 +282,7 @@ class WebServer:
 			( "/rc_exec", "POST", lambda cli, *arg: execRC(cli.ReadRequestContent())),
 			( "/rc_save", "POST", lambda clie, resp: save_file(RCFILE, clie.YieldRequestContent()) ),
 			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile(RCFILE) ),
-			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseFile(list_files()) ),
+			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseYield(list_files()) ),
 			( "/delete_files", "GET", lambda clie, resp: deleteFile(clie.GetRequestQueryString(True)) ),
 			( "/mkdir", "GET", lambda clie, resp: mkdir(clie.GetRequestQueryString(True)) ),
 			( "/get_file", "GET", lambda clie, resp: resp.WriteResponseFileAttachment(clie.GetRequestQueryString(True)) ),
@@ -370,6 +378,7 @@ class WebServer:
 
 # Globals
 build_rc()
+gc.collect()
 if '__init__' in g.rc_set:
 	execRC('__init__')
 
@@ -402,23 +411,18 @@ if type(PIN_IR_IN)==int or type(PIN_IR_OUT)==int:
 
 ### MAIN function
 def run():
-	try:
-		cpIP = start_wifi()
-		prt(wifi)
-		g.server = WebServer(captivePortalIP=cpIP)
-		if '__postinit__' in g.rc_set:
-			execRC('__postinit__')
-		if type(PIN_DEBUG_LED) == int:
-			digitalWrite(PIN_DEBUG_LED, 0)
-		SetTimer('syncNTP', 12*3600, True, syncNTP)
-		g.server.run()
-	except Exception as e:
-		sys.print_exception(e)
+	cpIP = start_wifi()
+	prt(wifi)
+	g.server = WebServer(captivePortalIP=cpIP)
+	if '__postinit__' in g.rc_set:
+		execRC('__postinit__')
+	if type(PIN_DEBUG_LED) == int:
+		digitalWrite(PIN_DEBUG_LED, 0)
+	SetTimer('syncNTP', 12*3600, True, syncNTP)
+	g.server.run()
 
 gc.collect()
 
-if isFile('debug') and reset_cause()!=1:
-	sys.exit()
-
-run()
-reset()
+if not isFile('debug') or reset_cause()==1:
+	run()
+	reset()
