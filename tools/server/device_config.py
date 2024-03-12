@@ -10,6 +10,7 @@ DEFAULT_RECORDING_FILE=f'{TMP_DIR}/speech.m4a'
 DEFAULT_SPEECH_FILE=f'{TMP_DIR}/speak.mp3'
 DEFAULT_CONFIG_FILE='.config.json'
 LG_TV_CONFIG_FILE='~/.lgtv/config.json'
+LG_TV_BIN='./miniconda3/bin/lgtv --ssl'
 SHARED_PATH='~/Public'
 DOWNLOAD_PATH=SHARED_PATH+'/Download'
 MAX_WALK_LEVEL=2
