@@ -3,8 +3,8 @@
 
 DEBUG_LOG = True
 
-import traceback, argparse, math, requests, json, re, webbrowser
-import os, sys, subprocess, random, time, threading, socket
+import os, sys, traceback, argparse, math, requests, json, re, webbrowser
+import subprocess, random, time, threading, socket
 import vlc, signal, qrcode, qrcode.image.svg
 from collections import *
 from io import StringIO
@@ -825,17 +825,17 @@ def KTV(cmd):
 
 
 # For smartphone console
-qr_str = ''
+ip2qr = {}
 @app.route('/QR')
 def prepare_QR():
-	global qr_str
-	if not qr_str:
+	global ip2qr
+	if request.remote_addr not in ip2qr:
 		qr = qrcode.QRCode(image_factory=qrcode.image.svg.SvgPathImage)
 		qr.add_data(get_url_root(request)+'/mobile/'+request.remote_addr)
 		qr.make()
 		img = qr.make_image()
-		qr_str = img.to_string(encoding='unicode')
-	return qr_str
+		ip2qr[request.remote_addr] = img.to_string(encoding='unicode')
+	return ip2qr[request.remote_addr]
 
 @app.route('/mobile/<ip_addr>')
 def mobile(ip_addr):
@@ -902,5 +902,21 @@ if __name__ == '__main__':
 
 	if not ssl:
 		threading.Thread(target=lambda:app.run(host='0.0.0.0', port=port+1, threaded = True, ssl_context=('cert.pem', 'key.pem'))).start()
-	app.run(host='0.0.0.0', port=port, threaded = True, ssl_context=('cert.pem', 'key.pem') if ssl else None)
+	threading.Thread(target=lambda:app.run(host='0.0.0.0', port=port, threaded = True, ssl_context=('cert.pem', 'key.pem') if ssl else None)).start()
 
+	try:
+		import IPython
+		IPython.embed()
+	except:
+		print('IPython not installed, starting basic console (lines starting with / are for eval, otherwise are for exec, exit/quit to exit):')
+		while True:
+			L = input()
+			if L in ['exit', 'quit']:
+				break
+			try:
+				print(eval(L[1:], globals(), globals())) if L.startswith('/') else exec(L, globals(), globals())
+			except:
+				traceback.print_exc()
+
+	import os
+	os._exit(0)
