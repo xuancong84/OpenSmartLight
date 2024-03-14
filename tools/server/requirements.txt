@@ -14,3 +14,6 @@ language_data
 langcodes
 unidecode
 git+https://github.com/klattimer/LGWebOSRemote.git
+
+# below are optional
+ipython
