@@ -4,8 +4,8 @@ from lingua import Language
 
 FUZZY_PINYIN = {'ing': 'in'}
 FUZZY_GREEK = {'η': 'ι', 'ή': 'ί', 'ὴ': 'ὶ', 'ῆ': 'ῖ', 'ἠ': 'ἰ', 'ἤ': 'ἴ', 'ἢ': 'ἲ', 'ἦ': 'ἶ', 'ἡ': 'ἱ', 'ἥ': 'ἵ', 'ἣ': 'ἳ', 'ἧ': 'ἷ'}
-video_file_exts = ['.mp4', '.mkv', '.avi', '.mpg', '.mpeg']
-audio_file_exts = ['.mp3', '.m4a']
+video_file_exts = ['.mp4', '.mkv', '.avi', '.mpg', '.mpeg', '.webm']
+audio_file_exts = ['.mp3', '.m4a', '.webm']
 media_file_exts = video_file_exts + audio_file_exts
 
 lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.HINDI: 'hi', Language.SPANISH: 'es', Language.FRENCH: 'fr',

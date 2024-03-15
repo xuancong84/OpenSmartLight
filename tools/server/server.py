@@ -369,7 +369,8 @@ def vlcvolume(cmd=''):
 
 
 # For LG TV
-ip2websock = {}
+ip2websock, ip2ydsock = {}, {}
+os.ip2ydsock = ip2ydsock
 # ip2tvdata: {'IP':{'playlist':[full filenames], 'cur_ii': current_index, 'shuffled': bool (save play position if false), 
 # 	'markers':[(key1,val1),...], 'T2Slang':'', 'T2Stext':'', 'S2Tlang':'', 'S2Ttext':''}}
 ip2tvdata = load_config()
@@ -459,6 +460,18 @@ def ws_init(sock):
 		except:
 			traceback.print_exc()
 	ip2websock.pop(key)
+
+@sock.route('/yd_init')
+def yd_init(sock):
+	global ip2ydsock
+	key = sock.sock.getpeername()[0]
+	ip2ydsock[key] = sock
+	while sock.connected:
+		try:
+			cmd = sock.receive()
+		except:
+			traceback.print_exc()
+	ip2ydsock.pop(key)
 
 def load_playable(ip, tm_info, filename):
 	fullname, n = SHARED_PATH+str(filename), 1
@@ -841,16 +854,16 @@ def prepare_QR():
 def mobile(ip_addr):
 	return render_template('yt-dlp.html', target=ip_addr)
 
-def _download_and_play(target_ip, action, song_url):
+def _download_and_play(mobile_ip, target_ip, action, song_url):
 	target_ip = target_ip.split('?')[-1]
 	enqueue, include_subtitles, high_quality, redownload = [bool(int(action)>>i&1) for i in range(4)]
-	fn = download_video(song_url, include_subtitles, high_quality, redownload)
+	fn = download_video(song_url, include_subtitles, high_quality, redownload, mobile_ip)
 	if enqueue and fn:
 		tv_wscmd(target_ip, f'goto_file {fn[len(SHARED_PATH):]}')
 
 @app.route('/download')
 def download():
-	threading.Thread(target=_download_and_play, args=unquote(request.full_path).split(' ', 2)).start()
+	threading.Thread(target=_download_and_play, args=[request.remote_addr]+unquote(request.full_path).split(' ', 2)).start()
 	return 'Download started ...'
 
 
@@ -874,6 +887,7 @@ if __name__ == '__main__':
 	parser.add_argument('--ssl', '-ssl', help='server port number', action='store_true')
 	parser.add_argument('--asr', '-a', help='host ASR server', action='store_true')
 	parser.add_argument('--asr-model', '-am', default='base', help='ASR model to load')
+	parser.add_argument('--no-console', '-nc', help='do not open console', action='store_true')
 	parser.add_argument('--hide-subtitle', '-nosub', help='whether to hide subtitles', action='store_true')
 	parser.add_argument('--browser-cookies', '-c', default = "auto",
 		help = "YouTube downloader can use browser cookies from the specified path (see the --cookies-from-browser option of yt-dlp), it can also be auto (default): automatically determine based on OS; none: do not use any browser cookies",
@@ -900,9 +914,15 @@ if __name__ == '__main__':
 	else:
 		asr_model = None
 
+	# For capturing yt-dlp thread's STDIO
+	enable_proxy()
+
 	if not ssl:
 		threading.Thread(target=lambda:app.run(host='0.0.0.0', port=port+1, threaded = True, ssl_context=('cert.pem', 'key.pem'))).start()
 	threading.Thread(target=lambda:app.run(host='0.0.0.0', port=port, threaded = True, ssl_context=('cert.pem', 'key.pem') if ssl else None)).start()
+
+	if no_console:
+		sys.exit(0)
 
 	try:
 		import IPython
