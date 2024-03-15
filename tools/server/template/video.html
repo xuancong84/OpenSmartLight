@@ -213,7 +213,7 @@ function toggle_menu(mode){
     }
   }
 }
-function getCookie(cookieName) {
+function getCookie(cookieName, dft="") {
   var name = cookieName + "=";
   var decodedCookie = decodeURIComponent(document.cookie);
   var ca = decodedCookie.split(';');
@@ -226,12 +226,12 @@ function getCookie(cookieName) {
       return c.substring(name.length, c.length);
     }
   }
-  return "";
+  return dft;
 }
 function toggle_hide(objs){
   var disp = objs[0].style.display=='none'?'block':'none';
   for(var obj of objs) obj.style.display=disp;
-  document.cookie = `infoDisp=${disp}; path=/`;
+  document.cookie = `infoDisp=${disp}; path=/; max-age=31536000`;
 }
 function clickvid(e){
   e.preventDefault();
@@ -314,7 +314,7 @@ if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
 } else {
   console.log("getUserMedia not supported on your browser!"); recButton.style.display='none';
 }
-T2Sframe.style.display = S2Tframe.style.display = getCookie('infoDisp');
+T2Sframe.style.display = S2Tframe.style.display = getCookie('infoDisp', 'none');
 </script>
 </body>
 </html>

@@ -1,7 +1,8 @@
-import os, sys, io, string, json, subprocess, yt_dlp
+import os, sys, io, time, string, json, threading, yt_dlp
 import pykakasi, pinyin, logging, requests, shutil
 from unidecode import unidecode
 from urllib.parse import unquote
+from werkzeug import local
 
 from lib.ChineseNumber import *
 from lib.settings import *
@@ -9,7 +10,6 @@ from device_config import *
 
 KKS = pykakasi.kakasi()
 filelist, cookies_opt = [], []
-downloading_songs = {}
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
 translit = lambda t: unidecode(t).lower()
 get_alpha = lambda t: ''.join([c for c in t if c in string.ascii_letters])
@@ -137,64 +137,133 @@ def findMedia(name, lang=None, stack=0, stem=None, episode=None, base_path=SHARE
 	return None
 
 
+# For getting thread's STDIO
+orig___stdout__ = sys.__stdout__
+orig___stderr__ = sys.__stderr__
+orig_stdout = sys.stdout
+orig_stderr = sys.stderr
+thread_proxies = {}
+
+def redirect(thread_id=None):
+	"""
+	Enables the redirect for the current thread's output to a single StringIO
+	object and returns the object.
+
+	:return: The StringIO object.
+	:rtype: ``io.StringIO``
+	"""
+	# Use the current thread's identity if not given
+	ident = thread_id or threading.currentThread().ident
+
+	# Enable the redirect and return the StringIO object.
+	thread_proxies[ident] = io.StringIO()
+	return thread_proxies[ident]
+
+def stop_redirect(thread_id=None):
+	"""
+	Enables the redirect for the current thread's output to a single StringIO
+	object and returns the object.
+
+	:return: The final string value.
+	:rtype: ``str``
+	"""
+	# Use the current thread's identity if not given
+	ident = thread_id or threading.currentThread().ident
+	return thread_proxies.pop(ident, None)
+
+def _get_stream(original):
+	"""
+	Returns the inner function for use in the LocalProxy object.
+
+	:param original: The stream to be returned if thread is not proxied.
+	:type original: ``file``
+	:return: The inner function for use in the LocalProxy object.
+	:rtype: ``function``
+	"""
+	def proxy():
+		"""
+		Returns the original stream if the current thread is not proxied,
+		otherwise we return the proxied item.
+
+		:return: The stream object for the current thread.
+		:rtype: ``file``
+		"""
+		# Get the current thread's identity.
+		ident = threading.currentThread().ident
+
+		# Return the proxy, otherwise return the original.
+		return thread_proxies.get(ident, original)
+
+	# Return the inner function.
+	return proxy
+
+def enable_proxy():
+	# Overwrites __stdout__, __stderr__, stdout, and stderr with the proxied objects.
+	sys.__stdout__ = local.LocalProxy(_get_stream(orig___stdout__))
+	sys.__stderr__ = local.LocalProxy(_get_stream(orig___stderr__))
+	sys.stdout = local.LocalProxy(_get_stream(orig_stdout))
+	sys.stderr = local.LocalProxy(_get_stream(orig_stderr))
+
+def disable_proxy():
+	# Overwrites __stdout__, __stderr__, stdout, and stderr with the original
+	sys.__stdout__ = orig___stdout__
+	sys.__stderr__ = orig___stderr__
+	sys.stdout = orig_stdout
+	sys.stderr = orig_stderr
+
+
 # For yt-dlp
-def call_yt_dlp(argv, get_stdout = False):
-	ret_code = 0
-	if get_stdout:
-		old_stdout = sys.stdout
-		sys.stdout = io.StringIO()
-	try:
-		yt_dlp.main(argv)
-	except SystemExit as e:
-		ret_code = e.code
-	if get_stdout:
-		ret_stdout = sys.stdout
-		sys.stdout = old_stdout
-		return ret_stdout.getvalue()
-	return ret_code
+def parse_outfn(L):
+	out_fn = ''
+	for L1 in L.splitlines():
+		if L1.startswith('[download] ') and L1.endswith(' has already been downloaded'):
+			out_fn = L1[11:-28]
+		if L1.startswith('[Merger] Merging formats into '):
+			out_fn = L1[30:].strip().strip('"')
+	return out_fn
 
-def get_yt_dlp_json(url):
-	out_json = call_yt_dlp(['-j', url], True).strip()
-	if not out_json.startswith('{'):
-		out_json = out_json[out_json.find('{'):]
-	return json.loads(out_json)
+def call_yt_dlp(argv, mobile_ip):
+	out_fn = ''
+	thread = threading.Thread(target=lambda: yt_dlp.main(argv))
+	thread.start()
+	while thread.ident==None:pass
+	tid = thread.ident
+	sio = redirect(tid)
+	while thread.is_alive():
+		time.sleep(1)
+		L = sio.getvalue()
+		if not L: continue
+		sys.stdout.write(L)
+		Try(lambda: os.ip2ydsock[mobile_ip].send(L))
+		out_fn = parse_outfn(L) or out_fn
+		sio.truncate(0)
+		sio.seek(0)
 
-def get_video_file_basename(url):
-	try:
-		info_json = get_yt_dlp_json(url)
-		filename = f"{info_json['title']}.{info_json['ext']}"
-	except:
-		logging.error("Error parsing video id from url: " + url)
-		return get_alnum(url.split('//')[-1])+'.mp4'
-	
-	return filename
+	return out_fn or parse_outfn(sio.getvalue())
 
-def download_video(song_url, include_subtitles, high_quality, redownload):
+def download_video(song_url, include_subtitles, high_quality, redownload, mobile_ip):
 	logging.info("Downloading video: " + song_url)
-	downloading_songs[song_url] = 1
-	out_bn = get_video_file_basename(song_url)
-	tmp_fn = os.path.expanduser(f'{DOWNLOAD_PATH}/tmp/{out_bn}')
-	out_fn = os.path.expanduser(f'{DOWNLOAD_PATH}/{out_bn}')
+	tmp_dir = os.path.expanduser(f'{DOWNLOAD_PATH}/tmp/')
 
 	# If file already present, skip downloading
-	if get_filesize(out_fn)==0 or redownload:
-		opt_quality = ['-f', 'bestvideo[height<=1080]+bestaudio[abr<=160]'] if high_quality else ['-f', 'mp4+m4a']
-		opt_sub = ['--sub-langs', 'all', '--embed-subs'] if include_subtitles else []
-		cmd = ['--fixup', 'force', '--socket-timeout', '3', '-R', 'infinite', '--remux-video', 'mp4'] \
-			+ cookies_opt + opt_quality + ["-o", tmp_fn] + opt_sub + [song_url]
-		logging.info("Youtube-dl command: " + " ".join(cmd))
-		rc = call_yt_dlp(cmd)
-		if get_filesize(tmp_fn)==0:
-			logging.error("Error code while downloading, retrying without format options ...")
-			cmd = ["-o", tmp_fn, '--socket-timeout', '3', '-R', 'infinite'] + [song_url]
-			logging.debug("Youtube-dl command: " + " ".join(cmd))
-			rc = call_yt_dlp(cmd)
-		if get_filesize(tmp_fn):
-			logging.debug("Song successfully downloaded: " + song_url)
-			shutil.move(tmp_fn, out_fn)
-			downloading_songs[song_url] = 0
-		else:
-			logging.error("Error downloading song: " + song_url)
-			downloading_songs[song_url] = -1
+	opt_quality = ['-f', 'bestvideo[height<=1080]+bestaudio[abr<=160]'] if high_quality else ['-f', 'mp4+m4a']
+	opt_sub = ['--sub-langs', 'all', '--embed-subs'] if include_subtitles else []
+	cmd = ['--fixup', 'force', '--socket-timeout', '3', '-R', 'infinite'] \
+		+ cookies_opt + opt_quality + opt_sub + (['--force-overwrites'] if redownload else []) \
+		+ ["-o", tmp_dir+"%(title)s.%(ext)s"] + [song_url]
+	logging.info("Youtube-dl command: " + " ".join(cmd))
+	out_fn = call_yt_dlp(cmd, mobile_ip)
+	if not out_fn:
+		logging.error("Error code while downloading, retrying without format options ...")
+		cmd = ['--socket-timeout', '3', '-R', 'infinite', '-P', tmp_dir] + [song_url]
+		logging.debug("Youtube-dl command: " + " ".join(cmd))
+		out_fn = call_yt_dlp(cmd, mobile_ip)
+	if get_filesize(out_fn):
+		logging.debug("Song successfully downloaded: " + song_url)
+		ret_fn = os.path.expanduser(DOWNLOAD_PATH)+'/'+os.path.basename(out_fn)
+		shutil.move(out_fn, ret_fn)
+		return ret_fn
+	else:
+		logging.error("Error downloading song: " + song_url)
 
-	return out_fn if get_filesize(out_fn) else ''
+	return ''
