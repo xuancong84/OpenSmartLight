@@ -10,13 +10,19 @@ from device_config import *
 
 KKS = pykakasi.kakasi()
 filelist, cookies_opt = [], []
+Open = lambda t, *args: open(os.path.expandvars(os.path.expanduser(t)), *args)
+listdir = lambda t: os.listdir(os.path.expandvars(os.path.expanduser(t)))
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
 translit = lambda t: unidecode(t).lower()
 get_alpha = lambda t: ''.join([c for c in t if c in string.ascii_letters])
 get_alnum = lambda t: ''.join([c for c in t if c in string.ascii_letters+string.digits])
 to_romaji = lambda t: ' '.join([its['hepburn'] for its in KKS.convert(t)])
-ls_media_files = lambda fullpath: sorted([f'{fullpath}/{f}'.replace('//','/') for f in os.listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
-ls_subdir = lambda fullpath: sorted([g.rstrip('/') for f in os.listdir(fullpath) for g in [f'{fullpath}/{f}'.replace('//','/')] if not f.startswith('.') and os.path.isdir(g)])
+ls_media_files = lambda fullpath: sorted([f'{fullpath}/{f}'.replace('//','/') for f in listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
+ls_subdir = lambda fullpath: sorted([g.rstrip('/') for f in listdir(fullpath) for g in [f'{fullpath}/{f}'.replace('//','/')] if not f.startswith('.') and os.path.isdir(g)])
+mrl2path = lambda t: unquote(t).replace('file://', '').strip() if t.startswith('file://') else (t.strip() if t.startswith('/') else '')
+is_json_lst = lambda s: s.startswith('["') and s.endswith('"]')
+load_m3u = lambda fn: [i for L in Open(fn).readlines() for i in [mrl2path(L)] if i]
+get_url_root = lambda r: r.url_root.rstrip('/') if r.url_root.count(':')>=2 else r.url_root.rstrip('/')+f':{r.server[1]}'
 
 
 def Try(fn, default=None):

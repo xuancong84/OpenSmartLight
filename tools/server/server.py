@@ -32,10 +32,6 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True	##DEBUG
 sock = Sock(app)
 get_volume = lambda: RUN("amixer get Master | awk -F'[][]' '/Left:/ { print $2 }'").rstrip('%\n')
 ping = lambda ip: os.system(f'ping -W 1 -c 1 {ip}')==0
-mrl2path = lambda t: unquote(t).replace('file://', '').strip() if t.startswith('file://') else (t.strip() if t.startswith('/') else '')
-is_json_lst = lambda s: s.startswith('["') and s.endswith('"]')
-load_m3u = lambda fn: [i for L in open(fn).readlines() for i in [mrl2path(L)] if i]
-get_url_root = lambda r: r.url_root.rstrip('/') if r.url_root.count(':')>=2 else r.url_root.rstrip('/')+f':{r.server[1]}'
 
 inst = vlc.Instance()
 event = vlc.EventType()
@@ -50,6 +46,7 @@ P_ktv = None
 isFirst = True
 isVideo = None
 subtitle = True
+last_get_file_ip = ''
 CANCEL_FLAG = False
 isJustAfterBoot = True if sys.platform=='darwin' else float(open('/proc/uptime').read().split()[0])<120
 random.seed(time.time())
@@ -87,8 +84,8 @@ def get_local_IP():
 	return s.getsockname()[0]
 
 local_IP = get_local_IP()
-load_config = lambda: Try(lambda: InfiniteDefaultRevisionDict().from_json(open(DEFAULT_CONFIG_FILE)), InfiniteDefaultRevisionDict())
-save_config = lambda obj: exec(f"with open('{DEFAULT_CONFIG_FILE}','w') as fp: obj.to_json(fp, indent=1)")
+load_config = lambda: Try(lambda: InfiniteDefaultRevisionDict().from_json(Open(DEFAULT_CONFIG_FILE)), InfiniteDefaultRevisionDict())
+save_config = lambda obj: exec(f"with Open('{DEFAULT_CONFIG_FILE}','w') as fp: obj.to_json(fp, indent=1)")
 get_base_url = lambda: f'{"https" if ssl else "http"}://{local_IP}:{port}'
 
 # Detect language, invoke Google-translate TTS and play the speech audio
@@ -143,6 +140,8 @@ def custom_cmdline(cmd, wait=False):
 
 @app.route('/files/<path:filename>')
 def get_file(filename):
+	global last_get_file_ip
+	last_get_file_ip = request.remote_addr
 	return send_from_directory(SHARED_PATH, filename.strip('/'), conditional=True)
 
 @app.route('/favicon.ico')
@@ -256,26 +255,12 @@ def get_bak_fn(fn):
 	Try(lambda: os.makedirs(dirname+'/.orig'))
 	return f'{dirname}/.orig/{os.path.basename(fn)}'
 
-remote_addr = None
-def _normalize_vol(song):
-	global player
-	if song.startswith('~'):
-		fn = os.path.expanduser(song)
-		sid = -1
-	elif song:
-		sid = findSong(song)
-	else:
-		mrl = mplayer.get_media().get_mrl()
-		sid = filelist.index(mrl2path(mrl))
-		player.stop()
-	fn = fn if sid<0 else mrl2path(filelist[sid])
-	assert os.path.isfile(fn)
-	play_audio('voice/processing.mp3')
+def norm_song_volume(fn):
 	audio = AudSeg.from_file(fn)
 	if isVideoFile(fn):
 		if not os.path.exists(get_bak_fn(fn+'.m4a')):
 			audio.export(get_bak_fn(fn+'.m4a'), format='ipod')
-		audio += 10*math.log10((4096/audio.rms)**2)
+		audio += (STD_VOL_DBFS - audio.dBFS)
 		audio.export(fn+'.m4a', format='ipod')
 		os.system(f'ffmpeg -y -i {fn} -i {fn}.m4a -c copy -map 0 -map -0:a -map 1:a {fn}.tmp.mp4')
 		os.system('sync')
@@ -285,10 +270,32 @@ def _normalize_vol(song):
 	else:
 		if not os.path.exists(get_bak_fn(fn+'.m4a')):
 			os.rename(fn, get_bak_fn(fn+'.m4a'))
-		audio += 10*math.log10((4096/audio.rms)**2)
+		audio += (STD_VOL_DBFS - audio.dBFS)
 		audio.export(fn, format=('mp3' if fn.lower().endswith('.mp3') else 'ipod'))
-	if sid>=0:
-		player.play_item_at_index(sid)
+
+def _normalize_vol(song):
+	global player, last_get_file_ip
+	if song:
+		fn = os.path.expanduser(song if song.startswith('~') else (SHARED_PATH+'/'+song))
+		norm_song_volume(fn)
+	elif player is not None:
+		mrl = mplayer.get_media().get_mrl()
+		cur_ii = filelist.index(mrl2path(mrl))
+		if cur_ii<0: return
+		fn = mrl2path(filelist[cur_ii])
+		if not os.path.isfile(fn): return
+		player.stop()
+		play_audio('voice/processing.mp3')
+		norm_song_volume(fn)
+		player.play_item_at_index(cur_ii)
+	elif last_get_file_ip:
+		dev_ip = last_get_file_ip
+		tvd = ip2tvdata[dev_ip]
+		playlist, cur_ii = tvd['playlist'], tvd['cur_ii']
+		tv_wscmd(dev_ip, 'pause')
+		play_audio('voice/processing.mp3', False, dev_ip)
+		norm_song_volume(playlist[cur_ii])
+		tv_wscmd(dev_ip, f'goto_idx {cur_ii}')
 
 @app.route('/normalize_vol')
 @app.route('/normalize_vol/<path:song>')
@@ -374,7 +381,7 @@ os.ip2ydsock = ip2ydsock
 # ip2tvdata: {'IP':{'playlist':[full filenames], 'cur_ii': current_index, 'shuffled': bool (save play position if false), 
 # 	'markers':[(key1,val1),...], 'T2Slang':'', 'T2Stext':'', 'S2Tlang':'', 'S2Ttext':''}}
 ip2tvdata = load_config()
-tv2lginfo = Try(lambda: json.load(open(os.path.expanduser(LG_TV_CONFIG_FILE))), {})
+tv2lginfo = Try(lambda: json.load(Open(LG_TV_CONFIG_FILE)), {})
 
 # Set T2S/S2T info
 def setInfo(tv_name, text, lang, prefix, match=None):
@@ -566,7 +573,7 @@ def tv_wscmd(name, cmd):
 			tv(name, 'screenOn')
 		elif cmd.startswith('lsdir '):
 			full_dir = SHARED_PATH+cmd.split(' ',1)[1]+'/'
-			lst = [(p+'/' if os.path.isdir(full_dir+p) else p) for p in sorted(os.listdir(full_dir)) if not p.startswith('.')]
+			lst = [(p+'/' if os.path.isdir(full_dir+p) else p) for p in sorted(listdir(full_dir)) if not p.startswith('.')]
 			ws.send(json.dumps(lst))
 		else:
 			if cmd in ['next', 'prev']:
@@ -575,6 +582,8 @@ def tv_wscmd(name, cmd):
 				tvd['cur_ii'] = int(cmd.split()[1])
 			elif cmd.startswith('goto_file '):
 				fn = cmd.split(' ',1)[1].strip('/')
+				if fn.lower().endswith('.m3u'):
+					load_m3u(fn)
 				flist = ls_media_files(SHARED_PATH+os.path.dirname(fn))
 				tvd['playlist'] = flist
 				tvd['cur_ii'] = [ii for ii,fulln in enumerate(flist) if fulln.endswith('/'+fn)][0]
@@ -663,7 +672,7 @@ def get_ASR_offline():
 
 def get_ASR_online():
 	try:
-		with open(os.path.expanduser(asr_input), 'rb') as f:
+		with Open(asr_input, 'rb') as f:
 			r = requests.post(ASR_CLOUD, files={'file': f}, timeout=5)
 		return json.loads(r.text) if r.status_code==200 else {}
 	except Exception as e:
@@ -809,7 +818,7 @@ def play_spoken_song(tv_name=None, lst_filename=''):
 
 @app.route('/play_recorded', methods=['POST'])
 def play_recorded():
-	with open(f'{TMP_DIR}/rec.webm', 'wb') as fp:
+	with Open(f'{TMP_DIR}/rec.webm', 'wb') as fp:
 		fp.write(request.data)
 	AudSeg.from_file(f'{TMP_DIR}/rec.webm', format='webm').export(DEFAULT_RECORDING_FILE, 'ipod')
 	threading.Thread(target=recog_and_play, args=('', request.remote_addr, '', handle_ASR_indir, get_url_root(request))).start()

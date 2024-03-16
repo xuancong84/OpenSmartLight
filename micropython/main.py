@@ -72,8 +72,14 @@ def start_wifi():
 def build_rc():
 	if not isFile(RCFILE):
 		open(RCFILE, 'w').close()
-	g.rc_set = ' '+' '.join([L.split('\t')[0] for L in open(RCFILE)])+' '
-	gc.collect()
+	fp = open(RCFILE)
+	g.rc_set = ' '
+	while True:
+		L = fp.readline()
+		if not L:break
+		g.rc_set += L.split('\t')[0]+' '
+		del L
+	fp.close()
 
 def get_rc_code(key):
 	if f' {key} ' not in g.rc_set:
