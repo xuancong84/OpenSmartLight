@@ -23,14 +23,5 @@ except:
 	rescue.rescue()
 	del rescue
 
-# try:
-from main import *
 gc.collect()
-
-if isFile('debug') and reset_cause():
-	sys.exit()
-run()
-machine.reset()
-# except Exception as e:
-# 	machine.UART(0, 115200, tx=Pin(1), rx=Pin(3))
-# 	sys.print_exception(e)
+from main import *

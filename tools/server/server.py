@@ -62,10 +62,12 @@ def Eval(cmd, default=None):
 		return default
 
 def RUN(cmd, shell=True, timeout=3, **kwargs):
+	LOG('RUN: ' + cmd)
 	ret = subprocess.check_output(cmd, shell=shell, timeout=timeout, **kwargs)
 	return ret if type(ret)==str else ret.decode()
 
 def _runsys(cmd, event):
+	LOG('RUNSYS: ' + cmd)
 	os.system(cmd)
 	if event!=None:
 		event.set()
@@ -87,6 +89,15 @@ local_IP = get_local_IP()
 load_config = lambda: Try(lambda: InfiniteDefaultRevisionDict().from_json(Open(DEFAULT_CONFIG_FILE)), InfiniteDefaultRevisionDict())
 save_config = lambda obj: exec(f"with Open('{DEFAULT_CONFIG_FILE}','w') as fp: obj.to_json(fp, indent=1)")
 get_base_url = lambda: f'{"https" if ssl else "http"}://{local_IP}:{port}'
+
+ip2websock, ip2ydsock = {}, {}
+os.ip2ydsock = ip2ydsock
+# ip2tvdata: {'IP':{'playlist':[full filenames], 'cur_ii': current_index, 'shuffled': bool (save play position if false), 
+# 	'markers':[(key1,val1),...], 'T2Slang':'', 'T2Stext':'', 'S2Tlang':'', 'S2Ttext':''}}
+ip2tvdata = load_config()
+tv2lginfo = Try(lambda: json.load(Open(LG_TV_CONFIG_FILE)), {})
+get_tv_ip = lambda t: tv2lginfo[t]['ip'] if t in tv2lginfo else t
+get_tv_data = lambda t: ip2tvdata[tv2lginfo[t]['ip'] if t in tv2lginfo else t]
 
 # Detect language, invoke Google-translate TTS and play the speech audio
 def prepare_TTS(txt, fn=DEFAULT_SPEECH_FILE):
@@ -304,12 +315,14 @@ def normalize_vol(song=''):
 	return 'OK'
 
 @app.route('/playFrom/<name>')
-def playFrom(name='', lang=None):
+@app.route('/playFrom/<tv_name>/<name>')
+def playFrom(name='', tv_name=None, lang=None):
 	global player
 	try:
-		ii = name if type(name)==int else findSong(name, lang=lang)
+		plist = Try(lambda: get_tv_data(tv_name)['playlist'], filelist)
+		ii = name if type(name)==int else findSong(name, lang=lang, flist=plist)
 		assert ii!=None
-		player.play_item_at_index(ii)
+		player.play_item_at_index(ii) if tv_name is None else tv_wscmd(tv_name, f'goto_idx {ii}')
 	except Exception as e:
 		return str(e)
 	return 'OK'
@@ -375,18 +388,11 @@ def vlcvolume(cmd=''):
 		return str(e)
 
 
-# For LG TV
-ip2websock, ip2ydsock = {}, {}
-os.ip2ydsock = ip2ydsock
-# ip2tvdata: {'IP':{'playlist':[full filenames], 'cur_ii': current_index, 'shuffled': bool (save play position if false), 
-# 	'markers':[(key1,val1),...], 'T2Slang':'', 'T2Stext':'', 'S2Tlang':'', 'S2Ttext':''}}
-ip2tvdata = load_config()
-tv2lginfo = Try(lambda: json.load(Open(LG_TV_CONFIG_FILE)), {})
-
+### For LG TV
 # Set T2S/S2T info
 def setInfo(tv_name, text, lang, prefix, match=None):
 	langName = LC.get(lang).display_name('zh')
-	ip = tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name
+	ip = get_tv_ip(tv_name)
 	ip2tvdata[ip].update({f'{prefix}_lang': langName, f'{prefix}_text': text}|({} if match==None else {f'{prefix}_match': match}))
 	if ip:
 		ip2websock[ip].send(f'{prefix}lang.textContent="{langName}";{prefix}text.textContent="{text}";'+(f'{prefix}match.textContent="{match}"' if match!=None else ''))
@@ -395,7 +401,7 @@ def _report_title(tv_name):
 	with VoicePrompt(tv_name) as context:
 		ev = play_audio('voice/cur_song_title.mp3', False, tv_name)
 		if tv_name:
-			data = ip2tvdata[tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name]
+			data = get_tv_data(tv_name)
 			langId, txt = prepare_TTS(filepath2songtitle(data['playlist'][data['cur_ii']]))
 			setInfo(tv_name, txt, langId, 'T2S')
 		else:
@@ -516,29 +522,28 @@ def webPlay(tm_info, filename=None):
 @app.route('/tv_runjs')
 def tv_runjs():
 	name, cmd = unquote(request.query_string.decode()).split('/', 1)
-	ip2websock[tv2lginfo[name]['ip'] if name in tv2lginfo else name].send(cmd)
+	ip2websock[get_tv_ip(name)].send(cmd)
 	return 'OK'
 
 def _tvPlay(name, listfilename, url_root):
 	tv_name, tm_info = (name.split(' ',1)+[0])[:2]
 	if is_json_lst(listfilename):
-		tvd = ip2tvdata[tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name]
-		tvd['playlist'] = json.loads(listfilename)
+		get_tv_data(tv_name)['playlist'] = json.loads(listfilename)
 		listfilename = ''
 	if tv_name in tv2lginfo:
 		tv_on_if_off(tv_name, True)
 		return tv(tv_name, f'openBrowserAt "{url_root}/webPlay/{tm_info}/{listfilename}"')
 	else:
-		ws = ip2websock[tv2lginfo[tv_name]['ip'] if tv_name in tv2lginfo else tv_name]
+		ws = ip2websock[get_tv_ip(tv_name)]
 		return ws.send(f'seturl("{url_root}/webPlay/{tm_info}/{listfilename}")') or 'OK'
 
 @app.route('/tvPlay/<name>/<path:listfilename>')
-def tvPlay(name, listfilename):
-	threading.Thread(target=_tvPlay, args=(name, listfilename, get_url_root(request))).start()
+def tvPlay(name, listfilename, url_root=None):
+	threading.Thread(target=_tvPlay, args=(name, listfilename, url_root or get_url_root(request))).start()
 	return 'OK'
 
 def mark(name, tms):
-	tvd = ip2tvdata[tv2lginfo[name]['ip'] if name in tv2lginfo else name]
+	tvd = get_tv_data(name)
 	if tvd['shuffled']:
 		return 'Ignored'
 	tvd['markers'].update({json.dumps(tvd['playlist']): [tvd['cur_ii'], tms]})
@@ -549,7 +554,7 @@ def mark(name, tms):
 def tv_wscmd(name, cmd):
 	LOG(name+' : '+cmd)
 	try:
-		ip = tv2lginfo[name]['ip'] if name in tv2lginfo else name
+		ip = get_tv_ip(name)
 		ws = ip2websock[ip]
 		tvd = ip2tvdata[ip]
 		if cmd == 'pause':
@@ -749,18 +754,18 @@ def recog_and_play(voice, tv_name, path_name, handler, url_root):
 			handler(asr_output, tv_name, path_name, url_root.rstrip('/'))
 
 
-def _play_last(name=None):
-	tvd = ip2tvdata[tv2lginfo[name]['ip'] if name in tv2lginfo else name]
+def _play_last(name=None, url_root=None):
+	tvd = get_tv_data(name)
 	pl = tvd.get('playlist', json.loads(list(tvd['markers'].items())[-1][0]))
 	ii, tms = tvd['markers'].get(json.dumps(pl), [tvd.get('cur_ii', 0), 0])
 	if name in tv2lginfo:
 		tv_on_if_off(name, True)
-	tvPlay(f'{name} -1', json.dumps(pl))
+	tvPlay(f'{name} -1', json.dumps(pl), url_root)
 
 @app.route('/play_last')
 @app.route('/play_last/<tv_name>')
 def play_last(tv_name=None):
-	threading.Thread(target=_play_last, args=(tv_name,)).start()
+	threading.Thread(target=_play_last, args=(tv_name, get_url_root(request))).start()
 	return 'OK'
 
 def handle_ASR_indir(asr_out, tv_name, rel_path, url_root):

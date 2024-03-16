@@ -381,3 +381,9 @@ def run():
 	except Exception as e:
 		machine.UART(0, 115200, tx=Pin(1), rx=Pin(3))
 		sys.print_exception(e)
+
+gc.collect()
+
+if not isFile('debug') or machine.reset_cause()==0:
+	run()
+	machine.reset()
