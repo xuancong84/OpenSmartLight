@@ -137,7 +137,7 @@ function setvsrc(url, ii=0){
   if(url.indexOf('#t=')>0){ // old TV browser does not support play from position in URL
     var tm = Number(url.substr(url.indexOf('#t=')+3));
     while(!('currentTime' in v));
-    setTimeout(`if(v.currentTime<${tm})v.currentTime=${tm}`, 2000);
+    setTimeout(`if(v.currentTime<${tm}-2.5)v.currentTime=${tm}`, 2500);
   }
 }
 function showQR(){
@@ -241,7 +241,7 @@ function clickvid(e){
 function seturl(url){ window.location.href = url; }
 function timerInc() {
   // keep websocket connection
-  if(ws.readyState>1) ws = create_wsock();
+  if(ws==null || ws.readyState>1) ws = create_wsock();
 
   // show overlay upon mouse move
   ovl.style.display = ((idleTime>1||NN<=1)&&!menuMode)?"none":"";

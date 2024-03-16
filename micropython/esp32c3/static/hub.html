@@ -378,6 +378,7 @@ input {font-size:15px;}
 				if(v==null)obj.style.display="none";
 				else{
 				 	obj.style.display="inline";
+					 if(document.activeElement==obj) continue;
 					if(obj.tagName=='INPUT' || obj.tagName=='TEXTAREA'){
 						if(obj.type == 'checkbox') obj.checked = v;
 						else obj.value = v;
