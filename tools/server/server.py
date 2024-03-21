@@ -149,9 +149,13 @@ def custom_cmdline(cmd, wait=False):
 		traceback.print_exc()
 		return str(e)
 
+@app.route('/files')
 @app.route('/files/<path:filename>')
-def get_file(filename):
+def get_file(filename=''):
 	global last_get_file_ip
+	fn = os.path.join(SHARED_PATH, filename.strip('/'))
+	if os.path.isdir(fn):
+		return render_template('folder.html', rpath=request.path.rstrip('/'), folder=fn[len(SHARED_PATH):], files=showdir(fn))
 	last_get_file_ip = request.remote_addr
 	return send_from_directory(SHARED_PATH, filename.strip('/'), conditional=True)
 
@@ -252,14 +256,18 @@ def play_previous():
 	return 'OK'
 
 @app.route('/rewind')
-def rewind():
+@app.route('/rewind/<tv_name>')
+def rewind(tv_name=None):
 	global player
 	try:
-		player.set_position(0)
-		player.set_pause(False)
+		if tv_name:
+			return tv_wscmd(tv_name, 'rewind')
+		else:
+			player.set_position(0)
+			player.set_pause(False)
+			return 'OK'
 	except Exception as e:
 		return str(e)
-	return 'OK'
 
 def get_bak_fn(fn):
 	dirname = os.path.dirname(fn)
@@ -578,7 +586,7 @@ def tv_wscmd(name, cmd):
 			tv(name, 'screenOn')
 		elif cmd.startswith('lsdir '):
 			full_dir = SHARED_PATH+cmd.split(' ',1)[1]+'/'
-			lst = [(p+'/' if os.path.isdir(full_dir+p) else p) for p in sorted(listdir(full_dir)) if not p.startswith('.')]
+			lst = showdir(full_dir)
 			ws.send(json.dumps(lst))
 		else:
 			if cmd in ['next', 'prev']:

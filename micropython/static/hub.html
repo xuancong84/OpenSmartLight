@@ -303,7 +303,7 @@ input {font-size:15px;}
 					set_fields2(box, v, `g.${k}.`);
 					addElem(box, `<span>}</span> &nbsp;`);
 				}else{
-					addElem(box, `<span>${k}:</span><input id="${prefix}${k}" type="${typeof v=="number"?"number":"text"}" size=1 value="${v}" onblur='set_value(this, "${cmd}")'> &nbsp;`);
+					addElem(box, `<span>${k}:</span><input id="${prefix}${k}" type="${typeof v=="number"?"number":"text"}" size=1 value="${v}" onchange='set_value(this, "${cmd}")'> &nbsp;`);
 					var obj = getById(prefix+k);
 					obj.style.width = obj.scrollWidth + (typeof v=="number"?20:0) + 'px';
 				}

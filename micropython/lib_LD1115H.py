@@ -55,10 +55,10 @@ class LD1115H:
 			'LED_END': 125,
 			'GLIDE_TIME': 800,
 			'N_CONSEC_TRIG': 1,
-			'sensor_pwr_pin': '',
-			'ctrl_output_pin': '',
-			'led_master_pin': '',
-			'led_level_pin': '',
+			'sensor_pwr_pin_num': '',
+			'ctrl_output_pin_num': '',
+			'led_master_pin_num': '',
+			'led_level_pin_num': '',
 			'F_read_lux': '',
 			'F_read_thermal': '',
 			'night_start': '18:00',
@@ -96,10 +96,10 @@ class LD1115H:
 			'thermal_level': self.thermal_level,
 			'logging': self.logging,
 			'sensor_log': self.sensor_log if self.logging else None,
-			'ctrl_output': digitalRead(self.P['ctrl_output_pin']),
-			'sensor_pwr': digitalRead(self.P['sensor_pwr_pin']),
-			'led_master': digitalRead(self.P['led_master_pin']),
-			'led_level': analogRead(self.P['led_level_pin']),
+			'ctrl_output_pin_val': digitalRead(self.P['ctrl_output_pin_num']),
+			'sensor_pwr_pin_val': digitalRead(self.P['sensor_pwr_pin_num']),
+			'led_master_pin_val': digitalRead(self.P['led_master_pin_num']),
+			'led_level_pin_val': analogRead(self.P['led_level_pin_num']),
 			}
 
 	def is_midnight(self):
@@ -110,19 +110,19 @@ class LD1115H:
 		return isTimeInBetween(getTimeString()[:5], self.P['night_start'], self.P['night_stop'])
 	
 	def set_output(self, state):
-		digitalWrite(self.P['ctrl_output_pin'], state)
+		digitalWrite(self.P['ctrl_output_pin_num'], state)
 		prt("light on" if state else "light off")
 
 	def set_sensor(self, state):
-		digitalWrite(self.P['sensor_pwr_pin'], state)
+		digitalWrite(self.P['sensor_pwr_pin_num'], state)
 		prt("sensor on" if state else "sensor off")
 
 	def set_onboard_led(self, state):
-		digitalWrite(self.P['led_master_pin'], state)
+		digitalWrite(self.P['led_master_pin_num'], state)
 		prt("Onboard LED =", "On" if state else "Off")
 	
 	def glide_onboard_led(self, state):
-		if not self.P['led_master_pin']: return
+		if not self.P['led_master_pin_num']: return
 
 		prt("glide LED on" if state else "glide LED off")
 		GLIDE_TIME = self.P['GLIDE_TIME']
@@ -130,23 +130,23 @@ class LD1115H:
 		LED_BEGIN = self.P['LED_BEGIN']
 		if GLIDE_TIME == 0:
 			self.set_onboard_led(state)
-			analogWrite(self.P['led_level_pin'], LED_END if state else LED_BEGIN)
+			analogWrite(self.P['led_level_pin_num'], LED_END if state else LED_BEGIN)
 			return
 		level = 0
 		spd = float(GLIDE_TIME) / ((LED_BEGIN + LED_END + 1) * (abs(int(LED_END - LED_BEGIN)) + 1) / 2)
 		if state:
-			analogWrite(self.P['led_level_pin'], LED_BEGIN)
-			digitalWrite(self.P['led_master_pin'], 1)
+			analogWrite(self.P['led_level_pin_num'], LED_BEGIN)
+			digitalWrite(self.P['led_master_pin_num'], 1)
 			for level in range(LED_BEGIN, LED_END + 1):
 				sleep_ms(int(level * spd))
-				analogWrite(self.P['led_level_pin'], level)
+				analogWrite(self.P['led_level_pin_num'], level)
 		else:
-			analogWrite(self.P['led_level_pin'], LED_END)
+			analogWrite(self.P['led_level_pin_num'], LED_END)
 			for level in range(LED_END, LED_BEGIN - 1, -1):
 				sleep_ms(int(level * spd))
-				analogWrite(self.P['led_level_pin'], level)
-			digitalWrite(self.P['led_master_pin'], 0)
-			analogWrite(self.P['led_level_pin'], 0)
+				analogWrite(self.P['led_level_pin_num'], level)
+			digitalWrite(self.P['led_master_pin_num'], 0)
+			analogWrite(self.P['led_level_pin_num'], 0)
 
 	def smartlight_on(self):
 		prt("smartlight on")
