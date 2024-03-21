@@ -78,7 +78,10 @@ h1 {
   <span class="hoverShow" title="复制视频链接然后扫码下载播放" onclick="showQR()">📱</span>
   <span id="QRcontainer" style="background-color: #fff; opacity: 0; display: inline-flex;"></span>
  </div>
- <div class="overlay hoverShow" style="right:0px; bottom:var(--edge-pad);" onclick="toggle_hide([T2Sframe,S2Tframe])" title="显示详情（语音识别及语音合成）">💬</div>
+ <div class="overlay hoverShow" style="right:0px; bottom:var(--edge-pad);">
+  <span onclick="toggle_hide([T2Sframe,S2Tframe])" title="显示详情（语音识别及语音合成）">💬</span>
+  <span onclick="prompt('The URL of the current video is:', v.src.split('#t=')[0])" title="显示当前视频的URL链接">🌐</span>
+ </div>
  <div id="menu0" class="playmenu" style="font-size: xx-large; font-weight: bold; text-align: center;">
   <h1>{{listname}}</h1>
   {% for name in playlist %}

@@ -92,7 +92,8 @@ button:focus:not(:active) {box-shadow: rgba(40, 170, 255, 0.25) 0 0 0 .125em;}
 <label for="cb_redownload">Re-download</label><br>
 <button onclick="paste()">Paste URL</button>
 <button onclick="download()">Download Video</button><br>
-<button onclick="paste(true)">Paste URL and Download Video</button><br><br>
+<button onclick="paste(true)">Paste URL and Download Video</button><br>
+<button onclick="openNewTab()">Open URL in a New Window/Tab</button><br><br>
 <div id="ppwin" style="position:relative; width: 100%; height: 50%; display: none;">
 	<textarea id="pwin" style="width: 100%; height: 100%; overflow: scroll;" readonly></textarea>
 	<h2 style="position: absolute; right:4px; top:4px; z-index: 1; opacity: 0.7; transform: translate(0%, -50%)">
@@ -113,6 +114,7 @@ function GET(url, onOkay=null, onFail=null) {
 	xmlHttp.send(null);
 	return xmlHttp.responseText;
 }
+function openNewTab(){window.open(getURL());}
 function open_wsock_if_nec(){
 	if(ws==null || ws.readyState>1){
 		ws = new WebSocket((window.location.href.startsWith('https:')?'wss://':'ws://') + location.host + '/yd_init');
@@ -131,12 +133,15 @@ function open_wsock_if_nec(){
 	ppwin.style.display = 'block';
 	return ws;
 }
+function getURL(){
+	var url = getById('videoURL').value;
+	return url.startsWith('http')?url:('https://'+url);
+}
 function download(){
 	var mask = 0;
 	for(const [ii, cb_id] of ['cb_play_after_download', 'cb_include_subtitles', 'cb_download_high_quality', 'cb_redownload'].entries())
 		mask |= getById(cb_id).checked*(1<<ii);
-	var url = getById('videoURL').value;
-	url = url.startsWith('http')?url:('https://'+url);
+	var url = getURL();
 	pwin.value = '';
 	open_wsock_if_nec();
 	GET(`/download?${target_ip} ${mask} ${url}`, toast, toast);
