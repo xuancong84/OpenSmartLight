@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import os, sys, whisper, traceback, argparse
+import os, sys, whisper, traceback, argparse, threading
 from flask import Flask, request, jsonify, send_file
 
 import time, shutil, subprocess, tarfile
@@ -23,31 +23,40 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 64*1024*1024
 M_ASR = M_VOS = args = None
+g_threads = {}
 
-allowed_file = lambda fn: '.' in fn and fn.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/run_asr/<model>', methods=['POST'])
 def upload_file(model):
-	global M_ASR, UPLOAD_FOLDER, FILENAME
+	global M_ASR, UPLOAD_FOLDER
 	# check if the post request has the file part
 	if 'file' not in request.files:
 		return ''
 	file = request.files['file']
-	# If the user does not select a file, the browser submits an
-	# empty file without a filename.
-	if file and allowed_file(file.filename):
-		file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
-		try:
-			obj = M_ASR.transcribe(UPLOAD_FOLDER+file.filename)
-			print(obj, file=sys.stderr)
-			return jsonify(obj), 200
-		except Exception as e:
-			traceback.print_exc()
-			return str(e), 500
+	file.save(os.path.join(app.config['UPLOAD_FOLDER'], file.filename))
+	try:
+		obj = M_ASR.transcribe(UPLOAD_FOLDER+file.filename)
+		print(obj, file=sys.stderr)
+		return jsonify(obj), 200
+	except Exception as e:
+		traceback.print_exc()
+		return str(e), 500
+
+
+@app.route('/run_task/<path:cmdline>')
+def run_task(cmdline):
+	thread = threading.Thread(target=lambda: os.system(cmdline))
+	thread.start()
+	while thread.ident==None: pass
+	g_threads[thread.ident] = thread
+	return str(thread.ident)
+
+@app.route('/query_task/<int:task_id>')
+def query_task(task_id):
+	return str(g_threads[task_id].is_alive()).lower()
 
 
 class Separator(object):
-
 	def __init__(self, model, device=None, batchsize=1, cropsize=256, postprocess=False):
 		self.model = model
 		self.offset = model.offset

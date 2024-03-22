@@ -12,7 +12,7 @@ KKS = pykakasi.kakasi()
 filelist, cookies_opt = [], []
 Open = lambda t, *args: open(os.path.expandvars(os.path.expanduser(t)), *args)
 listdir = lambda t: os.listdir(os.path.expandvars(os.path.expanduser(t)))
-showdir = lambda t: [(p+'/' if os.path.isdir(t+p) else p) for p in sorted(listdir(t)) if not p.startswith('.')]
+showdir = lambda t: [(p+'/' if os.path.isdir(os.path.join(t,p)) else p) for p in sorted(listdir(t)) if not p.startswith('.')]
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
 translit = lambda t: unidecode(t).lower()
 get_alpha = lambda t: ''.join([c for c in t if c in string.ascii_letters])

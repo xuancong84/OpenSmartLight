@@ -587,7 +587,7 @@ def tv_wscmd(name, cmd):
 		elif cmd.startswith('lsdir '):
 			full_dir = SHARED_PATH+cmd.split(' ',1)[1]+'/'
 			lst = showdir(full_dir)
-			ws.send(json.dumps(lst))
+			ws.send('\n'.join(lst))
 		else:
 			if cmd in ['next', 'prev']:
 				tvd['cur_ii'] = (tvd['cur_ii']+(1 if cmd=='next' else -1))%len(tvd['playlist'])
@@ -600,7 +600,7 @@ def tv_wscmd(name, cmd):
 				flist = ls_media_files(SHARED_PATH+os.path.dirname(fn))
 				tvd['playlist'] = flist
 				tvd['cur_ii'] = [ii for ii,fulln in enumerate(flist) if fulln.endswith('/'+fn)][0]
-				ws.send(json.dumps([s.split('/')[-1] for s in flist]))
+				ws.send('\n'.join([s.split('/')[-1] for s in flist]))
 			else:
 				ws.send(cmd)
 				return 'OK'
@@ -674,18 +674,18 @@ def record_audio(tm_sec=5, file_path=DEFAULT_RECORDING_FILE):
 
 
 # For ASR server
-def get_ASR_offline():
+def get_ASR_offline(audio_fn=asr_input):
 	try:
 		CANCEL_FLAG = False
-		obj = asr_model.transcribe(os.path.expanduser(asr_input), cancel_func=cancel_requested)
+		obj = asr_model.transcribe(os.path.expanduser(audio_fn), cancel_func=cancel_requested)
 		return obj
 	except Exception as e:
 		traceback.print_exc()
 		return str(e)
 
-def get_ASR_online():
+def get_ASR_online(audio_fn=asr_input):
 	try:
-		with Open(asr_input, 'rb') as f:
+		with Open(audio_fn, 'rb') as f:
 			r = requests.post(ASR_CLOUD, files={'file': f}, timeout=5)
 		return json.loads(r.text) if r.status_code==200 else {}
 	except Exception as e:
@@ -724,20 +724,20 @@ class VoicePrompt:
 
 
 # This function might take very long time, must be run in a separate thread
-def recog_and_play(voice, tv_name, path_name, handler, url_root):
+def recog_and_play(voice_prompt, tv_name, path_name, handler, url_root, audio_file=DEFAULT_RECORDING_FILE):
 	global player, asr_model, ASR_cloud_running, ASR_server_running
 
 	with VoicePrompt(tv_name) as context:
 		# record speech
-		if voice:
+		if voice_prompt:
 			set_volume(VOICE_VOL)
-			play_audio(voice, True, tv_name)
+			play_audio(voice_prompt, True, tv_name)
 			record_audio()
 
 		# try cloud ASR
 		if ASR_CLOUD and not ASR_cloud_running:
 			ASR_cloud_running = True
-			asr_output = get_ASR_online()
+			asr_output = get_ASR_online(audio_file)
 			ASR_cloud_running = False
 
 		# try offline ASR if cloud ASR fails
@@ -751,7 +751,7 @@ def recog_and_play(voice, tv_name, path_name, handler, url_root):
 			play_audio('voice/wait_for_asr.mp3', False, tv_name)
 
 			context.restore()
-			asr_output = get_ASR_offline()
+			asr_output = get_ASR_offline(audio_file)
 
 		print(f'ASR result: {asr_output}', file=sys.stderr)
 		if asr_output=={} or type(asr_output)==str:
@@ -833,8 +833,8 @@ def play_spoken_song(tv_name=None, lst_filename=''):
 def play_recorded():
 	with Open(f'{TMP_DIR}/rec.webm', 'wb') as fp:
 		fp.write(request.data)
-	AudSeg.from_file(f'{TMP_DIR}/rec.webm', format='webm').export(DEFAULT_RECORDING_FILE, 'ipod')
-	threading.Thread(target=recog_and_play, args=('', request.remote_addr, '', handle_ASR_indir, get_url_root(request))).start()
+	# AudSeg.from_file(f'{TMP_DIR}/rec.webm', format='webm').export(DEFAULT_RECORDING_FILE, 'ipod')
+	threading.Thread(target=recog_and_play, args=('', request.remote_addr, '', handle_ASR_indir, get_url_root(request), f'{TMP_DIR}/rec.webm')).start()
 	return 'OK'
 
 # For Ecovacs
@@ -844,7 +844,7 @@ def ecovacs(name='', cmd=''):
 	return RUN(f'./ecovacs-cmd.sh {name} {cmd} &')
 
 
-# For pikaraoke
+# For OpenHomeKaraoke
 @app.route('/KTV/<cmd>')
 def KTV(cmd):
 	global P_ktv
