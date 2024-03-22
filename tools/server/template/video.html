@@ -80,7 +80,7 @@ h1 {
  </div>
  <div class="overlay hoverShow" style="right:0px; bottom:var(--edge-pad);">
   <span onclick="toggle_hide([T2Sframe,S2Tframe])" title="显示详情（语音识别及语音合成）">💬</span>
-  <span onclick="prompt('The URL of the current video is:', v.src.split('#t=')[0])" title="显示当前视频的URL链接">🌐</span>
+  <span onclick="promptOpenFolder()" title="显示当前视频的URL链接">🔗</span>
  </div>
  <div id="menu0" class="playmenu" style="font-size: xx-large; font-weight: bold; text-align: center;">
   <h1>{{listname}}</h1>
@@ -109,7 +109,7 @@ var menuMode = 0;
 var ws_func = 0;
 var passCounter = 0, markCounter = 0;
 var playlist = {{playlist|tojson}};
-var dir_list;
+var dir_list, subdir_list;
 var NN = playlist.length;
 var cur_dir = "", cur_file;
 var v = getById("video0");
@@ -142,6 +142,10 @@ function setvsrc(url, ii=0){
     while(!('currentTime' in v));
     setTimeout(`if(v.currentTime<${tm}-2.5)v.currentTime=${tm}`, 2500);
   }
+}
+function promptOpenFolder(){
+  if(prompt('You can copy in clipboard the URL of the current video below. Do you want to open the parent folder in a new TAB?', v.src.split('#t=')[0]))
+    window.open(v.src.substr(0,v.src.lastIndexOf('/')), '_blank')
 }
 function showQR(){
   QRcontainer.style.opacity = 1-QRcontainer.style.opacity;
@@ -196,6 +200,7 @@ function onRecStop(){
   req.send(blob);
 }
 function lsdir(tgtDir=null){
+  if(tgtDir=='.') tgtDir=v.src.split('/').slice(4,-1).join('/');
   if(tgtDir!=null) cur_dir=tgtDir.replace(/\/*$/, '');
   ws_func = 1;
   ws.send('lsdir '+cur_dir);
@@ -267,26 +272,30 @@ function timerRst() {
   document.body.style.overflow = "";
   idleTime = 0;
 }
-function gotoFile(i){
+function gotoFile(ev, i){
+  ev.preventDefault();
   ws_func = 2;
   ws.send("goto_file "+dir_list[i]);
   setvidx(i, 'b');
 }
 function showDir(data){
   ws_func = 0;
-  dir_list = [];
-  menu1.innerHTML = "<h1>Folder</h1>";
+  menu1.innerHTML = `<h1>Folder: /${cur_dir}<span style="float:right; cursor:pointer;" onclick="lsdir('.')">🏠</span></h1>`;
   if(cur_dir){
     var parent_dir = cur_dir.indexOf('/')>=0 ? cur_dir.split('/').slice(0,-1).join('/') : "";
     menu1.innerHTML += `<a onclick="lsdir('${parent_dir}')">../</a>`;
   }
-  var i=0;
-  for(var fn of JSON.parse(data)){
+  var i=0, j=0;
+  dir_list = [];
+  subdir_list = [];
+  for(var fn of data.split('\n')){
     fulln = cur_dir?(cur_dir+'/'+fn):fn;
-    if(fn.endsWith('/'))
-      menu1.innerHTML += `<a onclick="lsdir('${fulln}')">${fn}</a>`;
-    else{
-      menu1.innerHTML += `<a id="b${i}" onclick="gotoFile('${i}')" style="color:${fulln.endsWith(cur_file)?"#1f0":"#eee"}">${fn}</a>`;
+    if(fn.endsWith('/')){
+      menu1.innerHTML += `<a onclick="lsdir(subdir_list[${j}])">${fn}</a>`;
+      subdir_list.push(fulln);
+      j+=1;
+    }else{
+      menu1.innerHTML += `<a id="b${i}" onclick="gotoFile(event,${i})" href="/files/${fulln}" style="color:${fulln.endsWith(cur_file)?"#1f0":"#eee"}">${fn}</a>`;
       dir_list.push(fulln);
       i+=1;
     }
@@ -294,7 +303,7 @@ function showDir(data){
 }
 function updateList(arr){
   ws_func = 0;
-  playlist = JSON.parse(arr);
+  playlist = arr.split('\n');
   NN = playlist.length;
   menu0.innerHTML = `<h1>${cur_dir}</h1>`;
   for(var [i,fn] of playlist.entries())
