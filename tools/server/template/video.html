@@ -136,11 +136,17 @@ function setvsrc(url, ii=0){
   ovl.style.display = NN>1?"":"none";
   v.play();
   passCounter = markCounter = 0;
-  setvidx(ii);
   if(url.indexOf('#t=')>0){ // old TV browser does not support play from position in URL
     var tm = Number(url.substr(url.indexOf('#t=')+3));
     while(!('currentTime' in v));
     setTimeout(`if(v.currentTime<${tm}-2.5)v.currentTime=${tm}`, 2500);
+  }
+  setvidx(ii);
+  if(menuMode!=2) return;
+  if(cur_file.endsWith(getById('b'+ii).text)) setvidx(ii, 'b');
+  else{
+    for(var ii=0; ii<dir_list.length; ii++)
+      if(cur_file.endsWith(getById('b'+ii).text)) setvidx(ii, 'b');
   }
 }
 function promptOpenFolder(){
