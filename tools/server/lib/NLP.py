@@ -1,5 +1,5 @@
-import os, sys, io, time, string, json, threading, yt_dlp
-import pykakasi, pinyin, logging, requests, shutil
+import os, sys, io, re, time, string, json, threading, yt_dlp, gzip
+import pykakasi, pinyin, logging, requests, shutil, subprocess
 from unidecode import unidecode
 from urllib.parse import unquote
 from werkzeug import local
@@ -8,29 +8,73 @@ from lib.ChineseNumber import *
 from lib.settings import *
 from device_config import *
 
+def Open(fn, mode='r', **kwargs):
+	if fn == '-':
+		return sys.stdin if mode.startswith('r') else sys.stdout
+	fn = os.path.expandvars(os.path.expanduser(fn))
+	return gzip.open(fn, mode, **kwargs) if fn.lower().endswith('.gz') else open(fn, mode, **kwargs)
+
+def _sub_num(s):
+	nd = max(3, len(str(len(s))))
+	for n in sorted(re.findall('[0-9]+', s), reverse=True, key=lambda t:len(s)):
+		s = s.replace(n, f'%0{nd}d'%int(n))
+	return s
+
+def nsort(lst):
+	pairs = [(s, _sub_num(s.rsplit('.', 1)[0])) for s in lst]
+	return [i for i,j in sorted(pairs, key=lambda t: t[1])]
+
 KKS = pykakasi.kakasi()
 filelist, cookies_opt = [], []
-Open = lambda t, *args: open(os.path.expandvars(os.path.expanduser(t)), *args)
-listdir = lambda t: os.listdir(os.path.expandvars(os.path.expanduser(t)))
-showdir = lambda t: [(p+'/' if os.path.isdir(os.path.join(t,p)) else p) for p in sorted(listdir(t)) if not p.startswith('.')]
+listdir = lambda t: nsort(os.listdir(os.path.expandvars(os.path.expanduser(t))))
+showdir = lambda t: [(p+'/' if os.path.isdir(os.path.join(t,p)) else p) for p in listdir(t) if not p.startswith('.')]
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
 translit = lambda t: unidecode(t).lower()
 get_alpha = lambda t: ''.join([c for c in t if c in string.ascii_letters])
 get_alnum = lambda t: ''.join([c for c in t if c in string.ascii_letters+string.digits])
 to_romaji = lambda t: ' '.join([its['hepburn'] for its in KKS.convert(t)])
-ls_media_files = lambda fullpath: sorted([f'{fullpath}/{f}'.replace('//','/') for f in listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts])
-ls_subdir = lambda fullpath: sorted([g.rstrip('/') for f in listdir(fullpath) for g in [f'{fullpath}/{f}'.replace('//','/')] if not f.startswith('.') and os.path.isdir(g)])
+ls_media_files = lambda fullpath: [f'{fullpath}/{f}'.replace('//','/') for f in listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts]
+ls_subdir = lambda fullpath: [g.rstrip('/') for f in listdir(fullpath) for g in [f'{fullpath}/{f}'.replace('//','/')] if not f.startswith('.') and os.path.isdir(g)]
 mrl2path = lambda t: unquote(t).replace('file://', '').strip() if t.startswith('file://') else (t.strip() if t.startswith('/') else '')
 is_json_lst = lambda s: s.startswith('["') and s.endswith('"]')
 load_m3u = lambda fn: [i for L in Open(fn).readlines() for i in [mrl2path(L)] if i]
 get_url_root = lambda r: r.url_root.rstrip('/') if r.url_root.count(':')>=2 else r.url_root.rstrip('/')+f':{r.server[1]}'
+LOG = lambda s: print(f'LOG: {s}') if DEBUG_LOG else None
 
 
-def Try(fn, default=None):
+def Try(fn, dft=None):
 	try:
 		return fn()
 	except Exception as e:
-		return str(e) if default=='ERROR_MSG' else default
+		return dft() if callable(dft) else (str(e) if dft=='ERROR_MSG' else dft)
+
+def prune_dict(dct, limit=10):
+	while len(dct)>limit:
+		dct.pop(list(dct.keys())[0])
+	return dct
+
+def Eval(cmd, default=None):
+	try:
+		return eval(cmd, globals(), globals())
+	except:
+		return default
+
+def RUN(cmd, shell=True, timeout=3, **kwargs):
+	LOG(f'RUN: {cmd}')
+	try:
+		ret = subprocess.check_output(cmd, shell=shell, timeout=timeout, **kwargs)
+	except subprocess.CalledProcessError as e:
+		ret = e.output
+	return ret if type(ret)==str else ret.decode()
+
+def _runsys(cmd, event):
+	LOG('RUNSYS: ' + cmd)
+	os.system(cmd)
+	if event!=None:
+		event.set()
+
+def RUNSYS(cmd, event=None):
+	threading.Thread(target=_runsys, args=(cmd, event)).start()
 
 get_filesize = lambda fn: Try(lambda: os.path.getsize(fn), 0)
 
@@ -39,6 +83,14 @@ def fuzzy(txt, dct=FUZZY_PINYIN):
 		txt = txt.replace(src, tgt)
 	return txt
 
+fn2dur = {}
+def getDuration(fn):
+	if fn in fn2dur:
+		return fn2dur[fn]
+	res = RUN(['ffprobe', '-i', fn, '-show_entries', 'format=duration', '-v', 'quiet',  '-of', 'csv=p=0'], shell=False)
+	ret = fn2dur[fn] = Try(lambda: float(res.strip()), 0)
+	prune_dict(fn2dur)
+	return ret
 
 def str_search(name, name_list):
 	# 1. exact full match

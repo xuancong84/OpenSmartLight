@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-DEBUG_LOG = True
-
 import os, sys, traceback, argparse, math, requests, json, re, webbrowser
 import subprocess, random, time, threading, socket
 import vlc, signal, qrcode, qrcode.image.svg
@@ -52,33 +50,6 @@ isJustAfterBoot = True if sys.platform=='darwin' else float(open('/proc/uptime')
 random.seed(time.time())
 ASR_server_running = ASR_cloud_running = False
 lang_detector = LanguageDetectorBuilder.from_languages(*lang2id.keys()).build()
-LOG = lambda s: print(f'LOG: {s}') if DEBUG_LOG else None
-
-
-def Eval(cmd, default=None):
-	try:
-		return eval(cmd, globals(), globals())
-	except:
-		return default
-
-def RUN(cmd, shell=True, timeout=3, **kwargs):
-	LOG('RUN: ' + cmd)
-	ret = subprocess.check_output(cmd, shell=shell, timeout=timeout, **kwargs)
-	return ret if type(ret)==str else ret.decode()
-
-def _runsys(cmd, event):
-	LOG('RUNSYS: ' + cmd)
-	os.system(cmd)
-	if event!=None:
-		event.set()
-
-def RUNSYS(cmd, event=None):
-	threading.Thread(target=_runsys, args=(cmd, event)).start()
-
-def prune_dict(dct, limit=10):
-	while len(dct)>limit:
-		dct.pop(list(dct.keys())[0])
-	return dct
 
 def get_local_IP():
 	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -87,7 +58,9 @@ def get_local_IP():
 
 local_IP = get_local_IP()
 load_config = lambda: Try(lambda: InfiniteDefaultRevisionDict().from_json(Open(DEFAULT_CONFIG_FILE)), InfiniteDefaultRevisionDict())
-save_config = lambda obj: exec(f"with Open('{DEFAULT_CONFIG_FILE}','w') as fp: obj.to_json(fp, indent=1)")
+def save_config(obj):
+	with Open(DEFAULT_CONFIG_FILE, 'wt') as fp:
+		obj.to_json(fp, indent=1)
 get_base_url = lambda: f'{"https" if ssl else "http"}://{local_IP}:{port}'
 
 ip2websock, ip2ydsock = {}, {}
@@ -495,7 +468,7 @@ def yd_init(sock):
 	ip2ydsock.pop(key)
 
 def load_playable(ip, tm_info, filename):
-	fullname, n = SHARED_PATH+str(filename), 1
+	fullname = filename if type(filename)==str and filename.startswith(SHARED_PATH) else (SHARED_PATH+str(filename))
 	tm_sec, ii, randomize = ([int(float(i)) for i in tm_info.split()]+[0,0])[:3]
 	tvd = ip2tvdata[ip]
 	if filename == None:
@@ -555,6 +528,9 @@ def mark(name, tms):
 	if tvd['shuffled']:
 		return 'Ignored'
 	tvd['markers'].update({json.dumps(tvd['playlist']): [tvd['cur_ii'], tms]})
+	fn = tvd['playlist'][tvd['cur_ii']]
+	if getDuration(fn) >= DRAMA_DURATION_TH:
+		tvd['last_movie_drama'] = fn
 	prune_dict(tvd['markers'])
 	save_config(prune_dict(ip2tvdata))
 
@@ -764,8 +740,11 @@ def recog_and_play(voice_prompt, tv_name, path_name, handler, url_root, audio_fi
 
 def _play_last(name=None, url_root=None):
 	tvd = get_tv_data(name)
-	pl = tvd.get('playlist', json.loads(list(tvd['markers'].items())[-1][0]))
-	ii, tms = tvd['markers'].get(json.dumps(pl), [tvd.get('cur_ii', 0), 0])
+	if 'last_movie_drama' in tvd:
+		pl, ii, tms = load_playable(get_tv_ip(name), '-1', tvd['last_movie_drama'])[:3]
+	else:
+		pl = Try(lambda: tvd['playlist'], lambda: json.loads(list(tvd['markers'].items())[-1][0]))
+		ii, tms = tvd['markers'].get(json.dumps(pl), [tvd.get('cur_ii', 0), 0])
 	if name in tv2lginfo:
 		tv_on_if_off(name, True)
 	tvPlay(f'{name} -1', json.dumps(pl), url_root)
