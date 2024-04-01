@@ -523,6 +523,7 @@ def tvPlay(name, listfilename, url_root=None):
 	threading.Thread(target=_tvPlay, args=(name, listfilename, url_root or get_url_root(request))).start()
 	return 'OK'
 
+last_save_time = time.time()
 def mark(name, tms):
 	tvd = get_tv_data(name)
 	if tvd['shuffled']:
@@ -532,7 +533,9 @@ def mark(name, tms):
 	if getDuration(fn) >= DRAMA_DURATION_TH:
 		tvd['last_movie_drama'] = fn
 	prune_dict(tvd['markers'])
-	save_config(prune_dict(ip2tvdata))
+	if time.time()-last_save_time>3600:
+		save_config(prune_dict(ip2tvdata))
+		last_save_time = time.time()
 
 @app.route('/tv_wscmd/<name>/<path:cmd>')
 def tv_wscmd(name, cmd):
@@ -939,5 +942,6 @@ if __name__ == '__main__':
 			except:
 				traceback.print_exc()
 
+	save_config(prune_dict(ip2tvdata))
 	import os
 	os._exit(0)
