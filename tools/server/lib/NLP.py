@@ -8,6 +8,16 @@ from lib.ChineseNumber import *
 from lib.settings import *
 from device_config import *
 
+def Try(*args):
+	exc = ''
+	for arg in args:
+		try:
+			if callable(arg):
+				return arg()
+		except Exception as e:
+			exc = e
+	return str(exc)
+
 def Open(fn, mode='r', **kwargs):
 	if fn == '-':
 		return sys.stdin if mode.startswith('r') else sys.stdout
@@ -33,20 +43,13 @@ translit = lambda t: unidecode(t).lower()
 get_alpha = lambda t: ''.join([c for c in t if c in string.ascii_letters])
 get_alnum = lambda t: ''.join([c for c in t if c in string.ascii_letters+string.digits])
 to_romaji = lambda t: ' '.join([its['hepburn'] for its in KKS.convert(t)])
-ls_media_files = lambda fullpath: [f'{fullpath}/{f}'.replace('//','/') for f in listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1] in media_file_exts]
+ls_media_files = lambda fullpath, exts=media_file_exts: [f'{fullpath}/{f}'.replace('//','/') for f in listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1].lower() in exts]
 ls_subdir = lambda fullpath: [g.rstrip('/') for f in listdir(fullpath) for g in [f'{fullpath}/{f}'.replace('//','/')] if not f.startswith('.') and os.path.isdir(g)]
 mrl2path = lambda t: unquote(t).replace('file://', '').strip() if t.startswith('file://') else (t.strip() if t.startswith('/') else '')
 is_json_lst = lambda s: s.startswith('["') and s.endswith('"]')
 load_m3u = lambda fn: [i for L in Open(fn).readlines() for i in [mrl2path(L)] if i]
 get_url_root = lambda r: r.url_root.rstrip('/') if r.url_root.count(':')>=2 else r.url_root.rstrip('/')+f':{r.server[1]}'
 LOG = lambda s: print(f'LOG: {s}') if DEBUG_LOG else None
-
-
-def Try(fn, dft=None):
-	try:
-		return fn()
-	except Exception as e:
-		return dft() if callable(dft) else (str(e) if dft=='ERROR_MSG' else dft)
 
 def prune_dict(dct, limit=10):
 	while len(dct)>limit:
@@ -194,6 +197,15 @@ def findMedia(name, lang=None, stack=0, stem=None, episode=None, base_path=SHARE
 			if res != None:
 				return res
 	return None
+
+
+def getAnyMediaList(base_path=SHARED_PATH, exts=video_file_exts):
+	lst = ls_media_files(base_path, exts)
+	if lst: return lst
+	for dir in ls_subdir(base_path):
+		lst = getFirstVideoList(dir, video_file_exts)
+		if lst: return lst
+	return []
 
 
 # For getting thread's STDIO

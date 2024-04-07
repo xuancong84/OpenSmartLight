@@ -129,6 +129,11 @@ var ws = create_wsock();
 
 function setvsrc(url, ii=0){
   v.src = url;
+  if(!url){
+    cur_dir = cur_file = ''
+    if(menuMode!=2) toggle_menu(2);
+    return;
+  }
   cur_file = url.indexOf('#')<0 ? url.substr(url.indexOf('files/')+6) : url.substring(url.indexOf('files/')+6, url.indexOf('#'));
   cur_dir = url.substring(url.indexOf('files/')+6, url.lastIndexOf('/'));
   var ttl = url.substr(url.indexOf('/',1)+1);

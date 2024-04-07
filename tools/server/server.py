@@ -471,7 +471,7 @@ def load_playable(ip, tm_info, filename):
 	fullname = filename if type(filename)==str and filename.startswith(SHARED_PATH) else (SHARED_PATH+str(filename))
 	tm_sec, ii, randomize = ([int(float(i)) for i in tm_info.split()]+[0,0])[:3]
 	tvd = ip2tvdata[ip]
-	if filename == None:
+	if not filename:
 		lst = tvd['playlist']
 	elif is_json_lst(filename):
 		lst = json.loads(filename)
@@ -495,9 +495,9 @@ def webPlay(tm_info, filename=None):
 	lst, ii, tm_sec, randomize = load_playable(request.remote_addr, tm_info, filename)
 	tvd = ip2tvdata[request.remote_addr]
 	return render_template('video.html',
-		listname=''.join(lst[0].split('/')[-2:-1]) or '播放列表',
+		listname=Try(lambda:''.join(lst[0].split('/')[-2:-1]), '') or '播放列表',
 		playlist=[i.split('/')[-1] for i in lst],
-		file_path=f'/files/{lst[ii][len(SHARED_PATH):]}#t={tm_sec}',
+		file_path=f'/files/{lst[ii][len(SHARED_PATH):]}#t={tm_sec}' if lst else '',
 		**{n:tvd.get(n,'') for n in ['T2S_text', 'T2S_lang', 'S2T_text', 'S2T_lang', 'S2T_match', 'cur_ii']})
 
 @app.route('/tv_runjs')
@@ -746,11 +746,12 @@ def _play_last(name=None, url_root=None):
 	if 'last_movie_drama' in tvd:
 		pl, ii, tms = load_playable(get_tv_ip(name), '-1', tvd['last_movie_drama'])[:3]
 	else:
-		pl = Try(lambda: tvd['playlist'], lambda: json.loads(list(tvd['markers'].items())[-1][0]))
-		ii, tms = tvd['markers'].get(json.dumps(pl), [tvd.get('cur_ii', 0), 0])
+		pl = Try(lambda: tvd['playlist'], lambda: json.loads(list(tvd['markers'].keys())[-1]), lambda: getAnyMediaList())
+		if pl:
+			ii, tms = tvd['markers'].get(json.dumps(pl), [tvd.get('cur_ii', 0), 0])
 	if name in tv2lginfo:
 		tv_on_if_off(name, True)
-	tvPlay(f'{name} -1', json.dumps(pl), url_root)
+	tvPlay(f'{name} {tms} {ii}', json.dumps(pl), url_root)
 
 @app.route('/play_last')
 @app.route('/play_last/<tv_name>')

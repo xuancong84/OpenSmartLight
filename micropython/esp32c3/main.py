@@ -242,8 +242,8 @@ def Eval(cmd):
 	except Exception as e:
 		return str(e)
 
-asr_write = lambda t: Try(lambda: f'{g.server.uart_ASR_out.write(bytes.fromhex(t))} bytes sent', 'ERROR_MSG')
-asr_print = lambda t: Try(lambda: [print(t, file=g.server.uart_ASR_out), 'message sent'][-1], 'ERROR_MSG')
+asr_write = lambda t: Try(lambda: f'{g.server.uart_ASR_out.write(bytes.fromhex(t))} bytes sent')
+asr_print = lambda t: Try(lambda: [print(t, file=g.server.uart_ASR_out), 'message sent'][-1])
 
 class WebServer:
 	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=0):
