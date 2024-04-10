@@ -13,6 +13,7 @@ lingua-language-detector
 language_data
 langcodes
 unidecode
+natsort
 git+https://github.com/klattimer/LGWebOSRemote.git
 
 # below are optional
