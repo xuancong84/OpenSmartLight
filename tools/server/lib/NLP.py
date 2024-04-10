@@ -3,6 +3,7 @@ import pykakasi, pinyin, logging, requests, shutil, subprocess
 from unidecode import unidecode
 from urllib.parse import unquote
 from werkzeug import local
+from natsort import natsorted
 
 from lib.ChineseNumber import *
 from lib.settings import *
@@ -24,19 +25,10 @@ def Open(fn, mode='r', **kwargs):
 	fn = os.path.expandvars(os.path.expanduser(fn))
 	return gzip.open(fn, mode, **kwargs) if fn.lower().endswith('.gz') else open(fn, mode, **kwargs)
 
-def _sub_num(s):
-	nd = max(3, len(str(len(s))))
-	for n in sorted(re.findall('[0-9]+', s), reverse=True, key=lambda t:len(s)):
-		s = s.replace(n, f'%0{nd}d'%int(n))
-	return s
-
-def nsort(lst):
-	pairs = [(s, _sub_num(s.rsplit('.', 1)[0])) for s in lst]
-	return [i for i,j in sorted(pairs, key=lambda t: t[1])]
 
 KKS = pykakasi.kakasi()
 filelist, cookies_opt = [], []
-listdir = lambda t: nsort(os.listdir(os.path.expandvars(os.path.expanduser(t))))
+listdir = lambda t: natsorted(os.listdir(os.path.expandvars(os.path.expanduser(t))))
 showdir = lambda t: [(p+'/' if os.path.isdir(os.path.join(t,p)) else p) for p in listdir(t) if not p.startswith('.')]
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
 translit = lambda t: unidecode(t).lower()

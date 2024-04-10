@@ -479,9 +479,17 @@ def load_playable(ip, tm_info, filename):
 		lst = load_m3u(fullname)
 	elif os.path.isdir(fullname):
 		lst = ls_media_files(fullname)
-	else:
+	elif os.path.isfile(fullname):
 		lst, randomize = ls_media_files(os.path.dirname(fullname)), 0
 		ii = lst.index(fullname)
+	else:
+		fullname = os.path.dirname(fullname)
+		while not (os.path.exists(fullname) and ls_media_files(fullname)):
+			lst, randomize, ii = getAnyMediaList(fullname), 0, 0
+			if lst: break
+			fullname = os.path.dirname(fullname)
+			if not fullname.startswith(SHARED_PATH):
+				return [""], 0, 0, 0
 	if ii<0 or tm_sec<0:
 		ii, tm_sec = tvd['markers'].get(json.dumps(lst), [0,0])
 	if randomize: random.shuffle(lst)
