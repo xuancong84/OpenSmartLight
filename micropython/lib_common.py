@@ -15,6 +15,23 @@ digitalRead = lambda pin: Pin(pin, Pin.OUT)() if type(pin)==int else None
 analogWrite = lambda pin, val: PWM(Pin(pin), freq=1000, duty=val) if type(pin)==int else None
 analogRead = lambda pin: PWM(Pin(pin)).duty() if type(pin)==int else None
 
+class PIN:
+	def __init__(self, pin, _type=int):
+		self.pin = pin
+		self.type = _type
+	def __call__(self, *args):
+		if type(self.pin)==PWM:
+			if self.type == int:
+				return self.pin.duty(args[0]) if args else self.pin.duty()
+			return self.pin.duty(args[0]*1023) if args else self.pin.duty()/1023
+		elif type(self.pin)==Pin:
+			return self.pin(*args)
+		elif type(self.pin)==ADC:
+			return self.pin.read() if self.type==int else self.pin.read_u16()/65535
+		elif type(self.pin)==int:
+			return Pin(self.pin)(*args)
+		return None
+
 getDateTime = lambda: time.localtime(time.time()+3600*timezone)
 
 def getTimeString(tm=None):

@@ -332,12 +332,14 @@ def stop():
 
 @app.route('/connectble/<device>')
 def connectble(dev_mac):
-	ret = os.system(f'bluetoothctl connect {dev_mac}' if sys.platform=='linux' else f'blueutil --connect {dev_mac}')
+	ret = os.system(f'bluetoothctl pair {dev_mac}' if sys.platform=='linux' else f'blueutil --pair {dev_mac}')
+	ret |= os.system(f'bluetoothctl connect {dev_mac}' if sys.platform=='linux' else f'blueutil --connect {dev_mac}')
 	return str(ret)
 
 @app.route('/disconnectble/<device>')
 def disconnectble(dev_mac):
 	ret = os.system(f'bluetoothctl disconnect {dev_mac}' if sys.platform=='linux' else f'blueutil --disconnect {dev_mac}')
+	ret |= os.system(f'bluetoothctl unpair {dev_mac}' if sys.platform=='linux' else f'blueutil --unpair {dev_mac}')
 	return str(ret)
 
 @app.route('/volume/<cmd>')
@@ -452,7 +454,8 @@ def ws_init(sock):
 			cmd = sock.receive()
 			tv_wscmd(key, cmd)
 		except:
-			traceback.print_exc()
+			print(f'Websock: {key} disconnected', file=sys.stderr)
+			# traceback.print_exc()
 	ip2websock.pop(key)
 
 @sock.route('/yd_init')
@@ -464,7 +467,8 @@ def yd_init(sock):
 		try:
 			cmd = sock.receive()
 		except:
-			traceback.print_exc()
+			print(f'Websock: {key} disconnected', file=sys.stderr)
+			# traceback.print_exc()
 	ip2ydsock.pop(key)
 
 def load_playable(ip, tm_info, filename):
@@ -483,13 +487,14 @@ def load_playable(ip, tm_info, filename):
 		lst, randomize = ls_media_files(os.path.dirname(fullname)), 0
 		ii = lst.index(fullname)
 	else:
-		fullname = os.path.dirname(fullname)
-		while not (os.path.exists(fullname) and ls_media_files(fullname)):
+		while not os.path.isdir(fullname):
+			fullname = os.path.dirname(fullname)
+		while fullname.startswith(SHARED_PATH):
 			lst, randomize, ii = getAnyMediaList(fullname), 0, 0
 			if lst: break
 			fullname = os.path.dirname(fullname)
-			if not fullname.startswith(SHARED_PATH):
-				return [""], 0, 0, 0
+		if not fullname.startswith(SHARED_PATH):
+			return [""], 0, 0, 0
 	if ii<0 or tm_sec<0:
 		ii, tm_sec = tvd['markers'].get(json.dumps(lst), [0,0])
 	if randomize: random.shuffle(lst)
@@ -673,7 +678,7 @@ def get_ASR_offline(audio_fn=asr_input):
 def get_ASR_online(audio_fn=asr_input):
 	try:
 		with Open(audio_fn, 'rb') as f:
-			r = requests.post(ASR_CLOUD, files={'file': f}, timeout=5)
+			r = requests.post(ASR_CLOUD, files={'file': f}, timeout=ASR_CLOUD_TIMEOUT)
 		return json.loads(r.text) if r.status_code==200 else {}
 	except Exception as e:
 		traceback.print_exc()
@@ -750,7 +755,7 @@ def recog_and_play(voice_prompt, tv_name, path_name, handler, url_root, audio_fi
 
 
 def _play_last(name=None, url_root=None):
-	tvd = get_tv_data(name)
+	tvd, tms, ii = get_tv_data(name), 0, 0
 	if 'last_movie_drama' in tvd:
 		pl, ii, tms = load_playable(get_tv_ip(name), '-1', tvd['last_movie_drama'])[:3]
 	else:
