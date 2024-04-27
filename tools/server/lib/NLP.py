@@ -19,16 +19,18 @@ def Try(*args):
 			exc = e
 	return str(exc)
 
+expand_path = lambda t: os.path.expandvars(os.path.expanduser(t))
+
 def Open(fn, mode='r', **kwargs):
 	if fn == '-':
 		return sys.stdin if mode.startswith('r') else sys.stdout
-	fn = os.path.expandvars(os.path.expanduser(fn))
+	fn = expand_path(fn)
 	return gzip.open(fn, mode, **kwargs) if fn.lower().endswith('.gz') else open(fn, mode, **kwargs)
 
 
 KKS = pykakasi.kakasi()
 filelist, cookies_opt = [], []
-listdir = lambda t: natsorted(os.listdir(os.path.expandvars(os.path.expanduser(t))))
+listdir = lambda t: natsorted(os.listdir(expand_path(t))) if os.path.isdir(expand_path(t)) else []
 showdir = lambda t: [(p+'/' if os.path.isdir(os.path.join(t,p)) else p) for p in listdir(t) if not p.startswith('.')]
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
 translit = lambda t: unidecode(t).lower()
@@ -195,7 +197,7 @@ def getAnyMediaList(base_path=SHARED_PATH, exts=video_file_exts):
 	lst = ls_media_files(base_path, exts)
 	if lst: return lst
 	for dir in ls_subdir(base_path):
-		lst = getFirstVideoList(dir, video_file_exts)
+		lst = ls_media_files(dir, exts)
 		if lst: return lst
 	return []
 
@@ -276,16 +278,16 @@ def disable_proxy():
 
 
 # For yt-dlp
-def parse_outfn(L):
+def parse_outfn(L, tmp_dir):
 	out_fn = ''
 	for L1 in L.splitlines():
 		if L1.startswith('[download] ') and L1.endswith(' has already been downloaded'):
 			out_fn = L1[11:-28]
-		if L1.startswith('[Merger] Merging formats into '):
-			out_fn = L1[30:].strip().strip('"')
+		elif tmp_dir in L1:
+			out_fn = L1[L1.find(tmp_dir):].strip()
 	return out_fn
 
-def call_yt_dlp(argv, mobile_ip):
+def call_yt_dlp(argv, mobile_ip, tmp_dir):
 	out_fn = ''
 	thread = threading.Thread(target=lambda: yt_dlp.main(argv))
 	thread.start()
@@ -298,11 +300,11 @@ def call_yt_dlp(argv, mobile_ip):
 		if not L: continue
 		sys.stdout.write(L)
 		Try(lambda: os.ip2ydsock[mobile_ip].send(L))
-		out_fn = parse_outfn(L) or out_fn
+		out_fn = parse_outfn(L, tmp_dir) or out_fn
 		sio.truncate(0)
 		sio.seek(0)
 
-	return out_fn or parse_outfn(sio.getvalue())
+	return out_fn or parse_outfn(sio.getvalue(), tmp_dir)
 
 def download_video(song_url, include_subtitles, high_quality, redownload, mobile_ip):
 	logging.info("Downloading video: " + song_url)
@@ -315,14 +317,14 @@ def download_video(song_url, include_subtitles, high_quality, redownload, mobile
 		+ cookies_opt + opt_quality + opt_sub + (['--force-overwrites'] if redownload else []) \
 		+ ["-o", tmp_dir+"%(title)s.%(ext)s"] + [song_url]
 	logging.info("Youtube-dl command: " + " ".join(cmd))
-	out_fn = call_yt_dlp(cmd, mobile_ip)
+	out_fn = call_yt_dlp(cmd, mobile_ip, tmp_dir)
 	if not out_fn:
 		logging.error("Error code while downloading, retrying without format options ...")
 		cmd = ['--socket-timeout', '3', '-R', 'infinite', '-P', tmp_dir] + [song_url]
-		logging.debug("Youtube-dl command: " + " ".join(cmd))
-		out_fn = call_yt_dlp(cmd, mobile_ip)
+		logging.info("Youtube-dl command: " + " ".join(cmd))
+		out_fn = call_yt_dlp(cmd, mobile_ip, tmp_dir)
 	if get_filesize(out_fn):
-		logging.debug("Song successfully downloaded: " + song_url)
+		logging.info("Song successfully downloaded: " + song_url)
 		ret_fn = os.path.expanduser(DOWNLOAD_PATH)+'/'+os.path.basename(out_fn)
 		shutil.move(out_fn, ret_fn)
 		return ret_fn

@@ -166,12 +166,8 @@ input {font-size:15px;}
   text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.4);
   transition: all 0.4s ease-in-out;
 }
-.toggle input:checked~.labels::after {
-  opacity: 0;
-}
-.toggle input:checked~.labels::before {
-  opacity: 1;
-}
+.toggle input:checked~.labels::after { opacity: 0; }
+.toggle input:checked~.labels::before { opacity: 1; }
 	</style>
 </head>
 
@@ -272,6 +268,7 @@ input {font-size:15px;}
 	var G = {};
 	var doGetParam = false;
 	function set_ckbox(obj, cmd='exec'){ GET(`/${cmd}?${obj.id}=${obj.checked?'True':'False'}`, toast, toast); }
+	function get_exec(cmd){ GET('/exec?'+cmd, toast, toast); }
 	function save() {
 		var N = tb.rows.length - 2;
 		var ret = '';
@@ -295,7 +292,15 @@ input {font-size:15px;}
 			var obj = getById(prefix0+k);
 			if(obj==null){
 				if(v==null) continue;
-				if(typeof v=="boolean"){
+				if(k.endsWith('_dpin')){
+					addElem(box, `<span>${k}: </span> <label class="toggle"><input id="${prefix}${k}" type="checkbox"
+						onchange='get_exec("${prefix}${k}(${this.checked?1:0})")' ${v?"checked":""}> <span class="slider"></span>
+						<span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;&nbsp;`);
+				}else if(k.endsWith('_ppin')){
+					addElem(box, `<span>${k}:</span><input id="${prefix}${k}" type="number" size=4 value="${v}" min=0 max=1023 onchange='get_exec("${prefix}${k}(${this.value})")'> &nbsp;`);
+				}else if(k.endsWith('_apin')){
+					addElem(box, `<span>${k}:</span><input id="${prefix}${k}" type="number" size=4 value="${v}" readonly> &nbsp;`);
+				}else if(typeof v=="boolean"){
 					addElem(box, `<span>${k}: </span> <label class="toggle"><input id="${prefix}${k}" type="checkbox" onchange='set_ckbox(this, "${cmd}")' ${v?"checked":""}>
 		<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;&nbsp;`);
 				}else if(v.constructor == Object){ // is a dictionary
