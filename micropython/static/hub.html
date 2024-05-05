@@ -294,10 +294,10 @@ input {font-size:15px;}
 				if(v==null) continue;
 				if(k.endsWith('_dpin')){
 					addElem(box, `<span>${k}: </span> <label class="toggle"><input id="${prefix}${k}" type="checkbox"
-						onchange='get_exec("${prefix}${k}(${this.checked?1:0})")' ${v?"checked":""}> <span class="slider"></span>
+						onchange='get_exec("${prefix}${k}("+(this.checked?1:0)+")")' ${v?"checked":""}> <span class="slider"></span>
 						<span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;&nbsp;`);
 				}else if(k.endsWith('_ppin')){
-					addElem(box, `<span>${k}:</span><input id="${prefix}${k}" type="number" size=4 value="${v}" min=0 max=1023 onchange='get_exec("${prefix}${k}(${this.value})")'> &nbsp;`);
+					addElem(box, `<span>${k}:</span><input id="${prefix}${k}" type="number" size=4 value="${v}" min=0 max=1023 onchange='get_exec("${prefix}${k}("+this.value+")")'> &nbsp;`);
 				}else if(k.endsWith('_apin')){
 					addElem(box, `<span>${k}:</span><input id="${prefix}${k}" type="number" size=4 value="${v}" readonly> &nbsp;`);
 				}else if(typeof v=="boolean"){
