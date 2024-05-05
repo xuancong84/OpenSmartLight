@@ -1,4 +1,4 @@
-import os, sys, esp, machine, time, network
+import sys, time, network
 from machine import Pin
 
 

@@ -66,15 +66,12 @@ class LD1115H:
 			'midnight_starts': ["23:00", "23:00", "23:00", "23:00", "00:00", "00:00", "23:00"],
 			'midnight_stops': ["07:00", "07:00", "07:00", "07:00", "07:00", "07:00", "07:00"]
 		}
-		try:
-			self.P.update(eval(open('LD1115H.conf').read()))
-			self.sensor_pwr_dpin = PIN(Pin(self.P['sensor_pwr_dpin_num'], Pin.OUT))
-			self.ctrl_output_dpin = PIN(Pin(self.P['ctrl_output_dpin_num'], Pin.OUT))
-			self.led_master_dpin = PIN(Pin(self.P['led_master_dpin_num'], Pin.OUT))
-			self.led_level_ppin = PIN(PWM(self.P['led_level_ppin_num'], freq=1000, duty=0))
-			return 'OK'
-		except:
-			return 'Load default OK'
+		ret = Try(lambda: [self.P.update(eval(open('LD1115H.conf').read())), 'OK'][1], 'Load default OK')
+		self.sensor_pwr_dpin = PIN(Try(lambda:Pin(self.P['sensor_pwr_dpin_num'], Pin.OUT),''))
+		self.ctrl_output_dpin = PIN(Try(lambda:Pin(self.P['ctrl_output_dpin_num'], Pin.OUT),''))
+		self.led_master_dpin = PIN(Try(lambda:Pin(self.P['led_master_dpin_num'], Pin.OUT),''))
+		self.led_level_ppin = PIN(Try(lambda:PWM(self.P['led_level_ppin_num'], freq=1000, duty=0),''))
+		return ret
 
 	def save_params(self):
 		try:
