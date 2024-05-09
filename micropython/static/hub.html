@@ -187,10 +187,10 @@ input {font-size:15px;}
 				<span>flash_size:</span> <input id="flash_size" type="text" size="6ch" readonly> &nbsp;
 				<button id='view_log' onclick="window.open('/log.txt','_blank')" class="bb">View Log File</button> &nbsp;
 			</h3>
-			<h3 id="PARAMS_BOX" style="display: none; border: 1px solid; padding: 2px; width: 100%; resize: both; overflow: auto; margin:auto; line-height: 150%;">
+			<h3 id="PARAMS_BOX" style="display: inline-block; border: 1px solid; padding: 2px; width: 100%; resize: both; overflow: auto; margin:auto; line-height: 150%;">
 				<span>Parameters: </span> &nbsp;
-				<button onclick="GET('/ms_save',toast,toast)" title="Save parameter settings to storage" class="bb">SAVE</button> &nbsp;
-				<button onclick="GET('/ms_load',toast,toast);update(2)" title="Load parameter settings from storage" class="bb">LOAD</button> &nbsp;
+				<button onclick="GET('/save_P',toast,toast)" title="Save parameter settings to storage" class="bb">SAVE</button> &nbsp;
+				<button onclick="GET('/load_P',(e)=>{toast(e); update(2)},toast)" title="Load parameter settings from storage" class="bb">LOAD</button> &nbsp;
 			</h3>
 		</span>
 		<span style="width:10%; margin:10px"><textarea id="g.LD1115H.sensor_log" rows=10 cols=16 style="display: none;" readonly></textarea></span>
@@ -266,7 +266,6 @@ input {font-size:15px;}
 	var rid = 0;
 	var drag_rid;
 	var G = {};
-	var doGetParam = false;
 	function set_ckbox(obj, cmd='exec'){ GET(`/${cmd}?${obj.id}=${obj.checked?'True':'False'}`, toast, toast); }
 	function get_exec(cmd){ GET('/exec?'+cmd, toast, toast); }
 	function save() {
@@ -286,10 +285,10 @@ input {font-size:15px;}
 		box.insertAdjacentHTML('beforeend', html_code);
 	}
 	function set_fields2(box, OBJ, prefix0=''){
-		var cmd = box.id=='PARAMS_BOX'?'ms_setParams':'exec';
-		var prefix = box.id=='PARAMS_BOX'?'':prefix0;
+		var cmd = box.id=='PARAMS_BOX'?'set_params':'exec';
+		var prefix = prefix0 || (box.id=='PARAMS_BOX'?'':'g.');
 		for (const [k,v] of Object.entries(OBJ).sort()) {
-			var obj = getById(prefix0+k);
+			var obj = getById(prefix+k);
 			if(obj==null){
 				if(v==null) continue;
 				if(k.endsWith('_dpin')){
@@ -305,7 +304,7 @@ input {font-size:15px;}
 		<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;&nbsp;`);
 				}else if(v.constructor == Object){ // is a dictionary
 					addElem(box, `<span class="expand" id="${prefix}${k}">${k}: { </span>`);
-					set_fields2(box, v, `g.${k}.`);
+					set_fields2(box, v, `${prefix}${k}.`);
 					addElem(box, `<span>}</span> &nbsp;`);
 				}else{
 					addElem(box, `<span>${k}:</span><input id="${prefix}${k}" type="${typeof v=="number"?"number":"text"}" size=1 value="${v}" onchange='set_value(this, "${cmd}")'> &nbsp;`);
@@ -321,22 +320,17 @@ input {font-size:15px;}
 						if(obj.type == 'checkbox') obj.checked = v;
 						else obj.value = v;
 					}else if(obj.classList.contains('expand'))
-						set_fields2(box, v, `g.${k}.`);
+						set_fields2(box, v, `${prefix}${k}.`);
 					else
 						obj.textContent = v;
 				}
 			}
 		}
 	}
-	function set_fields(){
+	function set_fields(txt, box_name='STATUS_BOX'){
 		requesting = false;
-		try{G = JSON.parse(this.responseText)} catch(e){return}
-		var box = getById(this.responseURL.endsWith('getParams')?"PARAMS_BOX":"STATUS_BOX");
-		set_fields2(box, G);
-		if(doGetParam && G.LD1115H!=null){
-			doGetParam = false;
-			update(2);
-		}
+		try{G = JSON.parse(txt)} catch(e){return}
+		set_fields2(getById(box_name), G);
 	}
 	function clear_all(){
 		while (tb.rows.length > 2) tb.deleteRow(1);
@@ -345,29 +339,28 @@ input {font-size:15px;}
 		if(requesting) return;
 		requesting = true;
 		if(mask&1){
-			doGetParam = Boolean(mask&2);
-			GET('/status', set_fields, ()=>{keepUpdating.checked=requesting=false; set_active(keepUpdating)});
+			GET('/status', (e)=>{set_fields(e.target.responseText); if(mask&2)setTimeout(()=>{update(2)}, 500);}, 
+				()=>{keepUpdating.checked=requesting=false; set_active(keepUpdating)});
 		}else if(mask&2){
-			getById('PARAMS_BOX').style.display = 'inline-block';
-			GET('/ms_getParams', set_fields, ()=>{keepUpdating.checked=requesting=false; set_active(keepUpdating)});
+			GET('/get_params', (e)=>{set_fields(e.target.responseText, 'PARAMS_BOX')},
+				()=>{keepUpdating.checked=requesting=false; set_active(keepUpdating)});
+		}
+	}
+	function fill_rc(txt){
+		if(!txt) return;
+		clear_all();
+		for (var line of txt.split('\n')) {
+			var its = line.split('\t');
+			var row = add_new_row();
+			for (var x = 0; x < 3; x++)
+				row.children[x+1].textContent = its[x];
 		}
 	}
 	function load() {
-		try {
-			var txt = GET('/rc_load').trim();
-			if(!txt) return;
-			var lines = txt.split('\n');
-			clear_all();
-			for (var line of lines) {
-				var its = line.split('\t');
-				var row = add_new_row();
-				for (var x = 0; x < 3; x++)
-					row.children[x+1].textContent = its[x];
-			}
-		} catch (err) {
-			alert(err);
-		}
-		update(3);
+		GET('/rc_load', (e)=>{
+			fill_rc(e.target.responseText.trim());
+			setTimeout(()=>{update(3)}, 500);
+		});
 	}
 	function recordRF(rid) {
 		if(confirm("Please hold down the remote controller button and click OK to record:"))
@@ -414,7 +407,7 @@ input {font-size:15px;}
 		rid++;
 		return row;
 	}
-	window.onload = () => { load(); }
+	window.onload = () => { setTimeout(load, 500); }
 </script>
 </body>
 

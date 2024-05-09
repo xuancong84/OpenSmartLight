@@ -1,30 +1,69 @@
 import os, time, ntptime, network
 from machine import Timer, ADC, Pin, PWM
 
-DEBUG = False
-SMART_CTRL = True
-SAVELOG = False
 LOGFILE = 'static/log.txt'
 Timers = {}	# {'timer-name': [last-stamp-sec, period-in-sec, True (is periodic or oneshot), callback_func]}
-timezone = 8
 A0 = ADC(0)
 
+# global savable parameters
+P = {
+	'DEBUG': False,
+	'SMART_CTRL': True,
+	'SAVELOG': False,
+	'timezone': 8,
+	'DEBUG_dpin_num': '',	# only GPIO 2 or None: for debug blinking
+	'PIN_RF_IN': '',		# GPIO5 tested working
+	'PIN_RF_OUT': '',		# GPIO4 tested working
+	'PIN_IR_IN': '',		# GPIO14 tested working
+	'PIN_IR_OUT': '',		# GPIO12 tested working
+	'PIN_ASR_IN': '',		# GPIO 13 or 3: generic ASR chip sending UART output upon voice commands
+	'PIN_LD1115H': '',		# GPIO 13 or 3: HLK-LD1115H motion sensor
+	}
+
 url_string = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~/'
-digitalWrite = lambda pin, val: Pin(pin, Pin.OUT)(val) if type(pin)==int else None
-digitalRead = lambda pin: Pin(pin, Pin.OUT)() if type(pin)==int else None
-analogWrite = lambda pin, val: PWM(Pin(pin), freq=1000, duty=val) if type(pin)==int else None
-analogRead = lambda pin: PWM(Pin(pin)).duty() if type(pin)==int else None
+is_valid_pin = lambda pin: type(P.get(pin, ''))==int
+
+
+# None (=>null): the control will not be shown; to disable, set to empty string
+def dft_eval(s, dft):
+	try:
+		return eval(s, globals(), globals())
+	except:
+		return dft
+
+def Try(fn, default=None):
+	try:
+		return fn()
+	except:
+		return default() if callable(default) else default
 
 class PIN:
-	def __init__(self, pin, dtype=int, invert=None):
+	""" Either pass a machine.Pin object, or an Integer with a pin_name '_*pin_num' to create the pin
+	where * can be:
+		d: output digital pin
+		i: input digital pin
+		p: PWM pin
+		a: ADC pin
+	"""
+	def __init__(self, pin, pin_name='', dtype=int, invert=None):
 		if type(pin)==int:
 			self.pin = abs(pin)
 			self.invert = pin<0 if invert is None else invert
+			if pin_name.endswith('pin_num'):
+				pt = pin_name[:-7].split('_')[-1]
+				if pt=='d':
+					self.pin = Try(lambda:Pin(self.pin, Pin.OUT), '')
+				elif pt=='p':
+					self.pin = Try(lambda:PWM(self.pin, freq=1000, duty=0),'')
+				elif pt=='i':
+					self.pin = Try(lambda:Pin(self.pin, Pin.IN), '')
+				elif pt=='a':
+					self.pin = Try(lambda:ADC(self.pin), '')
 		else:
 			self.pin = pin
 			self.invert = invert or False
 		self.type = dtype
-		
+
 	def __call__(self, *args):
 		if self.invert:
 			if type(self.pin)==PWM:
@@ -50,7 +89,25 @@ class PIN:
 				return Pin(self.pin)(*args)
 		return None
 
-getDateTime = lambda: time.localtime(time.time()+3600*timezone)
+
+_auto_pins = set()
+def auto_makepins(ns, dct):
+	for k, v in dct.items():
+		if k.endswith('pin_num'):
+			setattr(ns, k[:-4], PIN(v, k))
+			_auto_pins.add(k[:-4])
+
+def auto_status(ns, dct):
+	for name in _auto_pins:
+		if hasattr(ns, name) and name not in dct:
+			dct[name] = getattr(ns, name)()
+	for k, v in dct.items():
+		if type(v)==dict and hasattr(ns, k):
+			auto_status(getattr(ns, k), v)
+	return dct
+
+
+getDateTime = lambda: time.localtime(time.time()+3600*P['timezone'])
 
 def getTimeString(tm=None):
 	tm = tm or getDateTime()
@@ -105,10 +162,10 @@ def DelTimer(name):
 	Timers.pop(name, None)
 
 def prt(*args, **kwarg):
-	if DEBUG:
+	if P['DEBUG']:
 		print(getFullDateTime(), end=' ')
 		print(*args, **kwarg)
-	if SAVELOG and LOGFILE:
+	if P['SAVELOG']:
 		try:
 			if os.stat(LOGFILE)[6]>1000000:
 				os.rename(LOGFILE, LOGFILE+'.old')
@@ -118,12 +175,6 @@ def prt(*args, **kwarg):
 			print(getFullDateTime(), end=' ', file=fp)
 			print(*args, **kwarg, file=fp)
 
-def Try(fn, default=None):
-	try:
-		return fn()
-	except:
-		return default
-
 def parse_data(s):
 	if type(s)==int:
 		h = hex(s)[2:]
@@ -132,14 +183,22 @@ def parse_data(s):
 		return Try(lambda: bytes.fromhex(s), s.encode())
 	return s
 
-def getActiveNIF():
-	sta_if = network.WLAN(network.STA_IF)
-	ap_if = network.WLAN(network.AP_IF)
-	return sta_if if sta_if.active(True) else ap_if
-
 def url_encode(s):
 	try:
 		p = s.find('/', s.find('//')+2)
 		return s[:p] + ''.join([(c if c in url_string else f'%{ord(c):x}') for c in s[p:]])
 	except:
 		return s
+
+def load_params(ns):
+	ret = Try(lambda: [P.update(eval(open('params.conf').read())), 'OK'][1], 'Load default OK')
+	auto_makepins(ns, P)
+	return ret
+
+def save_params():
+	try:
+		with open('params.conf', 'w') as fp:
+			fp.write(str(P))
+		return 'OK'
+	except Exception as e:
+		return str(e)

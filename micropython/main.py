@@ -10,20 +10,13 @@ gc.collect()
 
 # Global variables
 RCFILE = 'rc-codes.txt'
+wifi = {}
 
-PIN_RF_IN = ''	# GPIO5 tested working
-PIN_RF_OUT = ''	# GPIO4 tested working
-PIN_IR_IN = ''	# GPIO14 tested working
-PIN_IR_OUT = ''	# GPIO12 tested working
-PIN_ASR_IN = ''	# GPIO 13 or 3: generic ASR chip sending UART output upon voice commands
-PIN_LD1115H = ''	# GPIO 13 or 3: HLK-LD1115H motion sensor
-PIN_DEBUG_LED = ''	# only GPIO 2 or None: for debug blinking
 
 # Namespace for global variable
 import lib_common as g
 from lib_common import *
 
-wifi = {}
 
 def connect_wifi():
 	global wifi
@@ -209,30 +202,31 @@ def Eval(cmd):
 	except Exception as e:
 		return str(e)
 
+def setParams(params:dict):
+	try:
+		for k,v in params.items():
+			p, ks = P, k.split('.')
+			for i in ks[0:-1]:
+				p = p[i]
+			p[ks[-1]] = v.split(',') if (type(v)==str and ',' in v) else dft_eval(v, '')
+		return 'OK'
+	except Exception as e:
+		return str(e)
+
 class WebServer:
 	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=0):
 		self.cmd = ''
 		routeHandlers = [
 			( "/", "GET", lambda clie, resp: resp.WriteResponseFile('/static/hub.html', "text/html") ),
-			( "/status", "GET", lambda clie, resp: resp.WriteResponseJSONOk({
+			( "/status", "GET", lambda clie, resp: resp.WriteResponseJSONOk(auto_status(g, {
 				'datetime': getFullDateTime(),
 				'heap_free': gc.mem_free(),
 				'stack_free': esp.freemem(),
 				'flash_size': esp.flash_size(),
-				'g.timezone': g.timezone,
-				'g.DEBUG': g.DEBUG,
-				'g.SAVELOG': g.SAVELOG,
-				'g.LOGFILE': g.LOGFILE,
-				'g.SMART_CTRL': g.SMART_CTRL,
-				'LD1115H': g.LD1115H.status() if hasattr(g, 'LD1115H') else None,
-				'PIN_RF_IN': PIN_RF_IN,
-				'PIN_RF_OUT': PIN_RF_OUT,
-				'PIN_IR_IN': PIN_IR_IN,
-				'PIN_IR_OUT': PIN_IR_OUT,
-				'PIN_ASR_IN': PIN_ASR_IN,
-				'PIN_LD1115H': PIN_LD1115H,
-				'PIN_DEBUG_LED': PIN_DEBUG_LED,
-				}) ),
+				'LD1115H': g.LD1115H.status() if hasattr(g, 'LD1115H') else None
+				})) ),
+			( "/get_params", "GET", lambda clie, resp: resp.WriteResponseJSONOk(P) ),
+			( "/set_params", "GET", lambda clie, resp: setParams(clie.GetRequestQueryParams()) ),
 			( "/hello", "GET", lambda *_: f'Hello world!' ),
 			( "/exec", "GET", lambda clie, resp: Exec(clie.GetRequestQueryString(True)) ),
 			( "/eval", "GET", lambda clie, resp: Eval(clie.GetRequestQueryString(True)) ),
@@ -246,6 +240,8 @@ class WebServer:
 			( "/rc_exec", "POST", lambda cli, *arg: execRC(cli.ReadRequestContent())),
 			( "/rc_save", "POST", lambda clie, resp: save_file(RCFILE, clie.YieldRequestContent()) ),
 			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile(RCFILE) ),
+			( "/save_P", "GET", lambda *_: save_params() ),
+			( "/load_P", "GET", lambda *_: load_params() ),
 			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseFile(list_files()) ),
 			( "/delete_files", "GET", lambda clie, resp: deleteFile(clie.GetRequestQueryString(True)) ),
 			( "/mkdir", "GET", lambda clie, resp: mkdir(clie.GetRequestQueryString(True)) ),
@@ -257,7 +253,7 @@ class WebServer:
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
 		self.poll_tmout = -1
-		if PIN_ASR_IN == 13 or PIN_LD1115H == 13:
+		if P['PIN_ASR_IN'] == 13 or P['PIN_LD1115H'] == 13:
 			UART(0, 115200, tx=Pin(15), rx=Pin(13))	# swap UART0 to alternative ports to avoid interference from CH340
 		self.sock_map = {id(self.sock_web): self.mws.run_once}
 		self.cpIP = captivePortalIP
@@ -270,12 +266,12 @@ class WebServer:
 		else:
 			self.sock_dns = None
 
-		if not g.SMART_CTRL:
+		if not P['SMART_CTRL']:
 			return
-		if type(PIN_ASR_IN) == int:
+		if is_valid_pin('PIN_ASR_IN'):
 			self.poll.register(sys.stdin, select.POLLIN)
 			self.sock_map[id(sys.stdin)] = self.handleASR
-		elif type(PIN_LD1115H) == int:
+		elif is_valid_pin('PIN_LD1115H'):
 			g.LD1115H = LD1115H(self.mws)
 			self.poll_tmout = 1
 			self.poll.register(sys.stdin, select.POLLIN)
@@ -333,36 +329,39 @@ class WebServer:
 				elif self.cmd:
 					execRC(self.cmd)
 				self.cmd = ''
-			if type(PIN_LD1115H)==int:
+			if hasattr(g, 'LD1115H'):
 				g.LD1115H.run1()
 
-# Globals
+# Load global rc
 build_rc()
 if '__init__' in g.rc_set:
 	execRC('__init__')
 
-MWS.DEBUG = g.DEBUG
-if type(PIN_DEBUG_LED) != int:
+# Load global params
+load_params(g)
+
+MWS.DEBUG = P['DEBUG']
+if not is_valid_pin('DEBUG_dpin_num'):
 	flashLED=lambda **kw:None
 else:
-	digitalWrite(PIN_DEBUG_LED, 0)
+	g.DEBUG_dpin(1)
 	def flashLED(intv=0.2, N=3):
 		for i in range(N):
-			digitalWrite(PIN_DEBUG_LED, 0)
+			g.DEBUG_dpin(1)
 			time.sleep(intv)
-			digitalWrite(PIN_DEBUG_LED, 1)
+			g.DEBUG_dpin(0)
 			time.sleep(intv)
 
-if type(PIN_ASR_IN) == int:
+if is_valid_pin('PIN_ASR_IN'):
 	from lib_TCPIP import *
-if type(PIN_LD1115H) == int:
+if is_valid_pin('PIN_LD1115H'):
 	from lib_LD1115H import *
-if int in [type(i) for i in [PIN_RF_IN, PIN_RF_OUT, PIN_IR_IN, PIN_IR_OUT]]:
+if True in [is_valid_pin(i) for i in 'PIN_RF_IN PIN_RF_OUT PIN_IR_IN PIN_IR_OUT'.split()]:
 	from lib_RC import *
-if type(PIN_RF_IN)==int or type(PIN_RF_OUT)==int:
-	rfc = RF433RC(PIN_RF_IN, PIN_RF_OUT)
-if type(PIN_IR_IN)==int or type(PIN_IR_OUT)==int:
-	irc = IRRC(PIN_IR_IN, PIN_IR_OUT)
+if is_valid_pin('PIN_RF_IN') or is_valid_pin('PIN_RF_OUT'):
+	rfc = RF433RC(P['PIN_RF_IN'], P['PIN_RF_OUT'])
+if is_valid_pin('PIN_IR_IN') or is_valid_pin('PIN_IR_OUT'):
+	irc = IRRC(P['PIN_IR_IN'], P['PIN_IR_OUT'])
 
 gc.collect()
 
@@ -374,8 +373,7 @@ def run():
 		g.server = WebServer(captivePortalIP=cpIP)
 		if '__postinit__' in g.rc_set:
 			execRC('__postinit__')
-		if type(PIN_DEBUG_LED) == int:
-			digitalWrite(PIN_DEBUG_LED, 1)
+		g.DEBUG_dpin(0)
 		SetTimer('syncNTP', 12*3600, True, syncNTP)
 		g.server.run()
 	except Exception as e:
