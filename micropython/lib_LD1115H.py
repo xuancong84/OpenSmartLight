@@ -8,21 +8,36 @@ from microWebSrv import MicroWebSrv as MWS
 
 gc.collect()
 
-# None (=>null): the control will not be shown; to disable, set to empty string
-def dft_eval(s, dft):
-	try:
-		return eval(s, globals(), globals())
-	except:
-		return dft
-
 # For 24GHz microwave micro-motion sensor HLK-LD1115H
 class LD1115H:
+	default_P = {
+		'DARK_TH_LOW': 960,
+		'DARK_TH_HIGH': 990,
+		'DELAY_ON_MOV': 30000,
+		'DELAY_ON_OCC': 20000,
+		'OCC_TRIG_TH': 65530,
+		'OCC_CONT_TH': 600,
+		'MOV_TRIG_TH': 400,
+		'MOV_CONT_TH': 250,
+		'LED_BEGIN': 100,
+		'LED_END': 125,
+		'GLIDE_TIME': 800,
+		'N_CONSEC_TRIG': 1,
+		'sensor_pwr_dpin_num': '',
+		'ctrl_output_dpin_num': '',
+		'led_master_dpin_num': '',
+		'led_level_ppin_num': '',
+		'F_read_lux': '',
+		'F_read_thermal': '',
+		'night_start': '18:00',
+		'night_stop': '07:00',
+		'midnight_starts': ["23:00", "23:00", "23:00", "23:00", "00:00", "00:00", "23:00"],
+		'midnight_stops': ["07:00", "07:00", "07:00", "07:00", "07:00", "07:00", "07:00"]
+	}
 	def __init__(self, mws:MWS):  # Typically ~15 frames
-		self.load_params()
+		# init status
 		self.tm_last_ambient = int(time.time()*1000)
 		self.elapse = 0
-
-		# status
 		self.is_smartlight_on = False
 		self.is_dark_mode = False
 		self.logging = False
@@ -31,63 +46,17 @@ class LD1115H:
 		self.sensor_log = ''
 		self.n_consec_trig = 0
 
+		# load default params if necessary and create pins
+		if 'LD1115H' not in P:
+			P['LD1115H'] = self.default_P
+		self.P = P['LD1115H']
+		auto_makepins(self, self.P)
+
 		# turn on motion sensor if night time, otherwise, cannot enter auto mode by powering on
 		if self.is_night():
 			self.set_sensor(True)
 
-		mws.add_route('/ms_getParams', 'GET', lambda clie, resp: resp.WriteResponseJSONOk(self.P))
-		mws.add_route('/ms_setParams', 'GET', lambda clie, resp: self.setParams(clie.GetRequestQueryParams()))
-		mws.add_route('/ms_save', 'GET', lambda *_: self.save_params())
-		mws.add_route('/ms_load', 'GET', lambda *_: self.load_params())
 		gc.collect()
-
-	def load_params(self):
-		self.P = {
-			'DARK_TH_LOW': 960,
-			'DARK_TH_HIGH': 990,
-			'DELAY_ON_MOV': 30000,
-			'DELAY_ON_OCC': 20000,
-			'OCC_TRIG_TH': 65530,
-			'OCC_CONT_TH': 600,
-			'MOV_TRIG_TH': 400,
-			'MOV_CONT_TH': 250,
-			'LED_BEGIN': 100,
-			'LED_END': 125,
-			'GLIDE_TIME': 800,
-			'N_CONSEC_TRIG': 1,
-			'sensor_pwr_dpin_num': '',
-			'ctrl_output_dpin_num': '',
-			'led_master_dpin_num': '',
-			'led_level_ppin_num': '',
-			'F_read_lux': '',
-			'F_read_thermal': '',
-			'night_start': '18:00',
-			'night_stop': '07:00',
-			'midnight_starts': ["23:00", "23:00", "23:00", "23:00", "00:00", "00:00", "23:00"],
-			'midnight_stops': ["07:00", "07:00", "07:00", "07:00", "07:00", "07:00", "07:00"]
-		}
-		ret = Try(lambda: [self.P.update(eval(open('LD1115H.conf').read())), 'OK'][1], 'Load default OK')
-		self.sensor_pwr_dpin = PIN(Try(lambda:Pin(self.P['sensor_pwr_dpin_num'], Pin.OUT),''))
-		self.ctrl_output_dpin = PIN(Try(lambda:Pin(self.P['ctrl_output_dpin_num'], Pin.OUT),''))
-		self.led_master_dpin = PIN(Try(lambda:Pin(self.P['led_master_dpin_num'], Pin.OUT),''))
-		self.led_level_ppin = PIN(Try(lambda:PWM(self.P['led_level_ppin_num'], freq=1000, duty=0),''))
-		return ret
-
-	def save_params(self):
-		try:
-			with open('LD1115H.conf', 'w') as fp:
-				fp.write(str(self.P))
-			return 'OK'
-		except Exception as e:
-			return str(e)
-
-	def setParams(self, params:dict):
-		try:
-			for k,v in params.items():
-				self.P[k] = v.split(',') if k.startswith('midnight_') else dft_eval(v, '')
-			return 'OK'
-		except Exception as e:
-			return str(e)
 		
 	def status(self):
 		return {
@@ -96,11 +65,7 @@ class LD1115H:
 			'lux_level': self.lux_level,
 			'thermal_level': self.thermal_level,
 			'logging': self.logging,
-			'sensor_log': self.sensor_log if self.logging else None,
-			'ctrl_output_dpin': self.ctrl_output_dpin(),
-			'sensor_pwr_dpin': self.sensor_pwr_dpin(),
-			'led_master_dpin': self.led_master_dpin(),
-			'led_level_ppin': self.led_level_ppin(),
+			'sensor_log': self.sensor_log if self.logging else None
 			}
 
 	def is_midnight(self):
@@ -131,23 +96,23 @@ class LD1115H:
 		LED_BEGIN = self.P['LED_BEGIN']
 		if GLIDE_TIME == 0:
 			self.set_onboard_led(state)
-			analogWrite(self.P['led_level_ppin_num'], LED_END if state else LED_BEGIN)
+			self.led_level_ppin(LED_END if state else LED_BEGIN)
 			return
 		level = 0
 		spd = float(GLIDE_TIME) / ((LED_BEGIN + LED_END + 1) * (abs(int(LED_END - LED_BEGIN)) + 1) / 2)
 		if state:
-			analogWrite(self.P['led_level_ppin_num'], LED_BEGIN)
+			self.led_level_ppin(LED_BEGIN)
 			self.led_master_dpin(1)
 			for level in range(LED_BEGIN, LED_END + 1):
 				sleep_ms(int(level * spd))
-				analogWrite(self.P['led_level_ppin_num'], level)
+				self.led_level_ppin(level)
 		else:
-			analogWrite(self.P['led_level_ppin_num'], LED_END)
+			self.led_level_ppin(LED_END)
 			for level in range(LED_END, LED_BEGIN - 1, -1):
 				sleep_ms(int(level * spd))
-				analogWrite(self.P['led_level_ppin_num'], level)
+				self.led_level_ppin(level)
 			self.led_master_dpin(0)
-			analogWrite(self.P['led_level_ppin_num'], 0)
+			self.led_level_ppin(0)
 
 	def smartlight_on(self):
 		prt("smartlight on")
