@@ -711,7 +711,9 @@ class VoicePrompt:
 		self.cur_vol = self.cur_sta = None
 		return True
 
-	def __exit__(self, exc_type, exc_value, traceback):	# restore environment
+	def __exit__(self, exc_type, exc_value, exc_tb):	# restore environment
+		if exc_tb != None:
+			traceback.print_tb(exc_tb)
 		return self.restore()
 
 
@@ -773,7 +775,7 @@ def play_last(tv_name=None):
 	return 'OK'
 
 def handle_ASR_indir(asr_out, tv_name, rel_path, url_root):
-	res = findMedia(asr_out['text'], asr_out['language'], base_path=SHARED_PATH+rel_path)
+	res = findMedia(asr_out['text'].strip(), asr_out['language'], base_path=SHARED_PATH+rel_path)
 	setInfo(tv_name, asr_out["text"], asr_out['language'], 'S2T', '' if res==None else \
 		(ls_media_files(res[0])[res[1]][len(SHARED_PATH):] if type(res)==tuple else res[len(SHARED_PATH):]))
 	if res == None:
@@ -798,7 +800,7 @@ def handle_ASR_indir(asr_out, tv_name, rel_path, url_root):
 
 def handle_ASR_inlst(asr_out, tv_name, lst_filename, url_root):
 	lst = load_m3u(SHARED_PATH+lst_filename) if lst_filename else ip2tvdata[tv2lginfo[tv_name]['ip'] if tv_name else None]['playlist']
-	ii = findSong(asr_out['text'], asr_out['language'], lst)
+	ii = findSong(asr_out['text'].strip(), asr_out['language'], lst)
 	setInfo(tv_name, asr_out["text"], asr_out['language'], 'S2T', '' if ii==None else lst[ii][len(SHARED_PATH):])
 	if ii == None:
 		play_audio('voice/asr_not_found.mp3', True, tv_name)

@@ -30,7 +30,7 @@ def Open(fn, mode='r', **kwargs):
 
 KKS = pykakasi.kakasi()
 filelist, cookies_opt = [], []
-listdir = lambda t: natsorted(os.listdir(expand_path(t))) if os.path.isdir(expand_path(t)) else []
+listdir = lambda t: natsorted(Try(lambda: os.listdir(expand_path(t)), [])) if os.path.isdir(expand_path(t)) else []
 showdir = lambda t: [(p+'/' if os.path.isdir(os.path.join(t,p)) else p) for p in listdir(t) if not p.startswith('.')]
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
 translit = lambda t: unidecode(t).lower()
