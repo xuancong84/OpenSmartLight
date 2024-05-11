@@ -230,10 +230,9 @@ class WebServer:
 			( "/hello", "GET", lambda *_: f'Hello world!' ),
 			( "/exec", "GET", lambda clie, resp: Exec(clie.GetRequestQueryString(True)) ),
 			( "/eval", "GET", lambda clie, resp: Eval(clie.GetRequestQueryString(True)) ),
-			( "/wifi_restart", "GET", lambda *_: self.set_cmd('restartWifi') ),
+			( "/set_cmd", "GET", lambda clie, resp: self.set_cmd(clie.GetRequestQueryString(True)) ),
 			( "/wifi_save", "POST", lambda clie, resp: save_file('secret.py', clie.YieldRequestContent()) ),
 			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
-			( "/reboot", "GET", lambda *_: self.set_cmd('reboot') ),
 			( "/rf_record", "GET", lambda *_: str(rfc.recv()) ),
 			( "/ir_record", "GET", lambda *_: str(irc.recv()) ),
 			( "/rc_run", "GET", lambda cli, *arg: execRC(cli.GetRequestQueryString(True))),
@@ -322,13 +321,9 @@ class WebServer:
 				self.sock_map[id(tp[0])]()
 				gc.collect()
 				time.sleep(0.1)
-				if self.cmd=='reboot':
-					machine.reset()
-				elif self.cmd=='restartWifi':
-					start_wifi()
-				elif self.cmd:
-					execRC(self.cmd)
-				self.cmd = ''
+				if self.cmd:
+					Exec(self.cmd)
+					self.cmd = ''
 			if hasattr(g, 'LD1115H'):
 				g.LD1115H.run1()
 
@@ -371,10 +366,10 @@ def run():
 		cpIP = start_wifi()
 		prt(wifi)
 		g.server = WebServer(captivePortalIP=cpIP)
+		SetTimer('syncNTP', 12*3600, True, syncNTP)
+		g.DEBUG_dpin(0)
 		if '__postinit__' in g.rc_set:
 			execRC('__postinit__')
-		g.DEBUG_dpin(0)
-		SetTimer('syncNTP', 12*3600, True, syncNTP)
 		g.server.run()
 	except Exception as e:
 		machine.UART(0, 115200, tx=Pin(1), rx=Pin(3))

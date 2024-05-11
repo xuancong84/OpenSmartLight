@@ -21,7 +21,7 @@ P = {
 	}
 
 url_string = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~/'
-is_valid_pin = lambda pin: type(P.get(pin, ''))==int
+is_valid_pin = lambda pin, P=P: type(P.get(pin, ''))==int
 
 
 # None (=>null): the control will not be shown; to disable, set to empty string
@@ -46,10 +46,12 @@ class PIN:
 		a: ADC pin
 	"""
 	def __init__(self, pin, pin_name='', dtype=int, invert=None):
+		self.pin_name = f'PIN({pin})'
 		if type(pin)==int:
 			self.pin = abs(pin)
 			self.invert = pin<0 if invert is None else invert
 			if pin_name.endswith('pin_num'):
+				self.pin_name = pin_name[:-4]
 				pt = pin_name[:-7].split('_')[-1]
 				if pt=='d':
 					self.pin = Try(lambda:Pin(self.pin, Pin.OUT), '')
@@ -65,6 +67,7 @@ class PIN:
 		self.type = dtype
 
 	def __call__(self, *args):
+		prt(self.pin_name, ':', args)
 		if self.invert:
 			if type(self.pin)==PWM:
 				if self.type == int:

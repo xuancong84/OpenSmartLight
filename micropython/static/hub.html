@@ -181,11 +181,11 @@ input {font-size:15px;}
 			<h3 id="STATUS_BOX" style="display: inline-block; border: 1px solid; padding: 2px; width: 100%; resize: both; overflow: auto; margin:auto; line-height: 150%;">
 				<span>Status: </span>&nbsp; <span>Keep updating: </span><label class="toggle"><input id="keepUpdating" type="checkbox" onchange='set_active(this)'>
 				<span class="slider"></span><span class="labels" data-on="ON" data-off="OFF"></span></label> &nbsp;
-				<span>Server Time:</span> <span id="datetime"></span> &nbsp;
-				<span>heap_free:</span> <input id="heap_free" type="text" size="4ch" readonly> &nbsp;
-				<span>stack_free:</span> <input id="stack_free" type="text" size="4ch" readonly> &nbsp;
-				<span>flash_size:</span> <input id="flash_size" type="text" size="6ch" readonly> &nbsp;
-				<button id='view_log' onclick="window.open('/log.txt','_blank')" class="bb">View Log File</button> &nbsp;
+				<span>Server Time:</span> <span id="g.datetime"></span> &nbsp;
+				<span>heap_free:</span> <input id="g.heap_free" type="text" size="4ch" readonly> &nbsp;
+				<span>stack_free:</span> <input id="g.stack_free" type="text" size="4ch" readonly> &nbsp;
+				<span>flash_size:</span> <input id="g.flash_size" type="text" size="6ch" readonly> &nbsp;
+				<button id='view_log' onclick="window.open('/log.txt?'+Math.random(),'_blank')" class="bb">View Log File</button> &nbsp;
 			</h3>
 			<h3 id="PARAMS_BOX" style="display: inline-block; border: 1px solid; padding: 2px; width: 100%; resize: both; overflow: auto; margin:auto; line-height: 150%;">
 				<span>Parameters: </span> &nbsp;
@@ -213,7 +213,7 @@ input {font-size:15px;}
 		<button onclick="save()" title="Save remote control mappings" class="bb">Save Table</button>&nbsp;
 		<button onclick="load()" title="Load remote control mappings" class="bb">Load Table</button>&nbsp;
 		<button onclick="clear_all()" title="Clear all mappings, this does not delete from storage" class="bb">Clear All</button>&nbsp;
-		<button onclick="GET('/reboot')" class="bb">Reboot</button>
+		<button onclick="GET('/set_cmd?machine.reset()')" class="bb">Reboot</button>
 	</p>
 
 <script>
@@ -250,7 +250,7 @@ input {font-size:15px;}
 		setTimeout(function(){ getById(`toast${randint}`).remove() }, 3000);
 	}
 	function set_value2(id, value, cmd='exec'){
-		if(id.startsWith('F_')) value='"'+value+'"'
+		if(id.startsWith('F_')||id.includes('.F_')) value='"'+value+'"';
 		GET(`/${cmd}?${id}=${value}`, (xhr)=>{toast("<font color=lime><b>Value set successfully!</b></font>")},
 			()=>{toast("<font color=red><b>Set value failed!</b></font>")});
 	}
