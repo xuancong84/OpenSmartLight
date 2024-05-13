@@ -1,6 +1,6 @@
 import os, sys, gc, select
 from machine import Pin, PWM
-from time import sleep, sleep_ms
+from time import sleep_ms, ticks_ms
 from math import sqrt
 from array import array
 from lib_common import *
@@ -10,23 +10,24 @@ gc.collect()
 
 # For 24GHz microwave micro-motion sensor HLK-LD1115H
 class LD1115H:
-	default_P = {
-		'DARK_TH_LOW': 960,
-		'DARK_TH_HIGH': 990,
+	P = {
+		'DARK_TH_LOW': 700,
+		'DARK_TH_HIGH': 800,
 		'DELAY_ON_MOV': 30000,
 		'DELAY_ON_OCC': 20000,
 		'OCC_TRIG_TH': 65530,
 		'OCC_CONT_TH': 600,
 		'MOV_TRIG_TH': 400,
 		'MOV_CONT_TH': 250,
-		'LED_BEGIN': 100,
-		'LED_END': 125,
-		'GLIDE_TIME': 800,
+		'LED_BEGIN': 300,
+		'LED_END': 400,
+		'GLIDE_TIME': 1200,
 		'N_CONSEC_TRIG': 1,
 		'sensor_pwr_dpin_num': '',
 		'ctrl_output_dpin_num': '',
 		'led_master_dpin_num': '',
 		'led_level_ppin_num': '',
+		'led_discharge_dpin_num': '',
 		'F_read_lux': '',
 		'F_read_thermal': '',
 		'night_start': '18:00',
@@ -47,13 +48,15 @@ class LD1115H:
 		self.n_consec_trig = 0
 
 		# load default params if necessary and create pins
-		if 'LD1115H' not in P:
-			P['LD1115H'] = self.default_P
-		self.P = P['LD1115H']
+		self.P.update(P.get('LD1115H', {}))
+		P['LD1115H'] = self.P
 		auto_makepins(self, self.P)
 
 		# must turn on motion sensor first then turn it off, otherwise it will keeps outputing null
 		self.sensor_pwr_dpin(True)
+
+		# keep PWM capacitor discharged before LED smooth on
+		self.led_discharge_dpin(False)
 
 		gc.collect()
 		
@@ -80,31 +83,34 @@ class LD1115H:
 		if state is None:
 			return self.led_master_dpin()
 			
-		if self.P['led_master_dpin_num']=='': return
+		if not is_valid_pin('led_master_dpin_num', self.P):
+			return
 
 		prt("glide LED on" if state else "glide LED off")
-		GLIDE_TIME = self.P['GLIDE_TIME']
+		GLIDE_TIME = abs(self.P['GLIDE_TIME'])
 		LED_END = self.P['LED_END']
 		LED_BEGIN = self.P['LED_BEGIN']
-		if GLIDE_TIME == 0:
-			self.led_master_dpin(state)
-			self.led_level_ppin(LED_END if state else LED_BEGIN)
-			return
-		level = 0
-		spd = float(GLIDE_TIME) / ((LED_BEGIN + LED_END + 1) * (abs(int(LED_END - LED_BEGIN)) + 1) / 2)
+		tm0 = ticks_ms()
+		spd = abs(LED_END - LED_BEGIN)/max(GLIDE_TIME, 1)
 		if state:
+			Try(lambda: Pin(self.P['led_discharge_dpin_num'], Pin.IN))
 			self.led_level_ppin(LED_BEGIN)
 			self.led_master_dpin(1)
-			for level in range(LED_BEGIN, LED_END + 1):
-				sleep_ms(int(level * spd))
-				self.led_level_ppin(level)
-		else:
+			tm_dif = ticks_ms()-tm0
+			while tm_dif<GLIDE_TIME and tm_dif>=0:
+				self.led_level_ppin(round(LED_BEGIN+spd*tm_dif))
+				tm_dif = ticks_ms()-tm0
 			self.led_level_ppin(LED_END)
-			for level in range(LED_END, LED_BEGIN - 1, -1):
-				sleep_ms(int(level * spd))
-				self.led_level_ppin(level)
+		else:
+			# self.led_level_ppin(LED_END)
+			# tm_dif = ticks_ms()-tm0
+			# while tm_dif<GLIDE_TIME and tm_dif>=0:
+			# 	self.led_level_ppin(round(LED_END-spd*tm_dif))
+			# 	tm_dif = ticks_ms()-tm0
+			self.led_level_ppin(LED_BEGIN)
+			sleep_ms(GLIDE_TIME)
+			Try(lambda: Pin(self.P['led_discharge_dpin_num'], Pin.OUT)(0))
 			self.led_master_dpin(0)
-			self.led_level_ppin(0)
 
 	def smartlight_dpin(self, state=None):
 		if state is None:
