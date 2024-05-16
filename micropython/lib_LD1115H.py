@@ -11,8 +11,8 @@ gc.collect()
 # For 24GHz microwave micro-motion sensor HLK-LD1115H
 class LD1115H:
 	P = {
-		'DARK_TH_LOW': 700,
-		'DARK_TH_HIGH': 800,
+		'DARK_TH_LOW': 700,		# the darkness level below which sensor will be turned off
+		'DARK_TH_HIGH': 800,	# the darkness level above which light will be turned on if motion
 		'DELAY_ON_MOV': 30000,
 		'DELAY_ON_OCC': 20000,
 		'OCC_TRIG_TH': 65530,
@@ -83,7 +83,7 @@ class LD1115H:
 		if state is None:
 			return self.led_master_dpin()
 			
-		if not is_valid_pin('led_master_dpin_num', self.P):
+		if not is_valid_pin('led_master_dpin_num', self.P) or self.led_master_dpin()==state:
 			return
 
 		prt("glide LED on" if state else "glide LED off")
@@ -195,7 +195,7 @@ class LD1115H:
 					sleep_ms(400) # wait for light sensor to stablize and refresh lux value
 					self.lux_level = dft_eval(self.P['F_read_lux'], '')
 			else:  # when light/led is off
-				if s_mask & 4:
+				if (s_mask&4) and self.lux_level>=self.P['DARK_TH_HIGH']:
 					self.smartlight_dpin(True)
 					self.elapse = millis+self.P['DELAY_ON_MOV']
 				elif (type(self.lux_level)==int and self.lux_level<self.P['DARK_TH_LOW']): # return to day mode
@@ -203,6 +203,6 @@ class LD1115H:
 						self.sensor_pwr_dpin(False)
 					self.is_dark_mode = False
 		else: # in day
-			if (type(self.lux_level)==int and self.lux_level>self.P['DARK_TH_HIGH']):
+			if (type(self.lux_level)==int and self.lux_level>(self.P['DARK_TH_HIGH']+self.P['DARK_TH_LOW'])/2):
 				self.sensor_pwr_dpin(True)
 				self.is_dark_mode = True

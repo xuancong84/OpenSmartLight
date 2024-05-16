@@ -9,7 +9,7 @@ Timers = {}	# {'timer-name': [last-stamp-sec, period-in-sec, True (is periodic o
 timezone = 8
 A0, A1, A2, A3, A4 = [ADC(i) for i in range(5)]
 
-url_string = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~/'
+url_string = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~/?'
 digitalWrite = lambda pin, val: Pin(abs(pin), Pin.OUT)(1-val if pin<0 else val) if type(pin)==int else None
 digitalRead = lambda pin: (1-Pin(abs(pin), Pin.OUT)()) if pin<0 else Pin(abs(pin), Pin.OUT)() if type(pin)==int else None
 analogWrite = lambda pin, val: PWM(abs(pin), freq=1000, duty=(1023-val if pin<0 else val)) if type(pin)==int else None

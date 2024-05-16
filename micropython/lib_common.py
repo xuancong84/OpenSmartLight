@@ -20,7 +20,7 @@ P = {
 	'PIN_LD1115H': '',		# GPIO 13 or 3: HLK-LD1115H motion sensor
 	}
 
-url_string = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~/'
+url_string = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~/?'
 is_valid_pin = lambda pin, P=P: type(P.get(pin, ''))==int
 
 
