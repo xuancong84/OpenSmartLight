@@ -22,7 +22,8 @@ P = {
 
 url_string = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~/?'
 is_valid_pin = lambda pin, P=P: type(P.get(pin, ''))==int
-
+read_py_obj = lambda f: Try(lambda: eval(open(f).read()), '')
+execRC = lambda *args: None
 
 # None (=>null): the control will not be shown; to disable, set to empty string
 def dft_eval(s, dft):
@@ -64,6 +65,7 @@ class PIN:
 		else:
 			self.pin = pin
 			self.invert = invert or False
+			self.state = False
 		self.type = dtype
 
 	def __call__(self, *args):
@@ -90,7 +92,14 @@ class PIN:
 				return self.pin.read() if self.type==int else self.pin.read_u16()/65535
 			elif type(self.pin)==int:
 				return Pin(self.pin)(*args)
-		return None
+
+		if type(self.pin) in [tuple,list]:
+			if not args:
+				return self.state
+			self.state = args[0]
+			return execRC(self.pin[self.state])
+
+		return self.pin(*args) if callable(self.pin) else None
 
 
 _auto_pins = set()

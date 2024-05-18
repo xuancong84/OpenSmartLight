@@ -20,6 +20,7 @@ getDateTime = lambda: time.localtime(time.time()+3600*timezone)
 sta_if = network.WLAN(network.STA_IF)
 ap_if = network.WLAN(network.AP_IF)
 getActiveNIF = lambda: sta_if if sta_if.active(True) else ap_if
+read_py_obj = lambda f: Try(lambda: eval(open(f).read()), '')
 
 def getTimeString(tm=None):
 	tm = tm or getDateTime()

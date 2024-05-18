@@ -1,4 +1,4 @@
-import sys, time, network
+import os, sys, time, network
 from machine import Pin
 
 
@@ -14,6 +14,7 @@ def rescue():
 			x += 1
 			LED(x&1)
 			time.sleep(0.25)
+		os.dupterm(None, 1)
 		import webrepl
 		webrepl.start()
 		Pin(2, Pin.IN)

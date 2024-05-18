@@ -26,8 +26,6 @@ from lib_common import *
 
 wifi = {}
 
-read_py_obj = lambda f: Try(lambda: eval(open('secret.py').read()), '')
-
 def connect_wifi():
 	global wifi, sta_if
 	if sta_if.active():
@@ -373,7 +371,7 @@ class WebServer:
 				elif self.cmd:
 					execRC(self.cmd)
 				self.cmd = ''
-			if type(PIN_LD1115H)==int:
+			if hasattr(g, 'LD1115H'):
 				g.LD1115H.run1()
 
 # Globals
