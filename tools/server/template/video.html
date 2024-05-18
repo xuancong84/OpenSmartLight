@@ -320,6 +320,21 @@ function updateList(arr){
   for(var [i,fn] of playlist.entries())
     menu0.innerHTML += `<a id="a${i}" onclick="ws.send('goto_idx ${i}')">${fn}</a>`;
 }
+function showSubtitle(){
+  v.addEventListener("loadedmetadata", function() {
+   track = document.createElement("track");
+   track.kind = "captions";
+   track.label = "English";
+   track.srclang = "en";
+   track.src = "captions/sintel-en.vtt";
+   track.addEventListener("load", function() {
+      this.mode = "showing";
+      video.textTracks[0].mode = "showing"; // thanks Firefox
+   });
+   this.appendChild(track);
+  });
+}
+
 setvsrc("{{file_path|safe}}", {{cur_ii}});
 var edge_pad = Number(getComputedStyle(document.documentElement).getPropertyValue('--edge-pad').slice(0,-2));
 var scr_size = Math.max(screen.width, screen.height);

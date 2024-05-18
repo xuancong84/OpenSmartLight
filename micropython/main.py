@@ -189,6 +189,8 @@ def execRC(s):
 		return str(e)
 	return str(s)
 
+g.execRC = execRC
+
 def Exec(cmd):
 	try:
 		exec(cmd, globals(), globals())
@@ -202,13 +204,13 @@ def Eval(cmd):
 	except Exception as e:
 		return str(e)
 
-def setParams(params:dict):
+def setParams(query_line):
 	try:
-		for k,v in params.items():
-			p, ks = P, k.split('.')
-			for i in ks[0:-1]:
-				p = p[i]
-			p[ks[-1]] = v.split(',') if (type(v)==str and ',' in v) else dft_eval(v, '')
+		k, v = query_line.split('=', 1)
+		p, ks = P, k.split('.')
+		for i in ks[0:-1]:
+			p = p[i]
+		p[ks[-1]] = dft_eval(v, '')
 		return 'OK'
 	except Exception as e:
 		return str(e)
@@ -226,13 +228,13 @@ class WebServer:
 				'LD1115H': g.LD1115H.status() if hasattr(g, 'LD1115H') else None
 				})) ),
 			( "/get_params", "GET", lambda clie, resp: resp.WriteResponseJSONOk(P) ),
-			( "/set_params", "GET", lambda clie, resp: setParams(clie.GetRequestQueryParams()) ),
+			( "/set_params", "GET", lambda clie, resp: setParams(clie.GetRequestQueryString(True)) ),
 			( "/hello", "GET", lambda *_: f'Hello world!' ),
 			( "/exec", "GET", lambda clie, resp: Exec(clie.GetRequestQueryString(True)) ),
 			( "/eval", "GET", lambda clie, resp: Eval(clie.GetRequestQueryString(True)) ),
 			( "/set_cmd", "GET", lambda clie, resp: self.set_cmd(clie.GetRequestQueryString(True)) ),
 			( "/wifi_save", "POST", lambda clie, resp: save_file('secret.py', clie.YieldRequestContent()) ),
-			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseFile('secret.py')),
+			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseJSONOk(read_py_obj('secret.py')) ),
 			( "/rf_record", "GET", lambda *_: str(rfc.recv()) ),
 			( "/ir_record", "GET", lambda *_: str(irc.recv()) ),
 			( "/rc_run", "GET", lambda cli, *arg: execRC(cli.GetRequestQueryString(True))),
@@ -241,7 +243,7 @@ class WebServer:
 			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile(RCFILE) ),
 			( "/save_P", "GET", lambda *_: save_params() ),
 			( "/load_P", "GET", lambda *_: load_params() ),
-			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseFile(list_files()) ),
+			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseYield(list_files()) ),
 			( "/delete_files", "GET", lambda clie, resp: deleteFile(clie.GetRequestQueryString(True)) ),
 			( "/mkdir", "GET", lambda clie, resp: mkdir(clie.GetRequestQueryString(True)) ),
 			( "/get_file", "GET", lambda clie, resp: resp.WriteResponseFileAttachment(clie.GetRequestQueryString(True)) ),

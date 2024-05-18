@@ -17,6 +17,7 @@ def rescue():
 			time.sleep(0.25)
 		Pin(12, Pin.IN)
 		Pin(13, Pin.IN)
+		os.dupterm(None, 1)
 		import webrepl
 		webrepl.start()
 		sys.exit()

@@ -11,6 +11,7 @@ gc.collect()
 # For 24GHz microwave micro-motion sensor HLK-LD1115H
 class LD1115H:
 	P = {
+		'UPDATE_ENV_INTV_MS': 2000, # interval for updating environment (ambient light, temperature, etc.)
 		'DARK_TH_LOW': 700,		# the darkness level below which sensor will be turned off
 		'DARK_TH_HIGH': 800,	# the darkness level above which light will be turned on if motion
 		'DELAY_ON_MOV': 30000,
@@ -111,6 +112,7 @@ class LD1115H:
 			sleep_ms(GLIDE_TIME)
 			Try(lambda: Pin(self.P['led_discharge_dpin_num'], Pin.OUT)(0))
 			self.led_master_dpin(0)
+			self.led_level_ppin(0)
 
 	def smartlight_dpin(self, state=None):
 		if state is None:
@@ -179,7 +181,7 @@ class LD1115H:
 		millis = round(time.time()*1000)
 
 		# Update ambient level
-		if millis-self.tm_last_ambient>=1000:
+		if millis-self.tm_last_ambient >= self.P['UPDATE_ENV_INTV_MS']:
 			self.lux_level = dft_eval(self.P['F_read_lux'], '')
 			self.thermal_level = dft_eval(self.P['F_read_thermal'], '')
 			self.tm_last_ambient = millis
