@@ -38,20 +38,20 @@ h1 {
   z-index: 20;
   display: none;
   opacity:0.9;
-  width: 50%; /* Set a width if you like */
+  width: 50%;
   max-height: 80%;
   vertical-align: middle;
   overflow-y: auto;
+  background-color: #222;
 }
 .playmenu a {
-  background-color: #222; /* Grey background color */
-  color: #fff; /* Black text color */
-  display: block; /* Make the links appear below each other */
+  color: #fff; /* text color */
+  display: block;
   cursor: pointer;
   padding: 4px;
   text-decoration: none; /* Remove underline from links */
 }
-.playmenu a:hover { background-color: #ccc; }
+.playmenu a:hover { background-color: #aaa; }
 .larger { font-size: larger; }
 .vsb { margin-top: 8px; }
 </style>
@@ -76,19 +76,21 @@ h1 {
  <div class="overlay hoverShow" style="right:0px; top:16px;" onclick="ws.send('report_title')" title="播报当前歌曲名称">🗣</div>
  <div class="overlay" style="left:0px; bottom:var(--edge-pad);">
   <span class="hoverShow" title="复制视频链接然后扫码下载播放" onclick="showQR()">📱</span>
-  <span id="QRcontainer" style="background-color: #fff; opacity: 0; display: inline-flex;"></span>
+  <span id="QRcontainer" style="background-color: #fff; display: none;"></span>
+  <span class="hoverShow" id="showSubtt" title="选择字幕" onclick="toggle_menu(3)" style="display: none;">字幕</span>
  </div>
  <div class="overlay hoverShow" style="right:0px; bottom:var(--edge-pad);">
   <span onclick="toggle_hide([T2Sframe,S2Tframe])" title="显示详情（语音识别及语音合成）">💬</span>
   <span onclick="promptOpenFolder()" title="显示当前视频的URL链接">🔗</span>
  </div>
- <div id="menu0" class="playmenu" style="font-size: xx-large; font-weight: bold; text-align: center;">
+ <div id="menu1" class="playmenu" style="font-size: xx-large; font-weight: bold; text-align: center;">
   <h1>{{listname}}</h1>
   {% for name in playlist %}
   <a id="a{{loop.index0}}" onclick="ws.send('goto_idx {{loop.index0}}')">{{name}}</a>
   {% endfor %}
  </div>
- <div id="menu1" class="playmenu" style="font-size: xx-large; font-weight: bold; top: 32px; text-align: left"></div>
+ <div id="menu2" class="playmenu" style="font-size: xx-large; font-weight: bold; top: 32px; text-align: left"></div>
+ <div id="menu3" class="playmenu" style="font-size: x-large; font-weight: bold; text-align: left; transform:none; width:auto;"></div>
  <div id="S2Tframe" style="background-color: #04AA6D; position: absolute; opacity:0.8; font-size: x-large; font-weight: bold; top: 30%; left:5%; width:20%;">
   <h1>【语音识别详情】</h1>
   <h1>语种：<span id="S2Tlang">{{S2T_lang}}</span></h1>
@@ -106,26 +108,39 @@ const pass = () => {};
 function getById(id_str) { return document.getElementById(id_str); }
 var idleTime = 0;
 var menuMode = 0;
-var ws_func = 0;
 var passCounter = 0, markCounter = 0;
 var playlist = {{playlist|tojson}};
 var dir_list, subdir_list;
 var NN = playlist.length;
 var cur_dir = "", cur_file;
 var v = getById("video0");
-var recorder = null;
-var audios, start_time, recorder_timeout;
+var recorder = null, subtt_info = null, subtt_loaded = 0; // 0: not loaded; 1: loading; 2:loaded
+var audios, start_time, recorder_timeout, last_subtt;
 
 // Set global object handles
-for(var vname of ['ovl', 'ovl2', 'menu0', 'menu1', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'T2Slang', 'S2Ttext', 'T2Stext', 'S2Tmatch', 'recButton', 'QRcontainer'])
+for(var vname of ['ovl', 'ovl2', 'menu1', 'menu2', 'menu3', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'T2Slang', 'S2Ttext',
+  'T2Stext', 'S2Tmatch', 'recButton', 'QRcontainer', 'showSubtt'])
   window.eval(`var ${vname} = getById("${vname}")`);
 
 function create_wsock(){
-  var ws = new WebSocket((window.location.href.startsWith('https:')?'wss://':'ws://') + location.host + '/ws_init');
-  ws.addEventListener('message', ev => { ws_func==1?showDir(ev.data):(ws_func==2?updateList(ev.data):setTimeout(ev.data, 1)); });
+  var ws = new WebSocket((location.href.startsWith('https:')?'wss://':'ws://') + location.host + '/ws_init');
+  ws.addEventListener('message', ev => {
+    if(ev.data.startsWith('\t')){
+      var its = ev.data.split('\t');
+      window[its[1]](its[2]);
+    }else setTimeout(ev.data, 1);
+  });
   return ws;
 }
 var ws = create_wsock();
+function ws_send(data){ // on-demand open websocket
+  if(ws.readyState==1)
+    ws.send(data);
+  else{
+    if(ws.readyState>1) ws = create_wsock();
+    ws.onopen = ()=>{ws.onopen=null; ws.send(data);}
+  }
+}
 
 function setvsrc(url, ii=0){
   v.src = url;
@@ -147,6 +162,14 @@ function setvsrc(url, ii=0){
     setTimeout(`if(v.currentTime<${tm}-2.5)v.currentTime=${tm}`, 2500);
   }
   setvidx(ii);
+
+  // handle subtitles
+  v.innerHTML = '';
+  subtt_info = null;
+  subtt_loaded = 0;
+  showSubtt.style.display = 'none';
+  ws_send('list_subtitles ' + cur_file);
+
   if(menuMode!=2) return;
   if(cur_file.endsWith(getById('b'+ii).text)) setvidx(ii, 'b');
   else{
@@ -159,8 +182,8 @@ function promptOpenFolder(){
     window.open(v.src.substr(0,v.src.lastIndexOf('/')), '_blank')
 }
 function showQR(){
-  QRcontainer.style.opacity = 1-QRcontainer.style.opacity;
-  if(QRcontainer.style.opacity && QRcontainer.innerHTML==""){
+  QRcontainer.style.display = QRcontainer.style.display=='none'?'inline-flex':'none';
+  if(QRcontainer.style.display!='none' && QRcontainer.innerHTML==""){
     const req = new XMLHttpRequest();
     req.open("GET", '/QR', true);
     req.onload = (ev)=>{
@@ -213,23 +236,31 @@ function onRecStop(){
 function lsdir(tgtDir=null){
   if(tgtDir=='.') tgtDir=v.src.split('/').slice(4,-1).join('/');
   if(tgtDir!=null) cur_dir=tgtDir.replace(/\/*$/, '');
-  ws_func = 1;
   ws.send('lsdir '+cur_dir);
 }
 function toggle_menu(mode){
   menuMode = (menuMode==mode?0:mode);
-  menu0.style.display = menuMode==1?"block":"none";
-  menu1.style.display = menuMode==2?"block":"none";
+  menu1.style.display = menuMode==1?"block":"none";
+  menu2.style.display = menuMode==2?"block":"none";
+  menu3.style.display = menuMode==3?"block":"none";
   getById('menuIcon0').textContent = menuMode==1?"▿":"▤";
   getById('menuIcon1').textContent = menuMode==2?"▵":"📁";
   if(menuMode==2){
-    if(menu1.innerHTML=='') lsdir();
+    if(menu2.innerHTML=='') lsdir();
     else{
       var ii = -1, i = 0;
       for(; getById('b'+i)!=null; i++)
         if(cur_file == (cur_dir?(cur_dir+'/'+getById('b'+i).text):getById('b'+i).text)) ii = i;
       if(ii>=0) setvidx(ii, 'b');
     }
+  }else if(menuMode==3){
+    if(subtt_loaded==0){
+      ws_send(`load_subtitles ${subtt_info.length} ${cur_file}`);
+      subtt_loaded = 1;
+    }
+    showSubtt.style.opacity = 1;
+  }else{
+    showSubtt.style.opacity = '';
   }
 }
 function getCookie(cookieName, dft="") {
@@ -285,16 +316,14 @@ function timerRst() {
 }
 function gotoFile(ev, i){
   ev.preventDefault();
-  ws_func = 2;
   ws.send("goto_file "+dir_list[i]);
   setvidx(i, 'b');
 }
 function showDir(data){
-  ws_func = 0;
-  menu1.innerHTML = `<h1>Folder: /${cur_dir}<span style="float:right; cursor:pointer;" onclick="lsdir('.')">🏠</span></h1>`;
+  menu2.innerHTML = `<h1>Folder: /${cur_dir}<span style="float:right; cursor:pointer;" onclick="lsdir('.')">🏠</span></h1>`;
   if(cur_dir){
     var parent_dir = cur_dir.indexOf('/')>=0 ? cur_dir.split('/').slice(0,-1).join('/') : "";
-    menu1.innerHTML += `<a onclick="lsdir('${parent_dir}')">../</a>`;
+    menu2.innerHTML += `<a onclick="lsdir('${parent_dir}')">../</a>`;
   }
   var i=0, j=0;
   dir_list = [];
@@ -302,45 +331,83 @@ function showDir(data){
   for(var fn of data.split('\n')){
     fulln = cur_dir?(cur_dir+'/'+fn):fn;
     if(fn.endsWith('/')){
-      menu1.innerHTML += `<a onclick="lsdir(subdir_list[${j}])">${fn}</a>`;
+      menu2.innerHTML += `<a onclick="lsdir(subdir_list[${j}])">${fn}</a>`;
       subdir_list.push(fulln);
       j+=1;
     }else{
-      menu1.innerHTML += `<a id="b${i}" onclick="gotoFile(event,${i})" href="/files/${fulln}" style="color:${fulln.endsWith(cur_file)?"#1f0":"#eee"}">${fn}</a>`;
+      menu2.innerHTML += `<a id="b${i}" onclick="gotoFile(event,${i})" href="/files/${fulln}" style="color:${fulln.endsWith(cur_file)?"#1f0":"#eee"}">${fn}</a>`;
       dir_list.push(fulln);
       i+=1;
     }
   }
 }
 function updateList(arr){
-  ws_func = 0;
   playlist = arr.split('\n');
   NN = playlist.length;
-  menu0.innerHTML = `<h1>${cur_dir}</h1>`;
+  menu1.innerHTML = `<h1>${cur_dir}</h1>`;
   for(var [i,fn] of playlist.entries())
-    menu0.innerHTML += `<a id="a${i}" onclick="ws.send('goto_idx ${i}')">${fn}</a>`;
+    menu1.innerHTML += `<a id="a${i}" onclick="ws.send('goto_idx ${i}')">${fn}</a>`;
 }
-function showSubtitle(){
-  v.addEventListener("loadedmetadata", function() {
-   track = document.createElement("track");
-   track.kind = "captions";
-   track.label = "English";
-   track.srclang = "en";
-   track.src = "captions/sintel-en.vtt";
-   track.addEventListener("load", function() {
-      this.mode = "showing";
-      video.textTracks[0].mode = "showing"; // thanks Firefox
-   });
-   this.appendChild(track);
-  });
+function list_subtitles(s_lst){
+  subtt_info = JSON.parse(s_lst);
+  if(subtt_info.length>0){
+    showSubtt.style.display="inline";
+    last_subtt = getCookie("subtt", dft="");
+    if(last_subtt){
+      ws_send(`load_subtitles ${subtt_info.length} ${cur_file}`);
+      subtt_loaded = 1;
+    }
+    menu3.innerHTML = subtt_loaded==2?'<p id="t_subtt_status" style="margin:0; color:lime;">Subtitles loaded!</p>'
+      :'<p id="t_subtt_status" style="margin:0; color:yellow;">Loading subtitles, please wait ...</p>';
+    for(const [ii,si1] of subtt_info.entries()){
+      menu3.innerHTML += `<input type="checkbox" id="SCB${ii}" onclick="set_subtt(${ii}, this)"><a style="display:inline" onclick="set_subtt(${ii})">${si1}</a><br>`;
+    }
+    menu3.style.left = showSubtt.offsetLeft+'px';
+    menu3.style.bottom = (showSubtt.offsetHeight+edge_pad)+'px';
+  }
+}
+function load_subtitles(){
+  for(const [subid,subname] of subtt_info.entries()){
+    track = document.createElement("track");
+    track.kind = "subtitles";
+    track.label = subname;
+    track.srclang = subname;
+    track.src = `/subtt/${subid}.vtt`;
+    v.appendChild(track);
+  }
+  subtt_loaded = 2;
+  getById('t_subtt_status').innerText = 'Subtitles loaded!';
+  getById('t_subtt_status').style.color = 'lime';
+  for(var i of last_subtt.split(',')){
+    var ii = parseInt(i)>=v.textTracks.length?0:parseInt(i);
+    v.textTracks[ii].mode = 'showing';
+    getById(`SCB${ii}`).checked = true;
+  }
+}
+function set_subtt(track_num, cb=null){
+  if(subtt_loaded!=2) return alert('Please wait for loading subtitles!');
+  last_subtt = '';
+  if(cb==null){
+    for(var i=0; i<v.textTracks.length; i++){
+      v.textTracks[i].mode = (i==track_num?'showing':'hidden');
+      getById('SCB'+i).checked = i==track_num;
+    }
+    last_subtt = `${track_num}`;
+  }else{
+    v.textTracks[track_num].mode = (cb.checked?'showing':'hidden');
+    for(var i=0; i<v.textTracks.length; i++)
+      if(getById('SCB'+i).checked) last_subtt += `${i},`;
+      last_subtt = last_subtt.slice(0,-1);
+  }
+  document.cookie = `subtt=${last_subtt}; path=/; max-age=31536000`;
 }
 
 setvsrc("{{file_path|safe}}", {{cur_ii}});
 var edge_pad = Number(getComputedStyle(document.documentElement).getPropertyValue('--edge-pad').slice(0,-2));
 var scr_size = Math.max(screen.width, screen.height);
 document.styleSheets[0].cssRules[0].style.fontSize=`${scr_size/16}px`;
-menu0.style.top=`${scr_size/16}px`;
-menu1.style.bottom=`${scr_size/16+edge_pad}px`;
+menu1.style.top=`${scr_size/16}px`;
+menu2.style.bottom=`${scr_size/16+edge_pad}px`;
 setInterval(timerInc, 2000);
 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
   navigator.mediaDevices.getUserMedia({audio: true,},)

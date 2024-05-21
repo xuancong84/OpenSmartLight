@@ -141,6 +141,10 @@ def get_favicon():
 def get_voice(fn=''):
 	return send_from_directory('./voice', fn, conditional=True) if fn else send_file(DEFAULT_SPEECH_FILE, conditional=True)
 
+@app.route('/subtt/<path:fn>')
+def subtt(fn='0.vtt'):
+	return send_from_directory(f'{TMP_DIR}/.subtitles/{request.remote_addr}/', fn, conditional=True)
+
 @app.route('/subtitle/<show>')
 def show_subtitle(show=None):
 	global subtitle
@@ -550,6 +554,23 @@ def mark(name, tms):
 		save_config(prune_dict(ip2tvdata))
 		last_save_time = time.time()
 
+ip2subtt = {}
+def _load_subtitles(video_file, n_subs, ip):
+	if ip2subtt.get(ip, '') != video_file:
+		out_dir = f'{TMP_DIR}/.subtitles/{ip}'
+		if not os.path.isdir(out_dir):
+			runsys(f'mkdir -p {out_dir}')
+		if video_file in ip2subtt.values():
+			ip2 = [k for k,v in ip2subtt.items() if v==video_file][0]
+			runsys(f'cp -rf {TMP_DIR}/.subtitles/{ip2}/* {out_dir}/')
+			LOG(f'Copyed {n_subs} subtitle files from {ip2} to {ip} ...')
+		else:
+			LOG(f'Loading {n_subs} subtitle tracks from "{video_file}" ...')
+			out = RUN(['ffmpeg', '-y', '-i', video_file]+[it for k in range(n_subs) for it in ['-map', f'0:s:{k}', '-f', 'webvtt', f'{out_dir}/{k}.vtt']], shell=False, timeout=9999)
+			LOG(f'Finished Loading {n_subs} subtitle tracks from "{video_file}": {out}')
+		ip2subtt[ip] = video_file
+	ip2websock[ip].send('load_subtitles()')
+
 @app.route('/tv_wscmd/<name>/<path:cmd>')
 def tv_wscmd(name, cmd):
 	LOG(name+' : '+cmd)
@@ -579,7 +600,17 @@ def tv_wscmd(name, cmd):
 		elif cmd.startswith('lsdir '):
 			full_dir = SHARED_PATH+cmd.split(' ',1)[1]+'/'
 			lst = showdir(full_dir)
-			ws.send('\n'.join(lst))
+			ws.send('\tshowDir\t'+'\n'.join(lst))
+		elif cmd.startswith('list_subtitles '):
+			file_path = SHARED_PATH+cmd.split(' ',1)[1]
+			subs = list_subtitles(file_path)
+			LOG(f'"{file_path}" contains {len(subs)} subtitle tracks')
+			ws.send(f'\tlist_subtitles\t{json.dumps(subs)}')
+		elif cmd.startswith('load_subtitles '):
+			args = cmd.split(' ', 2)
+			n_subs = int(args[1])
+			file_path = SHARED_PATH+args[2]
+			threading.Thread(target=_load_subtitles, args=(file_path, n_subs, ip)).start()
 		else:
 			if cmd in ['next', 'prev']:
 				tvd['cur_ii'] = (tvd['cur_ii']+(1 if cmd=='next' else -1))%len(tvd['playlist'])
@@ -592,7 +623,7 @@ def tv_wscmd(name, cmd):
 				flist = ls_media_files(SHARED_PATH+os.path.dirname(fn))
 				tvd['playlist'] = flist
 				tvd['cur_ii'] = [ii for ii,fulln in enumerate(flist) if fulln.endswith('/'+fn)][0]
-				ws.send('\n'.join([s.split('/')[-1] for s in flist]))
+				ws.send('\tupdateList\t'+'\n'.join([s.split('/')[-1] for s in flist]))
 			else:
 				ws.send(cmd)
 				return 'OK'

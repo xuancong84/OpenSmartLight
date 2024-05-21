@@ -64,14 +64,15 @@ def RUN(cmd, shell=True, timeout=3, **kwargs):
 		ret = e.output
 	return ret if type(ret)==str else ret.decode()
 
-def _runsys(cmd, event):
+def runsys(cmd, event=None):
 	LOG('RUNSYS: ' + cmd)
-	os.system(cmd)
+	ret = os.system(cmd)
 	if event!=None:
 		event.set()
+	return ret
 
 def RUNSYS(cmd, event=None):
-	threading.Thread(target=_runsys, args=(cmd, event)).start()
+	threading.Thread(target=runsys, args=(cmd, event)).start()
 
 get_filesize = lambda fn: Try(lambda: os.path.getsize(fn), 0)
 
@@ -332,3 +333,17 @@ def download_video(song_url, include_subtitles, high_quality, redownload, mobile
 		logging.error("Error downloading song: " + song_url)
 
 	return ''
+
+def get_subts_tagInfo(t: dict):
+	if 'language' in t:
+		return ': '.join([t['language']]+[v for k,v in t.items() if k!='language'][:1])
+	return ': '.join([v for k,v in t.items()][:2])
+
+def list_subtitles(fullpath):
+	try:
+		out = RUN(['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', fullpath], shell=False)
+		obj = json.loads(out.strip())
+		return [get_subts_tagInfo(s['tags']) for s in obj['streams'] if s['codec_type']=='subtitle']
+	except:
+		return []
+	
