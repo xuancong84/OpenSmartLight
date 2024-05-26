@@ -1,4 +1,4 @@
-import os, sys, gc, machine, network, socket, select, time, random, esp
+import os, sys, gc, machine, network, socket, select, time, random, esp, micropython
 import urequests as url
 from array import array
 from time import ticks_us, ticks_diff
@@ -251,7 +251,7 @@ class WebServer:
 			( "/status", "GET", lambda clie, resp: resp.WriteResponseJSONOk({
 				'datetime': getFullDateTime(),
 				'heap_free': gc.mem_free(),
-				'stack_free': Try(lambda: esp.freemem()),
+				'stack_free': Try(lambda: 14336-micropython.stack_use()),
 				'flash_size': esp.flash_size(),
 				'g.timezone': g.timezone,
 				'g.DEBUG': g.DEBUG,

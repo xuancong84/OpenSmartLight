@@ -32,11 +32,16 @@ def dft_eval(s, dft):
 	except:
 		return dft
 
-def Try(fn, default=None):
-	try:
-		return fn()
-	except:
-		return default() if callable(default) else default
+def Try(*args):
+	exc = ''
+	for arg in args:
+		try:
+			if callable(arg):
+				return arg()
+		except Exception as e:
+			exc = e
+	return str(exc)
+
 
 class PIN:
 	""" Either pass a machine.Pin object, or an Integer with a pin_name '_*pin_num' to create the pin
@@ -125,7 +130,8 @@ def getTimeString(tm=None):
 	tm = tm or getDateTime()
 	return '%02d:%02d:%02d'%(tm[3],tm[4],tm[5])
 
-def getDateString(tm, showDay=True):
+def getDateString(tm=None, showDay=True):
+	tm = tm or getDateTime()
 	ds = "%04d-%02d-%02d"%(tm[0],tm[1],tm[2])
 	return ds if showDay else ds[:-3]
 

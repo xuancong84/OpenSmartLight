@@ -24,26 +24,31 @@ pyboard() {
 	~/anaconda3/bin/python ~/bin/pyboard.py --device $dev -b 115200 "$@"
 }
 
-#pyboard -f cp secret9.py :secret.py
+copy_if() {
+	for f in "$@"; do
+		if [ -s "$f" ]; then
+			pyboard -f cp "$f" :"$f"
+		fi
+	done
+}
 
-set +e
-pyboard -f mkdir  codes
-set -e
 
 for f in main.py modules.py rescue.py lib*.py; do 
 	mpy-cross $f
 	fmpy=${f::-3}.mpy
 	echo "Copying $fmpy ..."
-	pyboard -f cp $fmpy :
+	copy_if $fmpy
 done
 
-pyboard -f cp rc-codes.txt :
+copy_if rc-codes.txt
 
 set +e
 pyboard -f mkdir  static
 set -e
 
-pyboard -f cp static/* :static/
-pyboard -f cp ../*.tcp :
-pyboard -f cp boot.py :
+copy_if static/*
+copy_if *.tcp
+copy_if webrepl_cfg.py
+copy_if secret.py
+copy_if boot.py
 
