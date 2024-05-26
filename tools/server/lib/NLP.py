@@ -347,3 +347,20 @@ def list_subtitles(fullpath):
 	except:
 		return []
 	
+def ble_gap_advertise(payload, duration=1):
+	try:
+		s = payload.lower()
+		assert len(s)%2==0
+		assert all(c in string.hexdigits for c in s)
+		data = ' '.join([s[i:i+2] for i in range(0, len(s), 2)])
+		sudo = '' if RUN('whoami')=='root' else 'sudo '
+
+		runsys(f'{sudo}hciconfig hci0 up')
+		runsys(f'{sudo}hcitool -i hci0 cmd 0x08 0x0008 {"%02x"%(len(s)//2)} {data}')
+		runsys(f'{sudo}hcitool -i hci0 cmd 0x08 0x0006 a0 00 a0 00 03 00 00 00 00 00 00 00 00 07 00')
+		runsys(f'{sudo}hcitool -i hci0 cmd 0x08 0x000a 01')
+		time.sleep(duration)
+		runsys(f'{sudo}hcitool -i hci0 cmd 0x08 0x000a 00')
+		return True
+	except:
+		return False

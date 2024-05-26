@@ -122,6 +122,24 @@ def custom_cmdline(cmd, wait=False):
 		traceback.print_exc()
 		return str(e)
 
+@app.route('/py_exec/<path:cmd>')
+def py_exec(cmd):
+	try:
+		exec(cmd, globals(), globals())
+		return "OK"
+	except Exception as e:
+		traceback.print_exc()
+		return str(e)
+
+@app.route('/sh_exec/<path:cmd>')
+def sh_exec(cmd):
+	return str(runsys(cmd))
+
+@app.route('/sh_exec_mp/<path:cmd>')
+def sh_exec_mp(cmd):
+	RUNSYS(cmd)
+	return 'OK'
+
 @app.route('/files')
 @app.route('/files/<path:filename>')
 def get_file(filename=''):
@@ -347,7 +365,9 @@ def disconnectble(dev_mac):
 	return str(ret)
 
 @app.route('/volume/<cmd>')
-def set_volume(cmd=None):
+def set_volume(cmd=None, tv_name=None):
+	if tv_name is None:
+		return tvVolume(name=tv_name, vol=cmd)
 	try:
 		if type(cmd) in [int, float] or cmd.isdigit():
 			ret = os.system(f'amixer sset Master {int(cmd)}%' if sys.platform=='linux' else f'osascript -e "set volume output volume {int(cmd)}"')
@@ -439,12 +459,19 @@ def tv(name='', cmd=''):
 @app.route('/tvVolume/<name>/<vol>')
 def tvVolume(name='', vol=''):
 	try:
+		vol = str(vol)
 		value = int(vol)
 		if not vol[0].isdigit():
 			ret = RUN(f'{LG_TV_BIN} --name {name} audioVolume')
 			L = ret[ret.find('"volume":'):]
 			value += int(L[L.find(' '):L.find(',')])
 		return RUN(f'{LG_TV_BIN} --name {name} setVolume {value}')
+	except:
+		pass
+	try:
+		ret = RUN(f'{LG_TV_BIN} --name {name} audioVolume')
+		L = ret[ret.find('"volume":'):]
+		return str(int(L[L.find(' '):L.find(',')]))
 	except Exception as e:
 		return str(e)
 
@@ -686,7 +713,8 @@ def get_recorder(devs, wait=3):
 def play_audio(fn, block=False, tv_name=None):
 	ev_voice.clear()
 	if tv_name:
-		tv_wscmd(tv_name, f'play_audio("/{f"voice?{random.randint(0,999999)}" if fn==DEFAULT_SPEECH_FILE else fn}",true)')
+		res = tv_wscmd(tv_name, f'play_audio("/{f"voice?{random.randint(0,999999)}" if fn==DEFAULT_SPEECH_FILE else fn}",true)')
+		assert res == 'OK'
 	else:
 		RUNSYS(f'mplayer -really-quiet -noconsolecontrols {fn}', ev_voice)
 	if block: ev_voice.wait()
@@ -724,6 +752,7 @@ class VoicePrompt:
 		global player
 		if self.tv_name:
 			tv_wscmd(self.tv_name, 'pause')
+			self.cur_vol = tvVolume(self.tv_name)
 		elif player!=None:
 			self.cur_sta = player.is_playing()
 			if self.cur_sta:
@@ -733,6 +762,8 @@ class VoicePrompt:
 
 	def restore(self):
 		if self.tv_name:
+			if self.cur_vol:
+				tvVolume(self.tv_name, self.cur_vol)
 			tv_wscmd(self.tv_name, 'resume')
 		else:
 			if self.cur_vol != None:
@@ -755,7 +786,7 @@ def recog_and_play(voice_prompt, tv_name, path_name, handler, url_root, audio_fi
 	with VoicePrompt(tv_name) as context:
 		# record speech
 		if voice_prompt:
-			set_volume(VOICE_VOL)
+			set_volume(VOICE_VOL[tv_name])
 			play_audio(voice_prompt, True, tv_name)
 			record_audio()
 

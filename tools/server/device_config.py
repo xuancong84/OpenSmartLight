@@ -1,4 +1,6 @@
 
+from collections import defaultdict
+
 # all fields must be set, if absent put ''
 KTV_SPEAKER='10:3C:88:17:20:78'
 KTV_SCREEN='livingTV'
@@ -17,7 +19,7 @@ DOWNLOAD_PATH=SHARED_PATH+'/Download'
 MAX_WALK_LEVEL=2
 ASR_CLOUD='http://203.149.235.62:8883/run_asr/base'
 ASR_CLOUD_TIMEOUT=8
-VOICE_VOL=60
+VOICE_VOL=defaultdict(lambda: None, {None: 60})
 STD_VOL_DBFS=-21
 CUSTOM_CMDLINES={'macair_play':"ssh hetianfang@192.168.50.31 /Applications/Firefox.app/Contents/MacOS/firefox --new-tab '\"http://192.168.50.3:8883/webPlay/-1/\"'"}
 DEBUG_LOG = True

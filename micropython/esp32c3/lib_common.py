@@ -117,3 +117,16 @@ def url_encode(s):
 		return s[:p] + ''.join([(c if c in url_string else f'%{ord(c):x}') for c in s[p:]])
 	except:
 		return s
+
+def load_params(ns):
+	ret = Try(lambda: [P.update(eval(open('params.conf').read())), 'OK'][1], 'Load default OK')
+	auto_makepins(ns, P)
+	return ret
+
+def save_params():
+	try:
+		with open('params.conf', 'w') as fp:
+			fp.write(str(P))
+		return 'OK'
+	except Exception as e:
+		return str(e)

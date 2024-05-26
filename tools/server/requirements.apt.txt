@@ -1,2 +1,3 @@
 mplayer
 ffmpeg
+bluez
