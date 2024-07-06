@@ -354,19 +354,20 @@ def stop():
 
 @app.route('/connectble/<device>')
 def connectble(dev_mac):
-	ret = os.system(f'bluetoothctl pair {dev_mac}' if sys.platform=='linux' else f'blueutil --pair {dev_mac}')
+	ret = os.system(f'bluetoothctl trust {dev_mac}' if sys.platform=='linux' else f'blueutil --trust {dev_mac}')
+	ret |= os.system(f'bluetoothctl pair {dev_mac}' if sys.platform=='linux' else f'blueutil --pair {dev_mac}')
 	ret |= os.system(f'bluetoothctl connect {dev_mac}' if sys.platform=='linux' else f'blueutil --connect {dev_mac}')
 	return str(ret)
 
 @app.route('/disconnectble/<device>')
 def disconnectble(dev_mac):
 	ret = os.system(f'bluetoothctl disconnect {dev_mac}' if sys.platform=='linux' else f'blueutil --disconnect {dev_mac}')
-	ret |= os.system(f'bluetoothctl unpair {dev_mac}' if sys.platform=='linux' else f'blueutil --unpair {dev_mac}')
+	# ret |= os.system(f'bluetoothctl remove {dev_mac}' if sys.platform=='linux' else f'blueutil --remove {dev_mac}')
 	return str(ret)
 
 @app.route('/volume/<cmd>')
 def set_volume(cmd=None, tv_name=None):
-	if tv_name is None:
+	if tv_name != None:
 		return tvVolume(name=tv_name, vol=cmd)
 	try:
 		if type(cmd) in [int, float] or cmd.isdigit():
@@ -445,6 +446,12 @@ def tv_on_if_off(tv_name, wait_ready=False):
 		if wait_ready:
 			while os.system(f'{LG_TV_BIN} --name {tv_name} audioVolume')!=0:
 				time.sleep(1)
+	return 'OK'
+
+@app.route('/tv_setInput/<tv_name>')
+def tv_setInput(tv_name, input_id):
+	tv_on_if_off(tv_name, wait_ready=True)
+	os.system(f'{LG_TV_BIN} --name {tv_name} setInput {input_id}')
 	return 'OK'
 
 @app.route('/tv/<name>/<cmd>')
@@ -737,7 +744,7 @@ def get_ASR_offline(audio_fn=asr_input):
 def get_ASR_online(audio_fn=asr_input):
 	try:
 		with Open(audio_fn, 'rb') as f:
-			r = requests.post(ASR_CLOUD, files={'file': f}, timeout=ASR_CLOUD_TIMEOUT)
+			r = requests.post(ASR_CLOUD_URL, files={'file': f}, timeout=ASR_CLOUD_TIMEOUT)
 		return json.loads(r.text) if r.status_code==200 else {}
 	except Exception as e:
 		traceback.print_exc()
@@ -791,7 +798,7 @@ def recog_and_play(voice_prompt, tv_name, path_name, handler, url_root, audio_fi
 			record_audio()
 
 		# try cloud ASR
-		if ASR_CLOUD and not ASR_cloud_running:
+		if ASR_CLOUD_URL and not ASR_cloud_running:
 			ASR_cloud_running = True
 			asr_output = get_ASR_online(audio_file)
 			ASR_cloud_running = False
@@ -909,8 +916,11 @@ def ecovacs(name='', cmd=''):
 def KTV(cmd):
 	global P_ktv
 	if cmd=='on':
+		tv_name, input_id = (KTV_SCREEN.split(':')+[''])[:2]
 		stop()
-		tv_on_if_off(KTV_SCREEN, True)
+		tv_on_if_off(tv_name, True)
+		if input_id:
+			tv_setInput(tv_name, input_id)
 		set_audio_device(KTV_SPEAKER, 5)
 		P_ktv = subprocess.Popen(['~/projects/pikaraoke/run-cloud.sh'], shell=True, preexec_fn=os.setsid)
 	elif cmd=='off':
@@ -943,6 +953,7 @@ def _download_and_play(mobile_ip, target_ip, action, song_url):
 	if enqueue and fn:
 		tv_wscmd(target_ip, f'goto_file {fn[len(SHARED_PATH):]}')
 
+
 @app.route('/download')
 def download():
 	threading.Thread(target=_download_and_play, args=[request.remote_addr]+unquote(request.full_path).split(' ', 2)).start()
@@ -960,6 +971,36 @@ def get_default_browser_cookie():
 		return ''
 	ret = os.path.expandvars(def_cookie_loc[default_browser])
 	return f'{default_browser}:{ret}' if ret else ''
+
+last_error = ''
+def recog_and_exec(audio_file):
+	global last_error
+	try:
+		# try cloud ASR
+		if ASR_CLOUD_URL and not ASR_cloud_running:
+			ASR_cloud_running = True
+			asr_output = get_ASR_online(audio_file)
+			ASR_cloud_running = False
+
+		# try offline ASR if cloud ASR fails
+		if type(asr_output)==str or not asr_output:
+			if asr_model == None:
+				last_error = 'Offline ASR not enabled'
+				return
+			if ASR_server_running:
+				last_error = 'Unfinished offline ASR'
+				return
+			asr_output = get_ASR_offline(audio_file)
+	except:
+		last_error = traceback.format_exc()
+
+@app.route('/voice_cmd', methods=['POST'])
+def voice_cmd():
+	fn = f'{TMP_DIR}/rec.webm'
+	with open(fn, 'wb') as fp:
+		fp.write(request.data)
+	threading.Thread(target=recog_and_exec, args=(fn,)).start()
+	return 'OK'
 
 
 if __name__ == '__main__':

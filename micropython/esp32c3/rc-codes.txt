@@ -78,9 +78,9 @@ __init__	系统初始化		9		exec('machine.freq(80000000);g.DL=g.SL=g.PL=0;PIN_R
 __postinit__	后期初始化		9		SetTimer('pianoFan', 300, True, lambda: execRC('PFF' if '08:00:00'<getTimeString()<'22:00:00' else '')),Exec('g.D=False')
 DLC	餐桌吊灯换色	好的	1	DLC	['DLS', 'DLS']
 SLC	沙发吊灯换色	好的	1	SLC	['SLS' ,'SLS']
-BLN	阳台灯开启	嗯	1		'http://192.168.50.3:8883/py_exec/ble_gap_advertise("0201011bffff00ee1bc878f64a44915e273c58fcd3e9eb928cf4d66d2a11e0")'
-BLF	阳台灯关闭	嗯	1		'http://192.168.50.3:8883/py_exec/ble_gap_advertise("0201011bffff00ee1bc878f64a449144273c58fc5f65661e00785ae1a62ad3")'
-BLC	阳台灯换色	嗯	1	BLC	['BLF','BLN']
+BLN	客厅阳台灯开启	嗯	1		'http://192.168.50.3:8883/py_exec/ble_gap_advertise("0201011bffff00ee1bc878f64a44915e273c58fcd3e9eb928cf4d66d2a11e0",0.35)'
+BLF	客厅阳台灯关闭	嗯	1		'http://192.168.50.3:8883/py_exec/ble_gap_advertise("0201011bffff00ee1bc878f64a449144273c58fc5f65661e00785ae1a62ad3",0.35)'
+BLC	客厅阳台灯换色	嗯	1	BLC	'http://192.168.50.3:8883/py_exec/ble_gap_advertise("0201011bffff00ee1bc878f64a449144273c58fc5f65661e00785ae1a62ad3",0.35),ble_gap_advertise("0201011bffff00ee1bc878f64a44915e273c58fcd3e9eb928cf4d66d2a11e0",0.35)'
 MRLN	主人房吊灯开启	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151bab2174d24cbfa2171f3ca55160a1f}
 MRLF	主人房吊灯关闭	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba32174d24cbfa8171221b55c7d6bc}
 GRLN	客人房吊灯开启	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151bab2178d24cbfa58716c1555896706}
@@ -184,8 +184,8 @@ MTVPSD	主人房电视机播放指定电视剧|主人房电视机播放指定电
 MACAIRPD	苹果笔记本播放电视剧｜苹果电脑播放电视剧	好的			'http://192.168.50.3:8883/custom_cmdline/macair_play'
 LTVRCP	电视机播报当前视频名称|电视机播报当前歌曲名称	好的			'http://192.168.50.3:8883/report_title/livingTV'
 MTVRCP	主人房电视机播报当前视频名称|主人房电视机播报当前歌曲名称	好的			'http://192.168.50.3:8883/report_title/masterTV'
-KTVPN	卡拉欧剋机开启	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'0201011bffff00ee1bc878f64a4491542fb40e6e1b2120a5443c1ea5e2a6dd'}
-KTVPF	卡拉欧剋机关闭	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'0201011bffff00ee1bc878f64a4491562fb40e6ecaf0f38b95edcf743364c4'}
+KTVPN	卡拉欧剋机开启	好的	1		'http://192.168.50.3:8883/py_exec/ble_gap_advertise("0201011bffff00ee1bc878f64a4491542fb40e6e1b2120a5443c1ea5e2a6dd",0.35)'
+KTVPF	卡拉欧剋机关闭	好的	1		'http://192.168.50.3:8883/py_exec/ble_gap_advertise("0201011bffff00ee1bc878f64a4491562fb40e6ecaf0f38b95edcf743364c4",0.35)'
 CTVPV	客人房电视机播放歌曲音乐	好的			'http://192.168.50.3:8883/tvPlay/commonTV 0 0 1/KTV'
 CTVPD	客人房电视机播放电视剧|客人房电视机播放电影	好的			'http://192.168.50.3:8883/play_last/commonTV'
 CTVPS	客人房电视机暂停播放	好的			'http://192.168.50.3:8883/tv_wscmd/commonTV/pause'
