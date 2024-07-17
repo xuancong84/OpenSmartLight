@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+# This file contains non-UI-adjustable settings that configures your entire home setup
+
 import os, sys
 from collections import defaultdict
 
@@ -11,7 +14,7 @@ MIC_RECORDER='usb'
 TMP_DIR='/dev/shm'
 DEFAULT_RECORDING_FILE=f'{TMP_DIR}/speech.m4a'
 DEFAULT_SPEECH_FILE=f'{TMP_DIR}/speak.mp3'
-DEFAULT_CONFIG_FILE='.config.json.gz'
+PLAYSTATE_FILE='.playstate.json.gz'
 DRAMA_DURATION_TH=1200
 LG_TV_CONFIG_FILE='~/.lgtv/config.json'
 LG_TV_BIN='./miniconda3/bin/lgtv --ssl'
@@ -24,6 +27,9 @@ VOICE_VOL=defaultdict(lambda: None, {None: 60})
 STD_VOL_DBFS=-21
 DEBUG_LOG = True
 CUSTOM_CMDLINES={}
+HUBS={}
 
 if os.path.isfile('secret.py'):
 	from secret import *
+
+SECRET_VARS = ['ASR_CLOUD_URL', 'CUSTOM_CMDLINES', 'HUBS']

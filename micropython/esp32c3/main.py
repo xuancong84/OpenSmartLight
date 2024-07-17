@@ -3,6 +3,7 @@ import urequests as url
 from array import array
 from time import ticks_us, ticks_diff
 from math import sqrt
+import microWebSrv
 from microWebSrv import MicroWebSrv as MWS
 from machine import Pin, UART, PWM, ADC, reset, reset_cause
 gc.collect()
@@ -289,6 +290,7 @@ class WebServer:
 			( "/asr_print", "GET", lambda clie, resp: asr_print(clie.GetRequestQueryString(True)) ),
 		]
 		self.mws = MWS(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
+		self.mws.CommonHeader = {'Access-Control-Allow-Origin': '*'}
 		self.sock_web = self.mws.run(max_conn=max_conn, loop_forever=False)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)

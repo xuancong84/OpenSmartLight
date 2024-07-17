@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# This file contains fixed settings that affect the performance behaviour of the smart home system
 
 from lingua import Language
 

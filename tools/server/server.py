@@ -57,9 +57,9 @@ def get_local_IP():
 	return s.getsockname()[0]
 
 local_IP = get_local_IP()
-load_config = lambda: Try(lambda: InfiniteDefaultRevisionDict().from_json(Open(DEFAULT_CONFIG_FILE)), InfiniteDefaultRevisionDict())
-def save_config(obj):
-	with Open(DEFAULT_CONFIG_FILE, 'wt') as fp:
+load_playstate = lambda: Try(lambda: InfiniteDefaultRevisionDict().from_json(Open(PLAYSTATE_FILE)), InfiniteDefaultRevisionDict())
+def save_playstate(obj):
+	with Open(PLAYSTATE_FILE, 'wt') as fp:
 		obj.to_json(fp, indent=1)
 get_base_url = lambda: f'{"https" if ssl else "http"}://{local_IP}:{port}'
 
@@ -67,7 +67,7 @@ ip2websock, ip2ydsock = {}, {}
 os.ip2ydsock = ip2ydsock
 # ip2tvdata: {'IP':{'playlist':[full filenames], 'cur_ii': current_index, 'shuffled': bool (save play position if false), 
 # 	'markers':[(key1,val1),...], 'T2Slang':'', 'T2Stext':'', 'S2Tlang':'', 'S2Ttext':''}}
-ip2tvdata = load_config()
+ip2tvdata = load_playstate()
 tv2lginfo = Try(lambda: json.load(Open(LG_TV_CONFIG_FILE)), {})
 get_tv_ip = lambda t: tv2lginfo[t]['ip'] if t in tv2lginfo else t
 get_tv_data = lambda t: ip2tvdata[tv2lginfo[t]['ip'] if t in tv2lginfo else t]
@@ -153,6 +153,10 @@ def get_file(filename=''):
 @app.route('/favicon.ico')
 def get_favicon():
 	return send_file('template/favicon.ico')
+
+@app.route('/')
+def get_index_page():
+	return render_template('index.html', hubs=HUBS)
 
 @app.route('/voice')
 @app.route('/voice/<path:fn>')
@@ -585,7 +589,7 @@ def mark(name, tms):
 		tvd['last_movie_drama'] = fn
 	prune_dict(tvd['markers'])
 	if time.time()-last_save_time>3600:
-		save_config(prune_dict(ip2tvdata))
+		save_playstate(prune_dict(ip2tvdata))
 		last_save_time = time.time()
 
 ip2subtt = {}
@@ -1061,6 +1065,6 @@ if __name__ == '__main__':
 			except:
 				traceback.print_exc()
 
-	save_config(prune_dict(ip2tvdata))
+	save_playstate(prune_dict(ip2tvdata))
 	import os
 	os._exit(0)

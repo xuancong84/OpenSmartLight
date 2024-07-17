@@ -175,6 +175,7 @@ class MicroWebSrv :
 		self._srvAddr       = (bindIP, port)
 		self._webPath       = webPath
 		self._notFoundUrl   = None
+		self.CommonHeader	= None
 
 		self.MaxWebSocketRecvLen        = 1024
 		self.WebSocketThreaded          = True
@@ -518,6 +519,7 @@ class MicroWebSrv :
 
 		def __init__(self, client) :
 			self._client = client
+			self._header = client._microWebSrv.CommonHeader
 
 		# ------------------------------------------------------------------------
 
@@ -565,8 +567,9 @@ class MicroWebSrv :
 
 		# ------------------------------------------------------------------------
 
-		def _writeBeforeContent(self, code, headers, contentType, contentCharset, contentLength) :
+		def _writeBeforeContent(self, code, headers_, contentType, contentCharset, contentLength) :
 			self._writeFirstLine(code)
+			headers = self._header if headers_==None else headers_
 			if isinstance(headers, dict) :
 				for header in headers :
 					self._writeHeader(header, headers[header])
