@@ -69,7 +69,7 @@ h1 {
   <div class="overlay" style="left:50%; top:calc(50% - 50px); transform: translate(-50%, -50%);" onclick="v.currentTime=0;v.play()" title="重头开始播放">↻</div>
   <div class="overlay" id="menuIcon1" style="left:50%; bottom:var(--edge-pad); transform: translateX(-50%);" onclick="toggle_menu(2)" title="浏览文件夹">📁</div>
  </div>
- <div class="overlay hoverShow" style="left:0px; top:16px;" >
+ <div id="recButtons" class="overlay hoverShow" style="left:0px; top:16px;" >
   <span id="recButton" title="播放指定文件（本地录音）" onclick="play_recorded()">🎙</span>
   <span title="播放指定文件（树莓派录音）" onclick="ws.send('play_spoken_indir')">🎤</span>
  </div>
@@ -119,7 +119,7 @@ var audios, start_time, recorder_timeout, last_subtt;
 
 // Set global object handles
 for(var vname of ['ovl', 'ovl2', 'menu1', 'menu2', 'menu3', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'T2Slang', 'S2Ttext',
-  'T2Stext', 'S2Tmatch', 'recButton', 'QRcontainer', 'showSubtt'])
+  'T2Stext', 'S2Tmatch', 'recButton', 'QRcontainer', 'showSubtt', 'recButtons'])
   window.eval(`var ${vname} = getById("${vname}")`);
 
 function create_wsock(){
@@ -206,6 +206,7 @@ function play_audio(fn, reply=false){
 function play_recorded(){
   if(recorder.state=='inactive'){
     v.pause();
+    recButtons.classList.remove('hoverShow');
     audios = [];
     var aud = new Audio('/voice/speak_file_click.mp3');
     aud.onended = ()=>{
@@ -223,6 +224,7 @@ function play_recorded(){
   }
 }
 function onRecStop(){
+  recButtons.classList.add('hoverShow');
   v.play();
   recButton.style.opacity='';
   recButton.style.color='';

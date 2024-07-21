@@ -35,7 +35,7 @@ inst = vlc.Instance()
 event = vlc.EventType()
 ev_voice = threading.Event()
 asr_model = None
-asr_input = DEFAULT_RECORDING_FILE
+asr_input = DEFAULT_S2T_SND_FILE
 player = None
 playlist = None
 mplayer = None
@@ -73,7 +73,7 @@ get_tv_ip = lambda t: tv2lginfo[t]['ip'] if t in tv2lginfo else t
 get_tv_data = lambda t: ip2tvdata[tv2lginfo[t]['ip'] if t in tv2lginfo else t]
 
 # Detect language, invoke Google-translate TTS and play the speech audio
-def prepare_TTS(txt, fn=DEFAULT_SPEECH_FILE):
+def prepare_TTS(txt, fn=DEFAULT_T2S_SND_FILE):
 	lang_id = Try(lambda: lang2id[lang_detector.detect_language_of(txt)], 'km')
 	LOG(f'TTS txt="{txt}" lang_id={lang_id}')
 	try:
@@ -88,7 +88,7 @@ def play_TTS(txt, tv_name=None):
 	txts = txt if type(txt)==list else [txt]
 	for seg in txts:
 		prepare_TTS(seg)
-		play_audio(DEFAULT_SPEECH_FILE, True, tv_name)
+		play_audio(DEFAULT_T2S_SND_FILE, True, tv_name)
 
 # Abort transcription thread
 def cancel_transcription():
@@ -158,10 +158,15 @@ def get_favicon():
 def get_index_page():
 	return render_template('index.html', hubs=HUBS)
 
+@app.route('/get_http/<path:url>')
+def get_http(url):
+	res = requests.get(url if url.startswith('http://') else f'http://{url}')
+	return res.text, res.status_code
+
 @app.route('/voice')
 @app.route('/voice/<path:fn>')
 def get_voice(fn=''):
-	return send_from_directory('./voice', fn, conditional=True) if fn else send_file(DEFAULT_SPEECH_FILE, conditional=True)
+	return send_from_directory('./voice', fn, conditional=True) if fn else send_file(DEFAULT_T2S_SND_FILE, conditional=True)
 
 @app.route('/subtt/<path:fn>')
 def subtt(fn='0.vtt'):
@@ -419,7 +424,7 @@ def _report_title(tv_name):
 		else:
 			prepare_TTS(filepath2songtitle(mrl2path(mplayer.get_media().get_mrl())))
 		ev.wait()
-		play_audio(DEFAULT_SPEECH_FILE, True, tv_name)
+		play_audio(DEFAULT_T2S_SND_FILE, True, tv_name)
 
 @app.route('/report_title')
 @app.route('/report_title/<tv_name>')
@@ -724,14 +729,14 @@ def get_recorder(devs, wait=3):
 def play_audio(fn, block=False, tv_name=None):
 	ev_voice.clear()
 	if tv_name:
-		res = tv_wscmd(tv_name, f'play_audio("/{f"voice?{random.randint(0,999999)}" if fn==DEFAULT_SPEECH_FILE else fn}",true)')
+		res = tv_wscmd(tv_name, f'play_audio("/{f"voice?{random.randint(0,999999)}" if fn==DEFAULT_T2S_SND_FILE else fn}",true)')
 		assert res == 'OK'
 	else:
 		RUNSYS(f'mplayer -really-quiet -noconsolecontrols {fn}', ev_voice)
 	if block: ev_voice.wait()
 	return ev_voice
 
-def record_audio(tm_sec=5, file_path=DEFAULT_RECORDING_FILE):
+def record_audio(tm_sec=5, file_path=DEFAULT_S2T_SND_FILE):
 	os.system(f'ffmpeg -y -f pulse -i {get_recorder(MIC_RECORDER)} -ac 1 -t {tm_sec} {file_path}')
 
 
@@ -791,7 +796,7 @@ class VoicePrompt:
 
 
 # This function might take very long time, must be run in a separate thread
-def recog_and_play(voice_prompt, tv_name, path_name, handler, url_root, audio_file=DEFAULT_RECORDING_FILE):
+def recog_and_play(voice_prompt, tv_name, path_name, handler, url_root, audio_file=DEFAULT_S2T_SND_FILE):
 	global player, asr_model, ASR_cloud_running, ASR_server_running
 
 	with VoicePrompt(tv_name) as context:
@@ -810,21 +815,20 @@ def recog_and_play(voice_prompt, tv_name, path_name, handler, url_root, audio_fi
 		# try offline ASR if cloud ASR fails
 		if type(asr_output)==str or not asr_output:
 			if asr_model == None:
-				play_audio('voice/offline_asr_not_available.mp3', True, tv_name)
-				return
+				return play_audio('voice/offline_asr_not_available.mp3', True, tv_name) if voice_prompt else "Offline ASR not available!"
 			if ASR_server_running:
-				play_audio('voice/unfinished_offline_asr.mp3', True, tv_name)
-				return
-			play_audio('voice/wait_for_asr.mp3', False, tv_name)
+				return play_audio('voice/unfinished_offline_asr.mp3', True, tv_name) if voice_prompt else "Another offline ASR is running!"
+			if voice_prompt:
+				play_audio('voice/wait_for_asr.mp3', False, tv_name)
 
 			context.restore()
 			asr_output = get_ASR_offline(audio_file)
 
 		print(f'ASR result: {asr_output}', file=sys.stderr)
 		if asr_output=={} or type(asr_output)==str:
-			play_audio('voice/asr_error.mp3', True, tv_name)
+			return play_audio('voice/asr_error.mp3', True, tv_name) if voice_prompt else f"ASR error: {asr_output}"
 		elif not asr_output['text']:
-			play_audio('voice/asr_fail.mp3', True, tv_name)
+			return play_audio('voice/asr_fail.mp3', True, tv_name) if voice_prompt else "ASR output is empty!"
 		else:
 			handler(asr_output, tv_name, path_name, url_root.rstrip('/'))
 
@@ -884,28 +888,39 @@ def handle_ASR_inlst(asr_out, tv_name, lst_filename, url_root):
 		else:
 			playFrom(ii) if tv_name==None else tv_wscmd(tv_name, f'goto_idx {ii}')
 
-@app.route('/play_spoken_indir')
-@app.route('/play_spoken_indir/<tv_name>')
-@app.route('/play_spoken_indir/<tv_name>/<path:rel_path>')
+def save_post_file(fn=DEFAULT_S2T_SND_FILE):
+	if request.method!='POST': return ''
+	with Open(fn, 'wb') as fp:
+		fp.write(request.data)
+	return fn
+
+# Play spoken item on TV
+@app.route('/play_spoken_indir', methods=['GET', 'POST'])
+@app.route('/play_spoken_indir/<tv_name>', methods=['GET', 'POST'])
+@app.route('/play_spoken_indir/<tv_name>/<path:rel_path>', methods=['GET', 'POST'])
 def play_spoken_drama(tv_name=None, rel_path=''):
-	threading.Thread(target=recog_and_play, args=('voice/speak_drama.mp3', None if tv_name=='None' else tv_name,
-		rel_path, handle_ASR_indir, get_url_root(request))).start()
+	is_post, url_root = save_post_file(), get_url_root(request)
+	F = lambda: recog_and_play('' if is_post else 'voice/speak_drama.mp3', None if tv_name=='None' else tv_name,
+		rel_path, handle_ASR_indir, url_root)
+	if is_post:
+		return F()
+	threading.Thread(target=F).start()
 	return 'OK'
 
-@app.route('/play_spoken_inlst')
-@app.route('/play_spoken_inlst/<tv_name>')
-@app.route('/play_spoken_inlst/<tv_name>/<path:lst_filename>')
+@app.route('/play_spoken_inlst', methods=['GET', 'POST'])
+@app.route('/play_spoken_inlst/<tv_name>', methods=['GET', 'POST'])
+@app.route('/play_spoken_inlst/<tv_name>/<path:lst_filename>', methods=['GET', 'POST'])
 def play_spoken_song(tv_name=None, lst_filename=''):
-	threading.Thread(target=recog_and_play, args=('voice/speak_song.mp3', None if tv_name=='None' else tv_name, 
-		lst_filename, handle_ASR_inlst, get_url_root(request))).start()
+	is_post, url_root = save_post_file(), get_url_root(request)
+	threading.Thread(target=recog_and_play, args=('' if is_post else 'voice/speak_song.mp3', None if tv_name=='None' else tv_name, 
+		lst_filename, handle_ASR_inlst, url_root)).start()
 	return 'OK'
 
+# Play spoken file recorded locally on the local device
 @app.route('/play_recorded', methods=['POST'])
 def play_recorded():
-	with Open(f'{TMP_DIR}/rec.webm', 'wb') as fp:
-		fp.write(request.data)
-	# AudSeg.from_file(f'{TMP_DIR}/rec.webm', format='webm').export(DEFAULT_RECORDING_FILE, 'ipod')
-	threading.Thread(target=recog_and_play, args=('', request.remote_addr, '', handle_ASR_indir, get_url_root(request), f'{TMP_DIR}/rec.webm')).start()
+	recfn = save_post_file()
+	threading.Thread(target=recog_and_play, args=('', request.remote_addr, '', handle_ASR_indir, get_url_root(request), recfn)).start()
 	return 'OK'
 
 # For Ecovacs
@@ -976,10 +991,19 @@ def get_default_browser_cookie():
 	ret = os.path.expandvars(def_cookie_loc[default_browser])
 	return f'{default_browser}:{ret}' if ret else ''
 
-last_error = ''
-def recog_and_exec(audio_file):
-	global last_error
+def parseRC(txt):
+	its = [L.split('\t') for L in txt.strip().splitlines()]
+	return [(it[0], c, it[-1]) for it in its for c in it[1].replace('｜', '|').split('|')]
+
+@app.route('/voice_cmd/<path:hub_pfx>', methods=['POST'])
+def voice_cmd(hub_pfx):
+	global ASR_cloud_running, ASR_server_running
+	hub_pfx = hub_pfx.rstrip('/')
 	try:
+		# save recorded audio file
+		audio_file = save_post_file()
+		assert audio_file
+
 		# try cloud ASR
 		if ASR_CLOUD_URL and not ASR_cloud_running:
 			ASR_cloud_running = True
@@ -989,22 +1013,27 @@ def recog_and_exec(audio_file):
 		# try offline ASR if cloud ASR fails
 		if type(asr_output)==str or not asr_output:
 			if asr_model == None:
-				last_error = 'Offline ASR not enabled'
-				return
+				return 'Offline ASR not enabled'
 			if ASR_server_running:
-				last_error = 'Unfinished offline ASR'
-				return
+				return 'Unfinished offline ASR'
 			asr_output = get_ASR_offline(audio_file)
-	except:
-		last_error = traceback.format_exc()
 
-@app.route('/voice_cmd', methods=['POST'])
-def voice_cmd():
-	fn = f'{TMP_DIR}/rec.webm'
-	with open(fn, 'wb') as fp:
-		fp.write(request.data)
-	threading.Thread(target=recog_and_exec, args=(fn,)).start()
-	return 'OK'
+		LOG(f'ASR output: {asr_output}')
+		asr_str = asr_output['text'].strip()
+
+		# get cmd list and search and execute the match
+		cmd_tbl = parseRC(get_http(hub_pfx+'/rc_load')[0])
+		ii = findSong(asr_str, 'zh', [p[1] for p in cmd_tbl])
+		if ii is None:
+			return 'Not found: {asr_str}'
+		cmdID, cmdDesc, cmdExec = cmd_tbl[ii][:3]
+		if '/play_spoken_' in cmdExec and cmdExec[0]=="'" and cmdExec[-1]=="'":
+			return f"EXEC ASR({cmdExec})"
+		else:
+			get_http(hub_pfx + '/rc_run?' + cmdID)
+		return f'OK: {cmdDesc}'
+	except:
+		return traceback.format_exc()
 
 
 if __name__ == '__main__':

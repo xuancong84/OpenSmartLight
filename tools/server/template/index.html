@@ -4,6 +4,7 @@
 <head>
 	<meta charset="utf-8">
 	<title>OpenSmartNode</title>
+	<script src="/static/siriwave.umd.min.js"></script>
 	<style>
 .dark_overlay{
 	display: none;
@@ -18,6 +19,11 @@
 	opacity:.50;
 	filter: alpha(opacity=80);
 }
+.dark_fsoverlay{
+	position: fixed; top: 0%; left: 0%; width: 100%; height: 100%; background-color: black; z-index:100; -moz-opacity: 0.8;
+	opacity:.8; display: none; filter: alpha(opacity=80);
+}
+.above_overlay{ position:fixed; width:80%; height:40%; left:50%; top: 50%; transform: translate(-50%, -50%); z-index: 200; display: none; }
 .popup_content {
 	display: none;
 	position: absolute;
@@ -196,22 +202,36 @@ input {font-size:15px;}
 .toggle input:checked~.labels::before {
   opacity: 1;
 }
+.hand {cursor: pointer;}
 	</style>
 </head>
 
 <body>
-	<h2>OpenSmartHome (Central Hub)</h2>
-	<h3>HUBS: <select id="hub" onchange="load(this.value)">
-	{% for hub_name, hub_url in hubs.items() %}
-	<option value="{{hub_url}}">{{hub_name}}</option>
-	{% endfor %}
-	</select>&nbsp;
-	<button onclick="openInNewTab(hub.value)" title="Go to the controller hub's main page" class="bb">GOTO</button>
-	<button onclick="openInNewTab(cur_hub_pfx+'/file.html')" title="Go to the controller hub's file transfer page" class="bb">File Transfer ...</button>
-	<button onclick="openInNewTab(cur_hub_pfx+'/wifi.html')" title="Go to the controller hub's WiFi settings page" class="bb">Wifi Settings ...</button>
-	</h3>
-
-	<h3>Remote Control Mapping Table</h3>
+	<div id="ASR" class="asr dark_fsoverlay"></div>
+	<div id="ASRpanel" class="asr above_overlay">
+		<h1 id="asr_prompt" style="color: white; font-size: x-large; margin: 0.5em; line-height: 1.5; font-weight: bold;"></h1>
+		<div id="waveform" style="width:100%; height: 50%; border-radius: 2em; border: solid 4px blue; background-color: #00000080;"></div>
+		<h1 style="font-size: 64pt; justify-content: space-around; display: flex;" >
+			<span class="hand" style="color:lime" onclick="use_recorded=true;recorder.stop();">☑</span>
+			<span class="hand" style="color:red" onclick="recorder.stop();">☒</span>
+		</h1>
+	</div>
+	<div id="header" style="width:100%; position:fixed; top:0px;">
+		<h2 id="spkr_icon" style="font-size: 64px; float: right; position: fixed; right: 0px; top: 0px; margin: 10px; cursor:pointer" onclick="ASR()">🗣</h1>
+		<h2>OpenSmartHome (Central Hub)</h2>
+		<h3>HUBS: <select id="hub" onchange="load(this.value)">
+		{% for hub_name, hub_url in hubs.items() %}
+		<option value="{{hub_url}}">{{hub_name}}</option>
+		{% endfor %}
+		</select>&nbsp;
+		<button onclick="openInNewTab(hub.value)" title="Go to the controller hub's main page" class="bb">GOTO</button>
+		<button onclick="openInNewTab(cur_hub_pfx+'/file.html')" title="Go to the controller hub's file transfer page" class="bb">File ...</button>
+		<button onclick="openInNewTab(cur_hub_pfx+'/wifi.html')" title="Go to the controller hub's WiFi settings page" class="bb">WiFi ...</button>
+		</h3>
+		<hr>
+	</div>
+	<div id="scrollable0" style="position: fixed; top:0px; display: none;">
+	<h3 style="margin-top: 0;">Remote Control Mapping Table</h3>
 	<table id="rc-table" style="width:100%; table-layout:fixed; display: block">
 		<tr class="wrap">
 			<th style="width:2%">SN</th>
@@ -240,6 +260,7 @@ input {font-size:15px;}
 		<button onclick="clear_all()" title="Clear all mappings, this does not delete from storage" class="bb">Clear All</button>&nbsp;
 		<button onclick="GET(cur_hub_pfx+'/reboot')" class="bb">Reboot</button>
 	</p>
+	</div>
 
 	<div id="bleFront" class="popup_content" style="position: fixed; text-align: center">
 		<h1 onclick="closeBLE()" style="position:absolute; right:4px; top:0%; margin:0; cursor:pointer;">&#9746;</h1>
@@ -268,204 +289,342 @@ input {font-size:15px;}
 		</div>
 	</div>
     <div id="bleBack" class="dark_overlay" style="position: fixed"></div>
-
-
 <script>
-	function getById(id_str) { return document.getElementById(id_str); }
-	function openInNewTab(url) {window.open(url, '_blank').focus();}
-	var timer = null;
-	var requesting = false;
-	var snackbar = getById('snackbar');
-	var keepUpdating = getById('keepUpdating');
-	function isString(s){return typeof s === 'string' || s instanceof String;}
-	function GET(url, onOkay=null, onFail=null) {
-		var xmlHttp = new XMLHttpRequest();
-		xmlHttp.open('GET', url, onOkay!=null||onFail!=null);
-		if(onOkay!=null) xmlHttp.onload = onOkay;
-		if(onFail!=null) xmlHttp.onerror = xmlHttp.onabort = xmlHttp.ontimeout = onFail;
-		xmlHttp.send(null);
-		return xmlHttp.responseText;
-	}
-	function POST(url, data = null, onOkay=null, onFail=null){
-		var xmlHttp = new XMLHttpRequest();
-		xmlHttp.open('POST', url, onOkay!=null||onFail!=null);
-		if(onOkay!=null) xmlHttp.onload = onOkay;
-		if(onFail!=null) xmlHttp.onerror = xmlHttp.onabort = xmlHttp.ontimeout = onFail;
-		xmlHttp.send(data);
-		return xmlHttp.responseText;
-	}
-	function toast(msg) {
-		if(!isString(msg))
-			msg = msg.target.responseText || (msg.target.statusText+' '+msg.target.status);
-		var randint = Math.round(Math.random()*10000);
-		var e = document.createElement('div');
-		e.id = `toast${randint}`;
-		e.className = 'toast show';
-		e.innerHTML = msg;
-		document.body.appendChild(e);
-		setTimeout(function(){ getById(`toast${randint}`).remove() }, 3000);
-	}
-	var tb = getById('rc-table');
-	var tb_ble = getById('tb_ble');
-	var ble_rid = null;
-	var rid = 0;
-	var drag_rid;
-	var G = {};
-	var hub = getById('hub'), cur_hub_pfx='';
-	var doGetParam = false;
-	var data_i = tb.rows[0].childElementCount-2;
-	function set_ckbox(obj, cmd='exec'){ GET(`/${cmd}?${obj.id}=${obj.checked?'True':'False'}`, toast, toast); }
-	function save() {
-		var N = tb.rows.length - 2;
-		var ret = '';
-		var X = [...Array(tb.rows[0].childElementCount).keys()].slice(1,-1);
-		for (var n = 1; n <= N; ++n){
-			for(var x of X)
-				if(tb.rows[n].children[x].textContent.includes('\n') || tb.rows[n].children[x].textContent.includes('\r')){
-					alert(`Error: Row ${n} Column ${x} contains multiple lines`);
-					return;
-				}
-			ret += X.map(x => tb.rows[n].children[x].textContent).join('\t') + '\n';
-		}
-		POST(cur_hub_pfx+'/rc_save', ret, toast, toast);
-	}
-	function addElem(box, html_code){
-		box.insertAdjacentHTML('beforeend', html_code);
-	}
-	function clear_all(t=tb, n=2){
-		while (t.rows.length > n) t.deleteRow(1);
-	}
-	function load(hub_url){
-		try {
-			cur_hub_pfx = hub_url.replace(/\/$/, '');
-			var txt = GET(cur_hub_pfx+'/rc_load').trim();
-			if(!txt) return;
-			var lines = txt.split('\n');
-			clear_all();
-			for (var line of lines) {
-				var its = line.split('\t');
-				var row = add_new_row();
-				for (var x = 0; x < Math.min(its.length, row.childElementCount); x++)
-					row.children[x+1].textContent = its[x];
-			}
-		} catch (err) {
-			alert(err);
-		}
-	}
-	function init() {
-		if(hub.childElementCount>0) load(hub.value);
-	}
-	function recordRC(rid, url){
-		GET(cur_hub_pfx+url, (ev)=>{
-			try{
-				var obj = JSON.parse(ev.target.responseText);
-				if(isString(obj)) return alert(obj);
-				if('info' in obj){
-					alert(obj.info);
-					delete obj.info;
-				}
-				getById('R'+rid).children[data_i].textContent = JSON.stringify(obj);
-			}catch(e){toast(e)}
-		}, toast)
-	}
-	function recordRF(rid) {
-		if(confirm("Please hold down the remote controller button and click OK to record:"))
-			recordRC(rid, '/rf_record');
-	}
-	function recordIR(rid) {
-		if(confirm("Please press the remote controller button at least 3 times within 3 seconds after clicking OK:"))
-			recordRC(rid, '/ir_record');
-	}
-	function openBLE(rid){
-		ble_rid = rid;
-		getById('bleFront').style.display = getById('bleBack').style.display = 'block';
-	}
-	function closeBLE(n=0){
-		if(n>0)
-			getById('R'+ble_rid).children[data_i].textContent = `{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'${tb_ble.rows[n].children[5].textContent}'}`;
-		getById('bleFront').style.display = getById('bleBack').style.display = 'none';
-	}
-	function sendBLE(n){
-		var data = `{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'${tb_ble.rows[n].children[5].textContent}'}`;
-		toast(POST(cur_hub_pfx+'/rc_exec', data));
-	}
-	function emit(rid) {
-		var v = getById('R'+rid).children[data_i].textContent;
-		POST(cur_hub_pfx+'/rc_exec', v, toast, toast);
-	}
-	function start_ble_scan(){
-		var opt = `, 'nbestn':${getById('nbestn').value}`;
-		if(getById('cb_filter').checked){
-			var mac = getById('sender_addr_filter').value;
-			if(! /^[0-9a-fA-F]{12}$/.test(mac)){
-				alert("Invalid MAC address format, must be of 12 hex digits!");
+function getById(id_str) { return document.getElementById(id_str); }
+function getByClass(cls_str, cmd) { for(var e of document.getElementsByClassName(cls_str))eval('e'+cmd); }
+function openInNewTab(url) {window.open(url, '_blank').focus();}
+function isString(s){return typeof s === 'string' || s instanceof String;}
+function isMixedProtocol(){return (window.location.href.startsWith('https://')+cur_hub_pfx.startsWith('https://'))==1;}
+function GET(url, onOkay=null, onFail=null) {
+	var xmlHttp = new XMLHttpRequest();
+	xmlHttp.open('GET', isMixedProtocol()?('/get_http/'+url):url, onOkay!=null||onFail!=null);
+	if(onOkay!=null) xmlHttp.onload = onOkay;
+	if(onFail!=null) xmlHttp.onerror = xmlHttp.onabort = xmlHttp.ontimeout = onFail;
+	xmlHttp.send(null);
+	return xmlHttp.responseText;
+}
+function POST(url, data = null, onOkay=null, onFail=null){
+	var xmlHttp = new XMLHttpRequest();
+	xmlHttp.open('POST', url, onOkay!=null||onFail!=null);
+	if(onOkay!=null) xmlHttp.onload = onOkay;
+	if(onFail!=null) xmlHttp.onerror = xmlHttp.onabort = xmlHttp.ontimeout = onFail;
+	xmlHttp.send(data);
+	return xmlHttp.responseText;
+}
+function toast(msg) {
+	if(!isString(msg))
+		msg = msg.target.responseText || (msg.target.statusText+' '+msg.target.status);
+	var randint = Math.round(Math.random()*10000);
+	var e = document.createElement('div');
+	e.id = `toast${randint}`;
+	e.className = 'toast show';
+	e.innerHTML = msg;
+	document.body.appendChild(e);
+	setTimeout(function(){ getById(`toast${randint}`).remove() }, 3000);
+}
+var tb = getById('rc-table');
+var tb_ble = getById('tb_ble');
+var spkr_icon = getById('spkr_icon');
+var ble_rid = null;
+var rid = 0;
+var drag_rid;
+var G = {};
+var hub = getById('hub'), cur_hub_pfx='';
+var doGetParam = false;
+var data_i = tb.rows[0].childElementCount-2;
+function set_ckbox(obj, cmd='exec'){ GET(`/${cmd}?${obj.id}=${obj.checked?'True':'False'}`, toast, toast); }
+function save() {
+	var N = tb.rows.length - 2;
+	var ret = '';
+	var X = [...Array(tb.rows[0].childElementCount).keys()].slice(1,-1);
+	for (var n = 1; n <= N; ++n){
+		for(var x of X)
+			if(tb.rows[n].children[x].textContent.includes('\n') || tb.rows[n].children[x].textContent.includes('\r')){
+				alert(`Error: Row ${n} Column ${x} contains multiple lines`);
 				return;
 			}
-			opt += `, 'filter_addr':'${mac}'`;
+		ret += X.map(x => tb.rows[n].children[x].textContent).join('\t') + '\n';
+	}
+	POST(cur_hub_pfx+'/rc_save', ret, toast, toast);
+}
+function addElem(box, html_code){
+	box.insertAdjacentHTML('beforeend', html_code);
+}
+function clear_all(t=tb, n=2){
+	while (t.rows.length > n) t.deleteRow(1);
+}
+function load(hub_url){
+	try {
+		cur_hub_pfx = hub_url.replace(/\/$/, '');
+		var txt = GET(cur_hub_pfx+'/rc_load').trim();
+		if(!txt) return;
+		var lines = txt.split('\n');
+		clear_all();
+		for (var line of lines) {
+			var its = line.split('\t');
+			var row = add_new_row();
+			for (var x = 0; x < Math.min(its.length, row.childElementCount); x++)
+				row.children[x+1].textContent = its[x];
+			row.children[row.childElementCount-1].children[0].style.display = its[its.length-1].includes('/play_spoken_')?"inline":"none";
 		}
-		POST(cur_hub_pfx+'/rc_exec', `{'protocol': 'BLE', 'cmd': 'start_scan'${opt}}`, (ev) => {
-			toast('BLE Scan started');
-			getById('bt_scanBLE').textContent = "Stop Scan";
-			getById('bt_scanBLE').onclick = ()=>{stop_ble_scan()};
-			getById('cb_filter').disabled = true;
-			clear_all(tb_ble, 1);
-		}, toast)
+	} catch (err) {
+		alert(err);
 	}
-	function stop_ble_scan(){
-		POST(cur_hub_pfx+'/rc_exec', "{'protocol': 'BLE', 'cmd': 'stop_scan'}", (ev) => {
-			toast('BLE Scan stopped');
-			getById('bt_scanBLE').textContent = "Start Scan";
-			getById('bt_scanBLE').onclick = ()=>{start_ble_scan()};
-			getById('cb_filter').disabled = false;
-			try{
-				// input format: [[RSSI,addr/#addr,addr_type,adv_type,data]]
-				obj = JSON.parse(ev.target.responseText);
-				for(var o1 of obj){
-					var n = tb_ble.rows.length;
-					var row = tb_ble.insertRow(n);
-					row.innerHTML = `<td>${n}</td><td>${o1[0]}</td><td>${o1[1]}</td><td>${o1[2]}</td><td>${o1[3]}</td>
-					<td contenteditable="true">${o1[4]}</td><td>${o1[4].length/2}</td>
-					<td style="text-align:center">
-						<input type='button' onclick='sendBLE(${n})' value='Send' title="Send this BLE signal to test whether it can control your device">
-						<input type='button' onclick='closeBLE(${n})' value='Pick' title="Choose this one and close the window">
-					</td>`
-				}
-			}catch(e){alert(e)}
-		}, (xhr) => {alert(xhr)})
-	}
-	function deleteRow(rid) {
-		getById('R' + rid).remove();
-		for (var i = 1; i < tb.rows.length - 1; i++)
-			tb.rows[i].children[0].textContent = i;
-	}
-	function allowDrop(ev) {ev.preventDefault();}
-	function drop(rid){
-		if(drag_rid==rid) return;
-		var upper = Math.min(drag_rid, rid), lower = Math.max(drag_rid, rid);
-		var inc = drag_rid==upper?1:-1;
-		for(var i=drag_rid; i!=rid; i+=inc){
-			var src=getById('R'+i), tgt=getById('R'+(i+inc));
-			for(var x=1; x<tb.rows[0].childElementCount-1; x++)
-				[src.children[x].textContent, tgt.children[x].textContent] = [tgt.children[x].textContent, src.children[x].textContent];
+}
+function init() {
+	if(hub.childElementCount>0) load(hub.value);
+}
+function recordRC(rid, url){
+	GET(cur_hub_pfx+url, (ev)=>{
+		try{
+			var obj = JSON.parse(ev.target.responseText);
+			if(isString(obj)) return alert(obj);
+			if('info' in obj){
+				alert(obj.info);
+				delete obj.info;
+			}
+			getById('R'+rid).children[data_i].textContent = JSON.stringify(obj);
+		}catch(e){toast(e)}
+	}, toast)
+}
+function recordRF(rid) {
+	if(confirm("Please hold down the remote controller button and click OK to record:"))
+		recordRC(rid, '/rf_record');
+}
+function recordIR(rid) {
+	if(confirm("Please press the remote controller button at least 3 times within 3 seconds after clicking OK:"))
+		recordRC(rid, '/ir_record');
+}
+function openBLE(rid){
+	ble_rid = rid;
+	getById('bleFront').style.display = getById('bleBack').style.display = 'block';
+}
+function closeBLE(n=0){
+	if(n>0)
+		getById('R'+ble_rid).children[data_i].textContent = `{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'${tb_ble.rows[n].children[5].textContent}'}`;
+	getById('bleFront').style.display = getById('bleBack').style.display = 'none';
+}
+function sendBLE(n){
+	var data = `{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'${tb_ble.rows[n].children[5].textContent}'}`;
+	toast(POST(cur_hub_pfx+'/rc_exec', data));
+}
+function emit(rid) {
+	var v = getById('R'+rid).children[data_i].textContent;
+	POST(cur_hub_pfx+'/rc_exec', v, toast, toast);
+}
+function start_ble_scan(){
+	var opt = `, 'nbestn':${getById('nbestn').value}`;
+	if(getById('cb_filter').checked){
+		var mac = getById('sender_addr_filter').value;
+		if(! /^[0-9a-fA-F]{12}$/.test(mac)){
+			alert("Invalid MAC address format, must be of 12 hex digits!");
+			return;
 		}
+		opt += `, 'filter_addr':'${mac}'`;
 	}
-	function add_new_row() {
-		var insp = tb.rows.length - 1;
-		var row = tb.insertRow(insp);
-		row.setAttribute('id', 'R'+rid);
-		row.innerHTML = `<th class="ptr" draggable=true ondragstart="drag_rid=${rid};" ondrop="drop(${rid})" ondragover="allowDrop(event)">${insp}</th>
+	POST(cur_hub_pfx+'/rc_exec', `{'protocol': 'BLE', 'cmd': 'start_scan'${opt}}`, (ev) => {
+		toast('BLE Scan started');
+		getById('bt_scanBLE').textContent = "Stop Scan";
+		getById('bt_scanBLE').onclick = ()=>{stop_ble_scan()};
+		getById('cb_filter').disabled = true;
+		clear_all(tb_ble, 1);
+	}, toast)
+}
+function stop_ble_scan(){
+	POST(cur_hub_pfx+'/rc_exec', "{'protocol': 'BLE', 'cmd': 'stop_scan'}", (ev) => {
+		toast('BLE Scan stopped');
+		getById('bt_scanBLE').textContent = "Start Scan";
+		getById('bt_scanBLE').onclick = ()=>{start_ble_scan()};
+		getById('cb_filter').disabled = false;
+		try{
+			// input format: [[RSSI,addr/#addr,addr_type,adv_type,data]]
+			obj = JSON.parse(ev.target.responseText);
+			for(var o1 of obj){
+				var n = tb_ble.rows.length;
+				var row = tb_ble.insertRow(n);
+				row.innerHTML = `<td>${n}</td><td>${o1[0]}</td><td>${o1[1]}</td><td>${o1[2]}</td><td>${o1[3]}</td>
+				<td contenteditable="true">${o1[4]}</td><td>${o1[4].length/2}</td>
+				<td style="text-align:center">
+					<input type='button' onclick='sendBLE(${n})' value='Send' title="Send this BLE signal to test whether it can control your device">
+					<input type='button' onclick='closeBLE(${n})' value='Pick' title="Choose this one and close the window">
+				</td>`
+			}
+		}catch(e){alert(e)}
+	}, (xhr) => {alert(xhr)})
+}
+function deleteRow(rid) {
+	getById('R' + rid).remove();
+	for (var i = 1; i < tb.rows.length - 1; i++)
+		tb.rows[i].children[0].textContent = i;
+}
+function allowDrop(ev) {ev.preventDefault();}
+function drop(rid){
+	if(drag_rid==rid) return;
+	var upper = Math.min(drag_rid, rid), lower = Math.max(drag_rid, rid);
+	var inc = drag_rid==upper?1:-1;
+	for(var i=drag_rid; i!=rid; i+=inc){
+		var src=getById('R'+i), tgt=getById('R'+(i+inc));
+		for(var x=1; x<tb.rows[0].childElementCount-1; x++)
+			[src.children[x].textContent, tgt.children[x].textContent] = [tgt.children[x].textContent, src.children[x].textContent];
+	}
+}
+function recordSend(rid){
+	var row = getById('R'+rid);
+	ASR(row.children[data_i].textContent.slice(1,-1));
+}
+function add_new_row() {
+	var insp = tb.rows.length - 1;
+	var row = tb.insertRow(insp);
+	row.setAttribute('id', 'R'+rid);
+	row.innerHTML = `<th class="ptr" draggable=true ondragstart="drag_rid=${rid};" ondrop="drop(${rid})" ondragover="allowDrop(event)">${insp}</th>
 ${'<td contenteditable="true" class="wrap"></td>'.repeat(tb.rows[0].childElementCount-2)}
 <td style="text-align:center">
+	<input type='button' onclick='recordSend(${rid})' value='Record-Send' title="Record voice locally and send this commond using POST" style="display:none">
 	<input type='button' onclick='recordRF(${rid})' value='Record-RF' title="Record 433MHz remote controller signal">
 	<input type='button' onclick='recordIR(${rid})' value='Record-IR' title="Record infrared remote controller signal">
 	<input type='button' onclick='openBLE(${rid})' value='Record-BLE' title="Record BLE signal">
 	<input type='button' onclick='emit(${rid})' value='Send' title="Execute this command">
 	<input type='button' onclick='deleteRow(${rid})' value='Delete' title="Delete this row">
 </td>`;
-		rid++;
-		return row;
+	row.children[row.childElementCount-2].onblur = (e)=>{
+		e.target.nextElementSibling.children[0].style.display = e.target.textContent.includes('/play_spoken_')?"inline":"none";
+	};
+	rid++;
+	return row;
+}
+var siriWave, recorder, recorder_timeout, use_recorded, audios, spectrum, dBASpectrum, taskHandle, source, asr_func, g_stream, g_devices;
+const wav_win = getById('waveform'), updateFreq = 5;
+RA = f => 12194 ** 2 * f ** 4 /((f ** 2 + 20.6 ** 2) * Math.sqrt((f ** 2 + 107.7 ** 2) * (f ** 2 + 737.9 ** 2)) * (f ** 2 + 12194 ** 2));
+A = f => 20 * Math.log10(RA(f)) + 2.0;
+function ASR(func=''){
+	if(g_stream==null && window.location.href.startsWith('http://')){
+		if(confirm("Only HTTPS websites can have access to microphone, do you want to redirect to HTTPS website?")){
+			var port = parseInt(window.location.href.split(':')[2]);
+			window.location.href = window.location.href.replace('http:', 'https:').replace(port, port+1);
+		}else if(window.navigator.userAgent.includes('Chrome')){
+			if(confirm("You are using Chrome browser which supports treat-insecure-origin-as-secure flag, do you want to add the current URL into it?")){
+				alert("Please copy 'chrome://flags/#unsafely-treat-insecure-origin-as-secure' into clipboard and paste it in new tab.");
+				openInNewTab("");
+			}
+		}
+		return;
 	}
-	window.onload = () => { init(); }
+	while(g_stream==null)
+		return alert("Please grant the permission to access microphone!");
+
+	asr_func = func;
+	getById('asr_prompt').textContent = (asr_func?"Please speak the name of the media and click OK:":"Please speak the voice command and click OK!");
+	getByClass('asr', '.style.display="block"');
+
+	if(siriWave==null)
+		siriWave = new SiriWave({container: wav_win, cover: true, height: wav_win.offsetHeight, style: "ios9"});
+
+	var context = new (window.AudioContext || window.webkitAudioContext)();
+	source = context.createMediaStreamSource(g_stream);
+	var analyser = context.createAnalyser();
+	var trackSettings = g_stream.getAudioTracks()[0].getSettings();
+	var sampleRate = trackSettings.sampleRate || context.sampleRate;
+	var totalNumberOfSamples = sampleRate / updateFreq;
+	analyser.fftSize = 2 ** Math.floor(Math.log2(totalNumberOfSamples));
+	const uint8TodB = byteLevel => (byteLevel / 255) * (analyser.maxDecibels - analyser.minDecibels) + analyser.minDecibels;
+	const weightings = [-100];
+	for (let i = 1; i < analyser.frequencyBinCount; i++)
+		weightings[i] = A(i * sampleRate / 2 / analyser.frequencyBinCount);
+	spectrum = new Uint8Array(analyser.frequencyBinCount);
+	dBASpectrum = new Float32Array(analyser.frequencyBinCount);
+	var waveForm = new Uint8Array(analyser.frequencyBinCount);
+	source.connect(analyser);
+	siriWave.start();
+
+	const updateAnimation = function (idleDeadline) {
+		taskHandle = requestIdleCallback(updateAnimation, { timeout: 1000 / updateFreq });
+
+		//copy frequency data to spectrum from analyser.
+		// holds Number.NEGATIVE_INFINITY, [0 = -100dB, ..., 255 = -30 dB]
+		analyser.getByteFrequencyData(spectrum);
+
+		spectrum.forEach((byteLevel, idx) => {
+			dBASpectrum[idx] = uint8TodB(byteLevel) + weightings[idx];
+		});
+
+		const 
+			highestPerceptibleFrequencyBin = dBASpectrum.reduce((acc, y, idx) => y > -90 ? idx : acc, 0),
+			// S = ∑ s_i
+			totaldBAPower = dBASpectrum.reduce((acc, y) => acc + y),
+
+			// s⍉ = ∑ s_i ∙ i / ∑ s_i
+			meanFrequencyBin = dBASpectrum.reduce((acc, y, idx) => acc + y * idx) / totaldBAPower,
+			highestPowerBin = dBASpectrum.reduce(([maxPower, iMax], y, idx) => y > maxPower ? [y, idx] : [maxPower, iMax], [-120, 0])[1],
+			highestDetectedFrequency = highestPerceptibleFrequencyBin * (sampleRate / 2 / analyser.frequencyBinCount),
+			meanFrequency = meanFrequencyBin * (sampleRate / 2 / analyser.frequencyBinCount),
+			maxPowerFrequency = highestPowerBin * (sampleRate / 2 / analyser.frequencyBinCount);
+
+		// set the speed for siriwave, scaled to [0..22kHz] -> [0..1]
+		siriWave.setSpeed(maxPowerFrequency / 10e+3);
+		const averagedBAPower = totaldBAPower / analyser.frequencyBinCount;
+
+		// find the max amplituded the zero level is at 128
+		analyser.getByteTimeDomainData(waveForm);
+
+		// find the maximum not considering negative values (without loss of generality)
+		const amplitude = waveForm.reduce((acc, y) => Math.max(acc, y), 128) - 128;
+
+		//scale amplituded from [0, 128] to [0, 10].
+		siriWave.setAmplitude(amplitude / 128 * 10);
+	};
+
+	taskHandle = requestIdleCallback(updateAnimation, { timeout: 1000 / updateFreq });
+
+	audios = [];
+	recorder = new MediaRecorder(g_stream, {mimeType: 'audio/webm'});
+	recorder.ondataavailable = (e) => { audios.push(e.data); if(recorder.state=='inactive') onRecStop(); };
+	recorder.start();
+	recorder_timeout = setTimeout("recorder.stop()", 15000);
+	use_recorded = false;
+}
+function onRecStop(){
+	getByClass('asr', '.style.display="none"');
+	cancelIdleCallback(taskHandle);
+	source.disconnect();
+	siriWave.stop();
+	clearTimeout(recorder_timeout);
+	recorder = null;
+	if(!use_recorded) return;
+	var blob = new Blob(audios, { type: "audio/webm" });
+	const req = new XMLHttpRequest();
+	if(asr_func){
+		req.open("POST", asr_func, true);
+		req.onload = (e)=>{ alert(req.responseText); }
+		req.send(blob);
+	}else{
+		req.open("POST", `/voice_cmd/${cur_hub_pfx}`, true);
+		req.onload = (e)=>{
+			if(req.responseText.startsWith('EXEC '))
+				eval(req.responseText.substr(5));
+			else
+				alert(req.responseText);
+		}
+		req.send(blob);
+	}
+}
+window.onload = () => {
+	init();
+	var scr0 = getById('scrollable0');
+	var h = getById('header').offsetHeight;
+	scr0.style.top=h+"px";
+	scr0.style.maxHeight=`calc( 100% - ${h}px )`;
+	scr0.style.display='block';
+	scr0.style.overflow="auto";
+}
+if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+	navigator.mediaDevices.getUserMedia({audio: true,},)
+		.then(stream => Promise.all([stream, navigator.mediaDevices.enumerateDevices()]))
+		.then(([stream, devices]) => { g_stream = stream; g_devices = devices; })
+		.catch((err) => { console.error(`The following getUserMedia error occurred: ${err}`);
+	});
+} else {
+	console.log("getUserMedia not supported on your browser!");
+}
 </script>
 </body>
 
