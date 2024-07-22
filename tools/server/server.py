@@ -1030,7 +1030,7 @@ def voice_cmd(hub_pfx):
 		if '/play_spoken_' in cmdExec and cmdExec[0]=="'" and cmdExec[-1]=="'":
 			return f"EXEC ASR({cmdExec})"
 		else:
-			get_http(hub_pfx + '/rc_run?' + cmdID)
+			get_http(hub_pfx + '/rl_run?' + cmdID)
 		return f'OK: {cmdDesc}'
 	except:
 		return traceback.format_exc()

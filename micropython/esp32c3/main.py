@@ -183,6 +183,7 @@ def run_module(obj):
 	except Exception as e:
 		return str(e)
 
+# Remote control execute
 def execRC(s):
 	if type(s)==bytes:
 		s = s.decode()
@@ -228,6 +229,15 @@ def execRC(s):
 		return str(e)
 	return str(s)
 
+# Relay execute
+lastCMD, lastTMS, lastSRC = '', 0, ''
+def execRL(s, SRC=''):
+	global lastCMD, lastTMS, lastSRC
+	tms = time.time()
+	run = s!=lastCMD or abs(tms-lastTMS)>g.RL_MAX_DELAY or SRC==lastSRC
+	lastCMD, lastTMS, lastSRC = s, tms, SRC
+	return execRC(s) if run else 'SKIP'
+
 def Exec(cmd):
 	try:
 		exec(cmd, globals(), globals())
@@ -255,6 +265,7 @@ class WebServer:
 				'stack_free': Try(lambda: 14336-micropython.stack_use()),
 				'flash_size': esp.flash_size(),
 				'g.timezone': g.timezone,
+				'g.RL_MAX_DELAY': g.RL_MAX_DELAY,
 				'g.DEBUG': g.DEBUG,
 				'g.SAVELOG': g.SAVELOG,
 				'g.LOGFILE': g.LOGFILE,
@@ -279,6 +290,8 @@ class WebServer:
 			( "/ir_record", "GET", lambda clie, resp: resp.WriteResponseJSONOk(irc.recv()) ),
 			( "/rc_run", "GET", lambda cli, *arg: execRC(cli.GetRequestQueryString(True))),
 			( "/rc_exec", "POST", lambda cli, *arg: execRC(cli.ReadRequestContent())),
+			( "/rl_run", "GET", lambda cli, *arg: execRL(cli.GetRequestQueryString(True), cli._addr)),
+			( "/rl_exec", "POST", lambda cli, *arg: execRL(cli.ReadRequestContent(), cli._addr)),
 			( "/rc_save", "POST", lambda clie, resp: save_file(RCFILE, clie.YieldRequestContent()) ),
 			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile(RCFILE) ),
 			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseYield(list_files()) ),
@@ -324,8 +337,7 @@ class WebServer:
 		key = self.uart_ASR.readline().strip()
 		key = key.decode() if type(key)==bytes else key
 		prt(f'RX-ASR received {key}')
-		code = get_rc_code(key)
-		execRC(code)
+		execRL(key, 'localASR')
 		flashLED()
 
 	def set_cmd(self, vn):

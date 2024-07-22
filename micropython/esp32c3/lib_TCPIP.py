@@ -64,5 +64,6 @@ def send_cap(obj):
 			pass
 	try:
 		s.close()
+		return 'OK'
 	except Exception as e:
 		return str(e)

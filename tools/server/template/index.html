@@ -217,7 +217,10 @@ input {font-size:15px;}
 		</h1>
 	</div>
 	<div id="header" style="width:100%; position:fixed; top:0px;">
-		<h2 id="spkr_icon" style="font-size: 64px; float: right; position: fixed; right: 0px; top: 0px; margin: 10px; cursor:pointer" onclick="ASR()">🗣</h1>
+		<h2 style="font-size: 64px; float: right; position: fixed; right: 0px; top: 0px; margin: 10px; cursor:pointer">
+			<span title="Play NAS media on this computer in a new tab" onclick="openInNewTab('/webPlay/0/KTV')">🎥</span>
+			<span title="Send voice command to the selected hub controller" onclick="ASR()">🗣</span>
+		</h2>
 		<h2>OpenSmartHome (Central Hub)</h2>
 		<h3>HUBS: <select id="hub" onchange="load(this.value)">
 		{% for hub_name, hub_url in hubs.items() %}
@@ -324,7 +327,6 @@ function toast(msg) {
 }
 var tb = getById('rc-table');
 var tb_ble = getById('tb_ble');
-var spkr_icon = getById('spkr_icon');
 var ble_rid = null;
 var rid = 0;
 var drag_rid;

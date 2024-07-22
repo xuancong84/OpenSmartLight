@@ -5,6 +5,7 @@ DEBUG = False
 SMART_CTRL = True
 SAVELOG = False
 LOGFILE = 'static/log.txt'
+RL_MAX_DELAY = 10
 Timers = {}	# {'timer-name': [last-stamp-sec, period-in-sec, True (is periodic or oneshot), callback_func]}
 timezone = 8
 A0, A1, A2, A3, A4 = [ADC(i) for i in range(5)]
