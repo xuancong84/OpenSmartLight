@@ -13,8 +13,7 @@ def Try(*args):
 	exc = ''
 	for arg in args:
 		try:
-			if callable(arg):
-				return arg()
+			return arg() if callable(arg) else arg
 		except Exception as e:
 			exc = e
 	return str(exc)
@@ -130,6 +129,7 @@ def findSong(name, lang=None, flist=filelist, unique=False):
 			return res[0]
 		pinyin_list = [get_alpha(fuzzy(to_pinyin(num2zh(n)))) for n in name_list]
 		pinyin_name = get_alpha(fuzzy(to_pinyin(num2zh(name))))
+		res = str_search(pinyin_name, pinyin_list)
 		if pinyin_name and res and (len(res)==1 or not unique):
 			return res[0]
 
@@ -169,9 +169,8 @@ def findMedia(name, lang=None, stack=0, stem=None, episode=None, base_path=SHARE
 		if lang=='zh' and stem.endswith('第'):
 			stem = stem[:-1]
 		episode = Try(lambda: int(episode if episode.isdigit() else zh2num(episode)), '')
-	f_lst = ls_media_files(base_path)
 	d_lst = ls_subdir(base_path)
-	lst = f_lst+d_lst
+	lst = d_lst if episode else (d_lst+ls_media_files(base_path))
 	res = findSong(name, lang, lst)
 	if res==None and name!=stem:
 		res = findSong(stem, lang, lst)

@@ -31,7 +31,7 @@ h1 {
   font-weight: bolder;
 }
 .playmenu {
-  position: absolute;
+  position: fixed;
   left: 50%;
   transform: translateX(-50%);
   object-fit: cover;
@@ -39,16 +39,14 @@ h1 {
   display: none;
   opacity:0.9;
   width: 50%;
-  max-height: 80%;
   vertical-align: middle;
-  overflow-y: auto;
   background-color: #222;
 }
 .playmenu a {
   color: #fff; /* text color */
   display: block;
   cursor: pointer;
-  padding: 4px;
+  padding: 2px;
   text-decoration: none; /* Remove underline from links */
 }
 .playmenu a:hover { background-color: #aaa; }
@@ -83,14 +81,23 @@ h1 {
   <span onclick="toggle_hide([T2Sframe,S2Tframe])" title="显示详情（语音识别及语音合成）">💬</span>
   <span onclick="promptOpenFolder()" title="显示当前视频的URL链接">🔗</span>
  </div>
- <div id="menu1" class="playmenu" style="font-size: xx-large; font-weight: bold; text-align: center;">
-  <h1>{{listname}}<span id="loopButton" style="float: right; padding-right: 4px; cursor:pointer" onclick="toggle_loop()">🔁</span></h1>
-  {% for name in playlist %}
-  <a id="a{{loop.index0}}" onclick="ws.send('goto_idx {{loop.index0}}')">{{name}}</a>
-  {% endfor %}
+ <div id="menu1" class="playmenu" style="font-size: xx-large; font-weight: bold; text-align: center; height: 80%;">
+  <h1 id="header1"><span id="title1">{{listname}}</span><span id="loopButton" style="position:absolute; right: 4px; cursor:pointer" onclick="toggle_loop()">🔁</span></h1>
+  <div id="list1" style="overflow-y: scroll; max-height: 90%;">
+    {% for name in playlist %}
+    <a id="a{{loop.index0}}" onclick="ws.send('goto_idx {{loop.index0}}')">{{name}}</a>
+    {% endfor %}
+  </div>
  </div>
- <div id="menu2" class="playmenu" style="font-size: xx-large; font-weight: bold; top: 32px; text-align: left"></div>
- <div id="menu3" class="playmenu" style="font-size: x-large; font-weight: bold; text-align: left; transform:none; width:auto;"></div>
+ <div id="menu2" class="playmenu" style="font-size: xx-large; font-weight: bold; top: 8px; text-align: left; height: 80%;">
+  <h1 id="header2"><span id="title2"></span><span style="position:absolute; right:4px; cursor:pointer;" onclick="lsdir('.')">🏠</span></h1>
+  <div id="list2" style="overflow-y: scroll; max-height: 90%;"></div>
+ </div>
+ <div id="menu3" class="playmenu" style="font-size: x-large; font-weight: bold; text-align: left; transform:none; width:auto; max-height: 50%;">
+  <p id="t_subtt_status0" style="margin:0; color:yellow; display: none;">Loading subtitles, please wait ...</p>
+  <p id="t_subtt_status1" style="margin:0; color:lime; display:none;">Subtitles loaded!</p>
+  <div id="list3" style="overflow-y: scroll;"></div>
+ </div>
  <div id="S2Tframe" style="background-color: #04AA6D; position: absolute; opacity:0.8; font-size: x-large; font-weight: bold; top: 30%; left:5%; width:20%;">
   <h1>【语音识别详情】</h1>
   <h1>语种：<span id="S2Tlang">{{S2T_lang}}</span></h1>
@@ -118,7 +125,7 @@ var recorder = null, subtt_info = null, subtt_loaded = 0; // 0: not loaded; 1: l
 var audios, start_time, recorder_timeout, last_subtt;
 
 // Set global object handles
-for(var vname of ['ovl', 'ovl2', 'menu1', 'menu2', 'menu3', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'T2Slang', 'S2Ttext',
+for(var vname of ['ovl', 'ovl2', 'menu1', 'menu2', 'menu3', 'list1', 'list2', 'list3', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'T2Slang', 'S2Ttext',
   'T2Stext', 'S2Tmatch', 'recButton', 'QRcontainer', 'showSubtt', 'recButtons'])
   window.eval(`var ${vname} = getById("${vname}")`);
 
@@ -247,8 +254,12 @@ function toggle_menu(mode){
   menu3.style.display = menuMode==3?"block":"none";
   getById('menuIcon0').textContent = menuMode==1?"▿":"▤";
   getById('menuIcon1').textContent = menuMode==2?"▵":"📁";
-  if(menuMode==2){
-    if(menu2.innerHTML=='') lsdir();
+  if(menuMode==1){
+    menu1.style.top=getById('menuIcon0').offsetHeight+'px';
+    getById('list1').style.maxHeight = `calc(100% - ${getById('header1').offsetHeight}px)`;
+  }else if(menuMode==2){
+    menu2.style.bottom=`${getById('menuIcon1').offsetHeight+edge_pad}px`;
+    if(list2.innerHTML=='') lsdir();
     else{
       var ii = -1, i = 0;
       for(; getById('b'+i)!=null; i++)
@@ -256,6 +267,7 @@ function toggle_menu(mode){
       if(ii>=0) setvidx(ii, 'b');
     }
   }else if(menuMode==3){
+    menu3.style.bottom=`${getById('menuIcon1').offsetHeight+edge_pad}px`;
     if(subtt_loaded==0){
       ws_send(`load_subtitles ${subtt_info.length} ${cur_file}`);
       subtt_loaded = 1;
@@ -326,10 +338,12 @@ function gotoFile(ev, i){
   setvidx(i, 'b');
 }
 function showDir(data){
-  menu2.innerHTML = `<h1>Folder: /${cur_dir}<span style="float:right; cursor:pointer;" onclick="lsdir('.')">🏠</span></h1>`;
+  list2.innerHTML = '';
+  getById('title2').textContent = `Folder: /${cur_dir}`;
+  getById('list2').style.maxHeight = `calc(100% - ${getById('header2').offsetHeight}px)`;
   if(cur_dir){
     var parent_dir = cur_dir.indexOf('/')>=0 ? cur_dir.split('/').slice(0,-1).join('/') : "";
-    menu2.innerHTML += `<a onclick="lsdir('${parent_dir}')">../</a>`;
+    list2.innerHTML += `<a onclick="lsdir('${parent_dir}')">../</a>`;
   }
   var i=0, j=0;
   dir_list = [];
@@ -337,11 +351,11 @@ function showDir(data){
   for(var fn of data.split('\n')){
     fulln = cur_dir?(cur_dir+'/'+fn):fn;
     if(fn.endsWith('/')){
-      menu2.innerHTML += `<a onclick="lsdir(subdir_list[${j}])">${fn}</a>`;
+      list2.innerHTML += `<a onclick="lsdir(subdir_list[${j}])">${fn}</a>`;
       subdir_list.push(fulln);
       j+=1;
     }else{
-      menu2.innerHTML += `<a id="b${i}" onclick="gotoFile(event,${i})" href="/files/${fulln}" style="color:${fulln.endsWith(cur_file)?"#1f0":"#eee"}">${fn}</a>`;
+      list2.innerHTML += `<a id="b${i}" onclick="gotoFile(event,${i})" href="/files/${fulln}" style="color:${fulln.endsWith(cur_file)?"#1f0":"#eee"}">${fn}</a>`;
       dir_list.push(fulln);
       i+=1;
     }
@@ -350,9 +364,10 @@ function showDir(data){
 function updateList(arr){
   playlist = arr.split('\n');
   NN = playlist.length;
-  menu1.innerHTML = `<h1>${cur_dir}</h1>`;
+  getById('title1').textContent = `${cur_dir}`;
+  list1.innerHTML = '';
   for(var [i,fn] of playlist.entries())
-    menu1.innerHTML += `<a id="a${i}" onclick="ws.send('goto_idx ${i}')">${fn}</a>`;
+    list1.innerHTML += `<a id="a${i}" onclick="ws.send('goto_idx ${i}')">${fn}</a>`;
 }
 function list_subtitles(s_lst){
   subtt_info = JSON.parse(s_lst);
@@ -363,10 +378,10 @@ function list_subtitles(s_lst){
       ws_send(`load_subtitles ${subtt_info.length} ${cur_file}`);
       subtt_loaded = 1;
     }
-    menu3.innerHTML = subtt_loaded==2?'<p id="t_subtt_status" style="margin:0; color:lime;">Subtitles loaded!</p>'
-      :'<p id="t_subtt_status" style="margin:0; color:yellow;">Loading subtitles, please wait ...</p>';
+    getById(`t_subtt_status${subtt_loaded==2?1:0}`).style.display = 'block';
+    list3.innerHTML = '';
     for(const [ii,si1] of subtt_info.entries()){
-      menu3.innerHTML += `<input type="checkbox" id="SCB${ii}" onclick="set_subtt(${ii}, this)"><a style="display:inline" onclick="set_subtt(${ii})">${si1}</a><br>`;
+      list3.innerHTML += `<input type="checkbox" id="SCB${ii}" onclick="set_subtt(${ii}, this)"><a style="display:inline" onclick="set_subtt(${ii})">${si1}</a><br>`;
     }
     menu3.style.left = showSubtt.offsetLeft+'px';
     menu3.style.bottom = (showSubtt.offsetHeight+edge_pad)+'px';
@@ -382,8 +397,8 @@ function load_subtitles(){
     v.appendChild(track);
   }
   subtt_loaded = 2;
-  getById('t_subtt_status').innerText = 'Subtitles loaded!';
-  getById('t_subtt_status').style.color = 'lime';
+  getById('t_subtt_status1').style.display = 'block';
+  getById('t_subtt_status0').style.display = 'none';
   for(var i of last_subtt.split(',')){
     var ii = parseInt(i)>=v.textTracks.length?0:parseInt(i);
     v.textTracks[ii].mode = 'showing';
@@ -412,8 +427,6 @@ setvsrc("{{file_path|safe}}", {{cur_ii}});
 var edge_pad = Number(getComputedStyle(document.documentElement).getPropertyValue('--edge-pad').slice(0,-2));
 var scr_size = Math.max(screen.width, screen.height);
 document.styleSheets[0].cssRules[0].style.fontSize=`${scr_size/16}px`;
-menu1.style.top=`${scr_size/16}px`;
-menu2.style.bottom=`${scr_size/16+edge_pad}px`;
 setInterval(timerInc, 2000);
 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
   navigator.mediaDevices.getUserMedia({audio: true,},)
