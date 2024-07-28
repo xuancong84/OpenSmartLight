@@ -224,7 +224,7 @@ input {font-size:15px;}
 		<h2>OpenSmartHome (Central Hub)</h2>
 		<h3>HUBS: <select id="hub" onchange="load(this.value)">
 		{% for hub_name, hub_url in hubs.items() %}
-		<option value="{{hub_url}}">{{hub_name}}</option>
+		<option value="{{hub_url}}" title="{{hub_url}}">{{hub_name}}</option>
 		{% endfor %}
 		</select>&nbsp;
 		<button onclick="openInNewTab(hub.value)" title="Go to the controller hub's main page" class="bb">GOTO</button>

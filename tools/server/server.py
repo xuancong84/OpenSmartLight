@@ -361,6 +361,22 @@ def stop():
 	player = None
 	return ret
 
+loopModes = [vlc.PlaybackMode.repeat, vlc.PlaybackMode.loop, vlc.PlaybackMode.default]
+@app.route('/loop_mode/<int:mode>')
+@app.route('/loop_mode/<tv_name>/<int:mode>')
+def loop_mode(mode=1, tv_name=None):
+	global player
+	ret = 'OK'
+	try:
+		if tv_name:
+			tv_wscmd(tv_name, f'loop_mode {mode}')
+		else:
+			player.set_playback_mode(loopModes[mode])
+	except Exception as e:
+		ret = str(e)
+	player = None
+	return ret
+
 @app.route('/connectble/<device>')
 def connectble(dev_mac):
 	ret = os.system(f'bluetoothctl trust {dev_mac}' if sys.platform=='linux' else f'blueutil --trust {dev_mac}')
@@ -640,6 +656,8 @@ def tv_wscmd(name, cmd):
 		elif cmd.startswith('mark '):
 			mark(name, float(cmd.split()[1]))
 			tv(name, 'screenOn')
+		elif cmd.startswith('loop_mode '):
+			ws.send(f"toggle_loop({cmd.split(' ',1)[1]})")
 		elif cmd.startswith('lsdir '):
 			full_dir = SHARED_PATH+cmd.split(' ',1)[1]+'/'
 			lst = showdir(full_dir)

@@ -84,7 +84,7 @@ h1 {
   <span onclick="promptOpenFolder()" title="显示当前视频的URL链接">🔗</span>
  </div>
  <div id="menu1" class="playmenu" style="font-size: xx-large; font-weight: bold; text-align: center;">
-  <h1>{{listname}}</h1>
+  <h1>{{listname}}<span id="loopButton" style="float: right; padding-right: 4px; cursor:pointer" onclick="toggle_loop()">🔁</span></h1>
   {% for name in playlist %}
   <a id="a{{loop.index0}}" onclick="ws.send('goto_idx {{loop.index0}}')">{{name}}</a>
   {% endfor %}
@@ -284,6 +284,10 @@ function toggle_hide(objs){
   var disp = objs[0].style.display=='none'?'block':'none';
   for(var obj of objs) obj.style.display=disp;
   document.cookie = `infoDisp=${disp}; path=/; max-age=31536000`;
+}
+function toggle_loop(val=null){
+  v.loop = val==null?(!v.loop):val;
+  getById('loopButton').textContent = v.loop?'🔂':'🔁';
 }
 function clickvid(e){
   e.preventDefault();
