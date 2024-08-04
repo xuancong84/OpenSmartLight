@@ -29,6 +29,14 @@ DEBUG_LOG = True
 CUSTOM_CMDLINES={}
 HUBS={}
 
+ASRchip_voice_IP='http://192.168.50.4'
+ASRchip_voice_hex = {
+	'speak_drama': ('a5650a', 3.5),
+	'speak_song': ('a5640a', 3),
+	'asr_not_found': ('a5020a', 3),
+	'asr_found': ('a5000a', 3)
+}
+
 if os.path.isfile('secret.py'):
 	from secret import *
 

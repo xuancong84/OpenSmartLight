@@ -253,6 +253,10 @@ def Eval(cmd):
 
 asr_write = lambda t: Try(lambda: f'{g.server.uart_ASR_out.write(bytes.fromhex(t))} bytes sent')
 asr_print = lambda t: Try(lambda: [print(t, file=g.server.uart_ASR_out), 'message sent'][-1])
+def asr_block(fn, t):
+	ret = fn(t)
+	g.server.uart_ASR.readline()
+	return ret
 
 class WebServer:
 	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=0):
@@ -301,6 +305,8 @@ class WebServer:
 			( "/upload_file", "POST", lambda clie, resp: save_file(clie.GetRequestQueryString(True), clie.YieldRequestContent()) ),
 			( "/asr_write", "GET", lambda clie, resp: asr_write(clie.GetRequestQueryString(True)) ),
 			( "/asr_print", "GET", lambda clie, resp: asr_print(clie.GetRequestQueryString(True)) ),
+			( "/asr_writeB", "GET", lambda clie, resp: asr_block(asr_write, clie.GetRequestQueryString(True)) ),
+			( "/asr_printB", "GET", lambda clie, resp: asr_block(asr_print, clie.GetRequestQueryString(True)) ),
 		]
 		self.mws = MWS(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
 		self.mws.CommonHeader = {'Access-Control-Allow-Origin': '*'}
@@ -308,7 +314,8 @@ class WebServer:
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
 		self.poll_tmout = -1
-		set_uart = lambda p: (sys.stdin, sys.stdout) if p==20 else (UART(1, 115200, tx=0, rx=1) if p==1 else None,)*2
+		set_uart = lambda p: (sys.stdin, sys.stdout) if p==20 else (UART(1, 115200, tx=0, rx=1, timeout_char=100) if p==1 else None,)*2
+		# set_uart = lambda p: (sys.stdin, sys.stdout) if p==20 else (UART(1, 115200, tx=0, rx=1) if p==1 else None,)*2
 		self.uart_ASR, self.uart_ASR_out = set_uart(PIN_ASR_IN)
 		self.uart_LD1115H, self.uart_LD1115H_out = set_uart(PIN_LD1115H)
 		self.sock_map = {self.sock_web: self.mws.run_once}

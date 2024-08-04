@@ -28,7 +28,7 @@ def Open(fn, mode='r', **kwargs):
 
 
 KKS = pykakasi.kakasi()
-filelist, cookies_opt = [], []
+cookies_opt = []
 listdir = lambda t: natsorted(Try(lambda: os.listdir(expand_path(t)), [])) if os.path.isdir(expand_path(t)) else []
 showdir = lambda t: [(p+'/' if os.path.isdir(os.path.join(t,p)) else p) for p in listdir(t) if not p.startswith('.')]
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
@@ -41,8 +41,11 @@ ls_subdir = lambda fullpath: [g.rstrip('/') for f in listdir(fullpath) for g in 
 mrl2path = lambda t: unquote(t).replace('file://', '').strip() if t.startswith('file://') else (t.strip() if t.startswith('/') else '')
 is_json_lst = lambda s: s.startswith('["') and s.endswith('"]')
 load_m3u = lambda fn: [i for L in Open(fn).readlines() for i in [mrl2path(L)] if i]
-get_url_root = lambda r: r.url_root.rstrip('/') if r.url_root.count(':')>=2 else r.url_root.rstrip('/')+f':{r.server[1]}'
 LOG = lambda s: print(f'LOG: {s}') if DEBUG_LOG else None
+
+def get_url_root(r):
+	os.last_url_root = r.url_root.rstrip('/') if r.url_root.count(':')>=2 else r.url_root.rstrip('/')+f':{r.server[1]}'
+	return os.last_url_root
 
 def prune_dict(dct, limit=10):
 	while len(dct)>limit:
@@ -104,7 +107,7 @@ def filepath2songtitle(fn):
 	return os.path.basename(os.path.dirname(unquote(fn).rstrip('/')))+s if s.isdigit() else s
 
 
-def findSong(name, lang=None, flist=filelist, unique=False):
+def findSong(name, lang=None, flist=[], unique=False):
 	name = name.lower().strip()
 	name_list = [filepath2songtitle(fn).lower() for fn in flist]
 

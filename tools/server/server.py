@@ -393,7 +393,7 @@ def disconnectble(dev_mac):
 @app.route('/volume/<cmd>')
 def set_volume(cmd=None, tv_name=None):
 	if tv_name != None:
-		return tvVolume(name=tv_name, vol=cmd)
+		return tvVolume(name=tv_name, vol=cmd) if is_tv_on(tv_name) else 'ignored'
 	try:
 		if type(cmd) in [int, float] or cmd.isdigit():
 			ret = os.system(f'amixer sset Master {int(cmd)}%' if sys.platform=='linux' else f'osascript -e "set volume output volume {int(cmd)}"')
@@ -423,11 +423,12 @@ def vlcvolume(cmd=''):
 
 ### For LG TV
 # Set T2S/S2T info
-def setInfo(tv_name, text, lang, prefix, match=None):
+def setInfo(tv_name, text, lang, prefix, match=None, wait=False):
 	langName = LC.get(lang).display_name('zh')
 	ip = get_tv_ip(tv_name)
 	ip2tvdata[ip].update({f'{prefix}_lang': langName, f'{prefix}_text': text}|({} if match==None else {f'{prefix}_match': match}))
 	if ip:
+		wait_for_ws(tv_name) if wait else None
 		ip2websock[ip].send(f'{prefix}lang.textContent="{langName}";{prefix}text.textContent="{text}";'+(f'{prefix}match.textContent="{match}"' if match!=None else ''))
 
 def _report_title(tv_name):
@@ -528,6 +529,12 @@ def ws_init(sock):
 			print(f'Websock: {key} disconnected', file=sys.stderr)
 			# traceback.print_exc()
 	ip2websock.pop(key)
+
+def wait_for_ws(tv_name, max_time=10):
+	global ip2websock
+	tm, ip = time.time(), get_tv_ip(tv_name)
+	while (ip not in ip2websock) and (time.time()-tm<max_time):
+		time.sleep(0.1)
 
 @sock.route('/yd_init')
 def yd_init(sock):
@@ -756,7 +763,16 @@ def play_audio(fn, block=False, tv_name=None):
 	ev_voice.clear()
 	if tv_name:
 		if not is_tv_on(tv_name):
-			return None
+			hex_cmd = ASRchip_voice_hex.get(os.path.basename(fn).split('.')[0], '')
+			if not hex_cmd:
+				return None
+			delay = 0
+			if type(hex_cmd)==tuple:
+				hex_cmd, delay = hex_cmd[:2]
+			requests.get(f'{ASRchip_voice_IP}/asr_write?{hex_cmd}')
+			time.sleep(delay)
+			ev_voice.set()
+			return ev_voice
 		res = tv_wscmd(tv_name, f'play_audio("/{f"voice?{random.randint(0,999999)}" if fn==DEFAULT_T2S_SND_FILE else fn}",true)')
 		assert res == 'OK'
 	else:
@@ -794,7 +810,7 @@ class VoicePrompt:
 
 	def __enter__(self):	# preserve environment
 		global player
-		if self.tv_name:
+		if self.tv_name and is_tv_on(self.tv_name):
 			tv_wscmd(self.tv_name, 'pause')
 			self.cur_vol = tvVolume(self.tv_name)
 		elif player!=None:
@@ -902,7 +918,7 @@ def handle_ASR_indir(asr_out, tv_name, rel_path, url_root):
 			else:
 				_tvPlay(tv_name+(' -1' if os.path.isdir(res) else ' 0'), short_path, url_root)
 		setInfo(tv_name, asr_out["text"], asr_out['language'], 'S2T', '' if res==None else \
-			(ls_media_files(res[0])[res[1]][len(SHARED_PATH):] if type(res)==tuple else res[len(SHARED_PATH):]))
+			(ls_media_files(res[0])[res[1]][len(SHARED_PATH):] if type(res)==tuple else res[len(SHARED_PATH):]), wait=True)
 		return str(asr_out)
 
 def handle_ASR_inlst(asr_out, tv_name, lst_filename, url_root):
@@ -917,7 +933,7 @@ def handle_ASR_inlst(asr_out, tv_name, lst_filename, url_root):
 			_tvPlay(f'{tv_name} 0 {ii}', lst_filename or json.dumps(lst), url_root) if tv_name else play(f'0 {ii}', json.dumps(lst), url_root)
 		else:
 			playFrom(ii) if tv_name==None else tv_wscmd(tv_name, f'goto_idx {ii}')
-		setInfo(tv_name, asr_out["text"], asr_out['language'], 'S2T', '' if ii==None else lst[ii][len(SHARED_PATH):])
+		setInfo(tv_name, asr_out["text"], asr_out['language'], 'S2T', '' if ii==None else lst[ii][len(SHARED_PATH):], wait=True)
 		return str(asr_out)
 
 def save_post_file(fn=DEFAULT_S2T_SND_FILE):
