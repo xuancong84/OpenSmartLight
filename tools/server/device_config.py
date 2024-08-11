@@ -37,6 +37,34 @@ ASRchip_voice_hex = {
 	'asr_found': ('a5000a', 3)
 }
 
+VOICE_CMD_FFWD_DCT = {
+	'快进到': 'auto',
+	'快进': 'auto',
+	'电视机快进到': 'livingTV',
+	'电视机快进': 'livingTV',
+	'客厅电视机快进到': 'livingTV',
+	'客厅电视机快进': 'livingTV',
+	'播放器快进到': None,
+	'播放器快进': None,
+	'主人房电视机快进到': 'masterTV',
+	'主人房电视机快进': 'masterTV',
+	'客人房电视机快进到': 'commonTV',
+	'客人房电视机快进': 'commonTV',
+	
+	'快退到': 'auto',
+	'快退': 'auto',
+	'电视机快退到': 'livingTV',
+	'电视机快退': 'livingTV',
+	'客厅电视机快退到': 'livingTV',
+	'客厅电视机快退': 'livingTV',
+	'播放器快退到': None,
+	'播放器快退': None,
+	'主人房电视机快退到': 'masterTV',
+	'主人房电视机快退': 'masterTV',
+	'客人房电视机快退到': 'commonTV',
+	'客人房电视机快退': 'commonTV',
+}
+
 if os.path.isfile('secret.py'):
 	from secret import *
 

@@ -407,11 +407,36 @@ fst_zh2num = {
 }
 
 def zh2num(txt):
-	out = ''
+	if txt.startswith('百分之'):
+		return zh2num(txt[3:])+'%'
+	elif txt.startswith('千分之'):
+		return zh2num(txt[3:])+'‰'
+	outA, out = '', ''
 	for c in txt:
 		if c not in fst_zh2num:
-			return txt
+			outA += out+c
+			out = ''
+			continue
 		tgt = fst_zh2num[c]
 		out = fst_zh2num[tgt](out) if type(tgt)==str else tgt(out)
-	return out
+	return outA + out
 
+zh2time_hms_sub = {
+	'分': (':', 1),
+	'时': (':', 2),
+}
+def zh2time_hhmmss(s):
+	min_colon = 0
+	for k, (v, m) in zh2time_hms_sub.items():
+		if k in s:
+			s = s.replace(k, v)
+			min_colon = max(min_colon, m)
+	ret = ''.join([c for c in s if c in '0123456789:.'])
+	while ret.count(':') < min_colon:
+		ret += ':'
+	return ':'.join([(i if i else '0') for i in ret.split(':')])
+
+if __name__=='__main__':
+	print(zh2num('23分二十四秒'))
+	print(zh2num('23:24'))
+	print(zh2num('百分之二十四点五'))

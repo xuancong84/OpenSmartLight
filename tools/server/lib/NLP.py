@@ -366,3 +366,14 @@ def ble_gap_advertise(payload, duration=1):
 		return True
 	except:
 		return False
+
+def sec2hhmmss(sec, sub_second=False):
+	try:
+		s = float(sec)
+		return f'{int(s//3600):02d}:{int((s%3600)//60):02d}:{int(s%60):02d}.{int(s%1*100):02d}'
+	except:
+		return ''
+
+def hhmmss2sec(hms):
+	hh, mm, ss = [float(i) for i in (['0', '0']+hms.split(':'))[-3:]]
+	return hh*3600 + mm*60 + ss

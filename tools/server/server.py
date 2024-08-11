@@ -68,9 +68,14 @@ os.ip2ydsock = ip2ydsock
 # ip2tvdata: {'IP':{'playlist':[full filenames], 'cur_ii': current_index, 'shuffled': bool (save play position if false), 
 # 	'markers':[(key1,val1),...], 'T2Slang':'', 'T2Stext':'', 'S2Tlang':'', 'S2Ttext':''}}
 ip2tvdata = load_playstate()
-tv2lginfo = Try(lambda: json.load(Open(LG_TV_CONFIG_FILE)), {})
-get_tv_ip = lambda t: tv2lginfo[t]['ip'] if t in tv2lginfo else t
-get_tv_data = lambda t: ip2tvdata[tv2lginfo[t]['ip'] if t in tv2lginfo else t]
+_tv2lginfo = Try(lambda: json.load(Open(LG_TV_CONFIG_FILE)), {})
+def tv2lginfo(tv_name):
+	ret = _tv2lginfo.get(tv_name, tv_name)
+	if tv_name!=ret:
+		os.lastTVname = tv_name
+	return ret
+get_tv_ip = lambda t: Try(lambda: tv2lginfo(t)['ip'], t)
+get_tv_data = lambda t: ip2tvdata[Try(lambda: tv2lginfo(t)['ip'], t)]
 
 # Detect language, invoke Google-translate TTS and play the speech audio
 def prepare_TTS(txt, fn=DEFAULT_T2S_SND_FILE):
@@ -474,7 +479,7 @@ def is_tv_ready(tv_name):
 
 @app.route('/tv_on/<tv_name>')
 def tv_on_if_off(tv_name, wait_ready=False):
-	tvinfo = tv2lginfo[tv_name]
+	tvinfo = tv2lginfo(tv_name)
 	if not is_tv_on(tv_name):
 		send_wol(tvinfo['mac'])
 		if wait_ready:
@@ -602,7 +607,7 @@ def _tvPlay(name, listfilename, url_root):
 	if is_json_lst(listfilename):
 		get_tv_data(tv_name)['playlist'] = json.loads(listfilename)
 		listfilename = ''
-	if tv_name in tv2lginfo:
+	if tv_name in _tv2lginfo:
 		tv_on_if_off(tv_name, True)
 		return tv(tv_name, f'openBrowserAt "{url_root}/webPlay/{tm_info}/{listfilename}"')
 	else:
@@ -885,7 +890,7 @@ def _play_last(name=None, url_root=None):
 		pl = Try(lambda: tvd['playlist'], lambda: json.loads(list(tvd['markers'].keys())[-1]), lambda: getAnyMediaList())
 		if pl:
 			ii, tms = tvd['markers'].get(json.dumps(pl), [tvd.get('cur_ii', 0), 0])
-	if name in tv2lginfo:
+	if name in _tv2lginfo:
 		tv_on_if_off(name, True)
 	tvPlay(f'{name} {tms} {ii}', json.dumps(pl), url_root)
 
@@ -922,7 +927,7 @@ def handle_ASR_indir(asr_out, tv_name, rel_path, url_root):
 		return str(asr_out)
 
 def handle_ASR_inlst(asr_out, tv_name, lst_filename, url_root):
-	lst = load_m3u(SHARED_PATH+lst_filename) if lst_filename else ip2tvdata[tv2lginfo[tv_name]['ip'] if tv_name else None]['playlist']
+	lst = load_m3u(SHARED_PATH+lst_filename) if lst_filename else ip2tvdata[Try(lambda: tv2lginfo(tv_name)['ip'], None)]['playlist']
 	ii = findSong(asr_out['text'].strip(), asr_out['language'], lst)
 	if ii == None:
 		play_audio('voice/asr_not_found.mp3', True, tv_name)
@@ -1043,6 +1048,29 @@ def parseRC(txt):
 	its = [L.split('\t') for L in txt.strip().splitlines()]
 	return [(it[0], c, it[-1]) for it in its for c in it[1].replace('｜', '|').split('|')]
 
+@app.route('/fast_fwd/<tm>')
+@app.route('/fast_fwd/<tv_name>/<tm>')
+def fast_fwd(tm, tv_name='auto', op='+='):
+	tm1 = zh2num(tm)
+	tv_name = os.lastTVname if tv_name=='auto' else tv_name
+	if tm1.endswith('%'):
+		tv_wscmd(tv_name, f'v.currentTime{op}{float(tm1[:-1])*.01}*v.duration;')
+	else:
+		tv_wscmd(tv_name, f'v.currentTime{op}{hhmmss2sec(zh2time_hhmmss(tm1))}')
+	return f'fast_forward({op}{tm}, {tv_name})'
+
+@app.route('/fast_fwd2/<tm>')
+@app.route('/fast_fwd2/<tv_name>/<tm>')
+def fast_fwd2(tm, tv_name='auto'):
+	return fast_fwd(tm, tv_name, '=')
+
+# Large-vocabulary multilingual speech recognition
+def lvmsr_voice_cmd(asr_str):
+	for k, v in VOICE_CMD_FFWD_DCT.items():
+		if asr_str.startswith(k):
+			return fast_fwd(asr_str[len(k):], v, '=' if k.endswith('到') else ('+=' if '进' in k else '-='))
+	return f'Not found {asr_str}'
+
 @app.route('/voice_cmd/<path:hub_pfx>', methods=['POST'])
 def voice_cmd(hub_pfx):
 	global ASR_cloud_running, ASR_server_running
@@ -1073,7 +1101,7 @@ def voice_cmd(hub_pfx):
 		cmd_tbl = parseRC(get_http(hub_pfx+'/rc_load')[0])
 		ii = findSong(asr_str, 'zh', [p[1] for p in cmd_tbl])
 		if ii is None:
-			return 'Not found: {asr_str}'
+			return lvmsr_voice_cmd(asr_str)
 		cmdID, cmdDesc, cmdExec = cmd_tbl[ii][:3]
 		if '/play_spoken_' in cmdExec and cmdExec[0]=="'" and cmdExec[-1]=="'":
 			return f"EXEC ASR({cmdExec})"
