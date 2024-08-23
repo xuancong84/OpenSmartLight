@@ -565,7 +565,7 @@ def load_playable(ip, tm_info, filename):
 	elif fullname.lower().endswith('.m3u'):
 		lst = load_m3u(fullname)
 	elif os.path.isdir(fullname):
-		lst = ls_media_files(fullname)
+		lst = ls_media_files(fullname) or getAnyMediaList(fullname, media_file_exts)
 	elif os.path.isfile(fullname):
 		lst, randomize = ls_media_files(os.path.dirname(fullname)), 0
 		ii = lst.index(fullname)

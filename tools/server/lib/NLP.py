@@ -29,7 +29,8 @@ def Open(fn, mode='r', **kwargs):
 
 KKS = pykakasi.kakasi()
 cookies_opt = []
-listdir = lambda t: natsorted(Try(lambda: os.listdir(expand_path(t)), [])) if os.path.isdir(expand_path(t)) else []
+TransNatSort = lambda lst: natsorted(lst, key=unidecode)
+listdir = lambda t: TransNatSort(Try(lambda: os.listdir(expand_path(t)), []))
 showdir = lambda t: [(p+'/' if os.path.isdir(os.path.join(t,p)) else p) for p in listdir(t) if not p.startswith('.')]
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
 translit = lambda t: unidecode(t).lower()
@@ -200,7 +201,7 @@ def getAnyMediaList(base_path=SHARED_PATH, exts=video_file_exts):
 	lst = ls_media_files(base_path, exts)
 	if lst: return lst
 	for dir in ls_subdir(base_path):
-		lst = ls_media_files(dir, exts)
+		lst = getAnyMediaList(dir, exts)
 		if lst: return lst
 	return []
 
