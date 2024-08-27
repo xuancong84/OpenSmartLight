@@ -34,6 +34,8 @@ ASRchip_voice_hex = {
 	'speak_drama': ('a5650a', 3.5),
 	'speak_song': ('a5640a', 3),
 	'asr_not_found': ('a5020a', 3),
+	'asr_not_found_drama': ('a5020a', 3),
+	'asr_not_found_file': ('a5020a', 3),
 	'asr_found': ('a5000a', 3)
 }
 

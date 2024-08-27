@@ -32,6 +32,8 @@ copy_if() {
 	done
 }
 
+mpy-cross ../microWebSrv.py
+pyboard -f cp ../microWebSrv.mpy :
 
 for f in main.py modules.py rescue.py lib*.py; do 
 	mpy-cross $f

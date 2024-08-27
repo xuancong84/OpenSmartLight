@@ -568,7 +568,7 @@ def load_playable(ip, tm_info, filename):
 		lst = ls_media_files(fullname) or getAnyMediaList(fullname, media_file_exts)
 	elif os.path.isfile(fullname):
 		lst, randomize = ls_media_files(os.path.dirname(fullname)), 0
-		ii = lst.index(fullname)
+		ii = Try(lambda: lst.index(fullname), 0)
 	else:
 		while not os.path.isdir(fullname):
 			fullname = os.path.dirname(fullname)
