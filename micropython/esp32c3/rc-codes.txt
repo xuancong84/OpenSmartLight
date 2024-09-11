@@ -49,12 +49,12 @@ MTVN	主人房电视机开启	好的	1		[{'protocol': 'WOL', 'data': '74:e6:b8:2
 MTVF	主人房电视机关闭	好的	1		{'protocol': 'CAP', 'filename': 'masterTVoff.tcp'}
 CTVN	客人房电视机开启	好的	1		[{'protocol': 'WOL', 'data': '7c:64:6c:b9:05:6e'},{'protocol': 'WOL', 'data': 'b8:16:5f:72:06:6c'}]
 CTVF	客人房电视机关闭	好的	1		'http://192.168.50.3:8883/tv/commonTV/off'
-_KF	进入用餐模式	好的	1		['LFN', 'DLN']
+_KF	进入用餐模式	好的	1		['LFN', 'DLN','DFL']
 _CW	退出用餐模式	好的	1		['LFF', 'DLF', 'DFS']
 _KF1	开饭喽	已进入用餐模式	2		'_KF'
 _CW1	吃完喽	已退出用餐模式	2		'_CW'
-ALLN	客厅全部灯开启	好的	1		['DLN', 'SLN', 'PLN', 'MLN', 'S1N', 'S2N', 'S3N']
-ALLF	客厅全部灯关闭	好的	1		['DLF', 'SLF', 'PLF', 'MLF', 'S1F', 'S2F', 'S3F','LLF']
+ALLN	客厅全部灯开启	好的	1		['DLN', 'SLN', 'PLN', 'MLN', 'CRLN', 'S1N', 'S2N', 'S3N']
+ALLF	客厅全部灯关闭	好的	1		['DLF', 'SLF', 'PLF', 'MLF', 'CRLF', 'S1F', 'S2F', 'S3F','LLF']
 RCB	扫地机开启	好的	1		'http://192.168.50.3:8883/ecovacs/T8/clean'
 RCS	扫地机暂停	好的	1		'http://192.168.50.3:8883/ecovacs/T8/pause'
 RCR	扫地机返回	好的	1		'http://192.168.50.3:8883/ecovacs/T8/return-to-charge'
@@ -124,8 +124,8 @@ VLCVD	播放软件音量降低	好的	1	VLCV	'http://192.168.50.3:8883/vlcvolme/
 MPAVN	播放器调整当前歌曲音量		1		'http://192.168.50.3:8883/normalize_vol/'
 PPS	播放器播放指定歌曲｜播放器播放指定音乐		1		'http://192.168.50.3:8883/play_spoken_inlst'
 PPSD	播放器播放指定电视剧｜播放器播放指定电影		1		'http://192.168.50.3:8883/play_spoken_indir'
-KTVN	进入卡拉欧嘿模式	好的	1		['KTVPN','http://192.168.50.3:8883/KTV/on']
-KTVF	退出卡拉欧嘿模式	好的	1		['http://192.168.50.3:8883/KTV/off','KTVPF']
+KTVN	进入卡拉OK模式	好的	1		['KTVPN','http://192.168.50.3:8883/KTV/on']
+KTVF	退出卡拉OK模式	好的	1		['http://192.168.50.3:8883/KTV/off','KTVPF']
 SVU	系统音量增加	好的	1	SVA	asr_print('volume_up')
 SVD	系统音量减小	好的	1	SVA	asr_print('volume_down')
 HEAR	能听见吗	我能听见	2		
@@ -162,7 +162,7 @@ YYYY	今昔是何年		2		asr_print(f'read_date {getDateString()[:4]}')
 12	重新开始播放该歌曲				
 PRST	播放器播报当前歌曲名称				'http://192.168.50.3:8883/report_title'
 TIME_ASK	小美请播报当前时间				[asr_write(f'a5c9%02x%02x0a'%(int(its[0]), int(its[1]))) for its in [getTimeString().split(':')]]
-DATE_ASK	小美请播报当前日期				[asr_write(f'a5c80%s0%s0%s0%s%02x%02x%02x0a'%(y[0],y[1],y[2],y[3],int(its[1]), int(its[2]),getWeekdayNum())) for its in [getDateString().split('-')] for y in [its[0]]]
+DATE_ASK	小美请播报当前日期				[asr_write(f'a5c80%s0%s0%s0%s%02x%02x%02x0a'%(y[0],y[1],y[2],y[3],int(its[1]), int(its[2]),getWeekdayNum()+1)) for its in [getDateString().split('-')] for y in [its[0]]]
 PPSF	播放器播放指定文件	好的			'http://192.168.50.3:8883/play_spoken_indir'
 MPSR	蓝牙音乐开播				'http://192.168.50.3:8883/play/0 0 1/Music'
 LTVPV	电视机播放歌曲音乐	好的			'http://192.168.50.3:8883/tvPlay/livingTV 0 0 1/KTV'
@@ -184,8 +184,8 @@ MTVPSD	主人房电视机播放指定电视剧|主人房电视机播放指定电
 MACAIRPD	苹果笔记本播放电视剧｜苹果电脑播放电视剧	好的			'http://192.168.50.3:8883/custom_cmdline/macair_play'
 LTVRCP	电视机播报当前视频名称|电视机播报当前歌曲名称	好的			'http://192.168.50.3:8883/report_title/livingTV'
 MTVRCP	主人房电视机播报当前视频名称|主人房电视机播报当前歌曲名称	好的			'http://192.168.50.3:8883/report_title/masterTV'
-KTVPN	卡拉欧剋机开启	好的	1		'http://192.168.50.3:8883/py_exec/ble_gap_advertise("0201011bffff00ee1bc878f64a4491542fb40e6e1b2120a5443c1ea5e2a6dd",0.35)'
-KTVPF	卡拉欧剋机关闭	好的	1		'http://192.168.50.3:8883/py_exec/ble_gap_advertise("0201011bffff00ee1bc878f64a4491562fb40e6ecaf0f38b95edcf743364c4",0.35)'
+KTVPN	卡拉OK机开启	好的	1		'http://192.168.50.3:8883/py_exec/ble_gap_advertise("0201011bffff00ee1bc878f64a4491542fb40e6e1b2120a5443c1ea5e2a6dd",0.35)'
+KTVPF	卡拉OK机关闭	好的	1		'http://192.168.50.3:8883/py_exec/ble_gap_advertise("0201011bffff00ee1bc878f64a4491562fb40e6ecaf0f38b95edcf743364c4",0.35)'
 CTVPV	客人房电视机播放歌曲音乐	好的			'http://192.168.50.3:8883/tvPlay/commonTV 0 0 1/KTV'
 CTVPD	客人房电视机播放电视剧|客人房电视机播放电影	好的			'http://192.168.50.3:8883/play_last/commonTV'
 CTVPS	客人房电视机暂停播放	好的			'http://192.168.50.3:8883/tv_wscmd/commonTV/pause'
