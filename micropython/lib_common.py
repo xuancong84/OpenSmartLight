@@ -136,6 +136,10 @@ def getDateString(tm=None, showDay=True):
 	return ds if showDay else ds[:-3]
 
 weekDays=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+def getWeekdayNum(tm=None):
+	tm = tm or getDateTime()
+	return tm[6]
+
 def getWeekdayString(tm):
 	return weekDays[tm[6]]
 

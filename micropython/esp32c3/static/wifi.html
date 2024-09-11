@@ -67,8 +67,8 @@ input {font-size:15px;}
 <p>
   <button onclick="wifi_save()" title="Save config file to persist across restarts" class="bb">Save Settings</button>&nbsp;
   <button onclick="wifi_load()" title="Load settings from config file" class="bb">Load Settings</button>&nbsp;
-  <button onclick="alert(GET('/wifi_restart'))" class="bb">Restart WIFI</button>
-  <button onclick="alert(GET('/reboot'))" class="bb">Reboot</button>
+  <button onclick="alert(GET('/set_cmd?start_wifi()'))" class="bb">Restart WIFI</button>
+  <button onclick="alert(GET('/set_cmd?machine.reset()'))" class="bb">Reboot</button>
 </p>
 
 <script>

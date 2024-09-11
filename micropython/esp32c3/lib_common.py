@@ -1,27 +1,132 @@
 import os, time, ntptime, network
 from machine import Timer, ADC, Pin, PWM
 
-DEBUG = False
-SMART_CTRL = True
-SAVELOG = False
-LOGFILE = 'static/log.txt'
-RL_MAX_DELAY = 10
 Timers = {}	# {'timer-name': [last-stamp-sec, period-in-sec, True (is periodic or oneshot), callback_func]}
-timezone = 8
 A0, A1, A2, A3, A4 = [ADC(i) for i in range(5)]
 
+# global savable parameters
+P = {
+	'DEBUG': False,
+	'SMART_CTRL': True,
+	'SAVELOG': False,
+	'use_BLE': False,
+	'timezone': 8,
+	'RL_MAX_DELAY': 10,
+	'LOGFILE': 'static/log.txt',
+	'DEBUG_dpin_num': '',	# only GPIO 2 or None: for debug blinking
+	'PIN_RF_IN': '',		# GPIO5 tested working
+	'PIN_RF_OUT': '',		# GPIO4 tested working
+	'PIN_IR_IN': '',		# GPIO14 tested working
+	'PIN_IR_OUT': '',		# GPIO12 tested working
+	'PIN_ASR_IN': '',		# GPIO 13 or 3: generic ASR chip sending UART output upon voice commands
+	'PIN_LD1115H': '',		# GPIO 13 or 3: HLK-LD1115H motion sensor
+	}
+
 url_string = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~/?'
-digitalWrite = lambda pin, val: Pin(abs(pin), Pin.OUT)(1-val if pin<0 else val) if type(pin)==int else None
-digitalRead = lambda pin: (1-Pin(abs(pin), Pin.OUT)()) if pin<0 else Pin(abs(pin), Pin.OUT)() if type(pin)==int else None
-analogWrite = lambda pin, val: PWM(abs(pin), freq=1000, duty=(1023-val if pin<0 else val)) if type(pin)==int else None
-analogRead = lambda pin: (1023-PWM(abs(pin)).duty()) if pin<0 else PWM(abs(pin)).duty() if type(pin)==int else None
-
-getDateTime = lambda: time.localtime(time.time()+3600*timezone)
-
-sta_if = network.WLAN(network.STA_IF)
-ap_if = network.WLAN(network.AP_IF)
-getActiveNIF = lambda: sta_if if sta_if.active(True) else ap_if
+is_valid_pin = lambda pin, P=P: type(P.get(pin, ''))==int
 read_py_obj = lambda f: Try(lambda: eval(open(f).read()), '')
+execRC = lambda *args: None
+
+# None (=>null): the control will not be shown; to disable, set to empty string
+def dft_eval(s, dft):
+	try:
+		return eval(s, globals(), globals())
+	except:
+		return dft
+
+def Try(*args):
+	exc = ''
+	for arg in args:
+		try:
+			if callable(arg):
+				return arg()
+		except Exception as e:
+			exc = e
+	return str(exc)
+
+
+class PIN:
+	""" Either pass a machine.Pin object, or an Integer with a pin_name '_*pin_num' to create the pin
+	where * can be:
+		d: output digital pin
+		i: input digital pin
+		p: PWM pin
+		a: ADC pin
+	"""
+	def __init__(self, pin, pin_name='', dtype=int, invert=None):
+		self.pin_name = f'PIN({pin})'
+		if type(pin)==int:
+			self.pin = abs(pin)
+			self.invert = pin<0 if invert is None else invert
+			if pin_name.endswith('pin_num'):
+				self.pin_name = pin_name[:-4]
+				pt = pin_name[:-7].split('_')[-1]
+				if pt=='d':
+					self.pin = Try(lambda:Pin(self.pin, Pin.OUT), '')
+				elif pt=='p':
+					self.pin = Try(lambda:PWM(self.pin, freq=1000, duty=0),'')
+				elif pt=='i':
+					self.pin = Try(lambda:Pin(self.pin, Pin.IN), '')
+				elif pt=='a':
+					self.pin = Try(lambda:ADC(self.pin), '')
+		else:
+			self.pin = pin
+			self.invert = invert or False
+			self.state = False
+		self.type = dtype
+
+	def __call__(self, *args):
+		prt(self.pin_name, ':', args)
+		if self.invert:
+			if type(self.pin)==PWM:
+				if self.type == int:
+					return self.pin.duty(1023-args[0]) if args else 1023-self.pin.duty()
+				return self.pin.duty((1-args[0])*1023) if args else 1-self.pin.duty()/1023
+			elif type(self.pin)==Pin:
+				return self.pin(1-args[0]) if args else 1-self.pin()
+			elif type(self.pin)==ADC:
+				return 1023-self.pin.read() if self.type==int else 1.0-self.pin.read_u16()/65535
+			elif type(self.pin)==int:
+				return Pin(self.pin)(1-args[0]) if args else 1-Pin(self.pin)()
+		else:
+			if type(self.pin)==PWM:
+				if self.type == int:
+					return self.pin.duty(args[0]) if args else self.pin.duty()
+				return self.pin.duty(args[0]*1023) if args else self.pin.duty()/1023
+			elif type(self.pin)==Pin:
+				return self.pin(*args)
+			elif type(self.pin)==ADC:
+				return self.pin.read() if self.type==int else self.pin.read_u16()/65535
+			elif type(self.pin)==int:
+				return Pin(self.pin)(*args)
+
+		if type(self.pin) in [tuple,list]:
+			if not args:
+				return self.state
+			self.state = args[0]
+			return execRC(self.pin[self.state])
+
+		return self.pin(*args) if callable(self.pin) else None
+
+
+_auto_pins = set()
+def auto_makepins(ns, dct):
+	for k, v in dct.items():
+		if k.endswith('pin_num'):
+			setattr(ns, k[:-4], PIN(v, k))
+			_auto_pins.add(k[:-4])
+
+def auto_status(ns, dct):
+	for name in _auto_pins:
+		if hasattr(ns, name) and name not in dct:
+			dct[name] = getattr(ns, name)()
+	for k, v in dct.items():
+		if type(v)==dict and hasattr(ns, k):
+			auto_status(getattr(ns, k), v)
+	return dct
+
+
+getDateTime = lambda: time.localtime(time.time()+3600*P['timezone'])
 
 def getTimeString(tm=None):
 	tm = tm or getDateTime()
@@ -81,10 +186,11 @@ def DelTimer(name):
 	Timers.pop(name, None)
 
 def prt(*args, **kwarg):
-	if DEBUG:
+	if P['DEBUG']:
 		print(getFullDateTime(), end=' ')
 		print(*args, **kwarg)
-	if SAVELOG and LOGFILE:
+	if P['SAVELOG']:
+		LOGFILE = P['LOGFILE']
 		try:
 			if os.stat(LOGFILE)[6]>1000000:
 				os.rename(LOGFILE, LOGFILE+'.old')
@@ -93,16 +199,6 @@ def prt(*args, **kwarg):
 		with open(LOGFILE, 'a') as fp:
 			print(getFullDateTime(), end=' ', file=fp)
 			print(*args, **kwarg, file=fp)
-
-def Try(*args):
-	exc = ''
-	for arg in args:
-		try:
-			if callable(arg):
-				return arg()
-		except Exception as e:
-			exc = e
-	return str(exc)
 
 def parse_data(s):
 	if type(s)==int:

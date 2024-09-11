@@ -3,7 +3,6 @@ import urequests as url
 from array import array
 from time import ticks_us, ticks_diff
 from math import sqrt
-import microWebSrv
 from microWebSrv import MicroWebSrv as MWS
 from machine import Pin, UART, PWM, ADC, reset, reset_cause
 gc.collect()
@@ -11,24 +10,17 @@ gc.collect()
 
 # Global variables
 RCFILE = 'rc-codes.txt'
+wifi = {}
 
-PIN_RF_IN = ''	# GPIO5 tested working
-PIN_RF_OUT = ''	# GPIO4 tested working
-PIN_IR_IN = ''	# GPIO14 tested working
-PIN_IR_OUT = ''	# GPIO12 tested working
-PIN_ASR_IN = ''	# GPIO 13 or 3: generic ASR chip sending UART output upon voice commands
-PIN_LD1115H = ''	# GPIO 13 or 3: HLK-LD1115H motion sensor
-PIN_DEBUG_LED = ''	# only GPIO 2 or None: for debug blinking
-use_BLE = False
 
 # Namespace for global variable
 import lib_common as g
 from lib_common import *
 
-wifi = {}
 
 def connect_wifi():
-	global wifi, sta_if
+	global wifi
+	sta_if = network.WLAN(network.STA_IF)
 	if sta_if.active():
 		sta_if.disconnect()
 		sta_if.active(False)
@@ -52,7 +44,8 @@ def connect_wifi():
 		return False
 
 def create_hotspot():
-	global wifi, ap_if
+	global wifi
+	ap_if = network.WLAN(network.AP_IF)
 	if ap_if.active():
 		wifi.update({'mode':'hotspot', 'config':ap_if.ifconfig()})
 		return
@@ -85,29 +78,24 @@ def get_rc_code(key):
 	if f' {key} ' not in g.rc_set:
 		return None
 	try:
-		fp = open(RCFILE)
-		for L in fp:
-			gc.collect()
-			its = L.split('\t')
-			if key == its[0]:
-				fp.close()
-				return eval(its[-1])
-		fp.close()
+		with open(RCFILE) as fp:
+			for L in fp:
+				gc.collect()
+				its = L.split('\t')
+				if key == its[0]:
+					return eval(its[-1])
 	except Exception as e:
 		prt(e)
 	return None
 
 def save_file(fn, gen):
 	try:
-		fp = open(fn, 'wb')
-		for L in gen:
-			fp.write(L)
-			gc.collect()
-		fp.close()
-		del fp
+		with open(fn, 'wb') as fp:
+			for L in gen:
+				fp.write(L)
+				gc.collect()
 		if fn==RCFILE:
 			build_rc()
-		gc.collect()
 		return 'Save OK'
 	except Exception as e:
 		prt(e)
@@ -229,6 +217,8 @@ def execRC(s):
 		return str(e)
 	return str(s)
 
+g.execRC = execRC
+
 # Relay execute
 lastCMD, lastTMS, lastSRC = '', 0, ''
 def execRL(s, SRC=''):
@@ -251,6 +241,17 @@ def Eval(cmd):
 	except Exception as e:
 		return str(e)
 
+def setParams(query_line):
+	try:
+		k, v = query_line.split('=', 1)
+		p, ks = P, k.split('.')
+		for i in ks[0:-1]:
+			p = p[i]
+		p[ks[-1]] = dft_eval(v, '')
+		return 'OK'
+	except Exception as e:
+		return str(e)
+
 asr_write = lambda t: Try(lambda: f'{g.server.uart_ASR_out.write(bytes.fromhex(t))} bytes sent')
 asr_print = lambda t: Try(lambda: [print(t, file=g.server.uart_ASR_out), 'message sent'][-1])
 def asr_block(fn, t):
@@ -263,41 +264,31 @@ class WebServer:
 		self.cmd = ''
 		routeHandlers = [
 			( "/", "GET", lambda clie, resp: resp.WriteResponseFile('/static/hub.html', "text/html") ),
-			( "/status", "GET", lambda clie, resp: resp.WriteResponseJSONOk({
+			( "/status", "GET", lambda clie, resp: resp.WriteResponseJSONOk(auto_status(g, {
 				'datetime': getFullDateTime(),
 				'heap_free': gc.mem_free(),
 				'stack_free': Try(lambda: 14336-micropython.stack_use()),
 				'flash_size': esp.flash_size(),
-				'g.timezone': g.timezone,
-				'g.RL_MAX_DELAY': g.RL_MAX_DELAY,
-				'g.DEBUG': g.DEBUG,
-				'g.SAVELOG': g.SAVELOG,
-				'g.LOGFILE': g.LOGFILE,
-				'g.SMART_CTRL': g.SMART_CTRL,
 				'LD1115H': g.LD1115H.status() if hasattr(g, 'LD1115H') else None,
-				'PIN_RF_IN': PIN_RF_IN,
-				'PIN_RF_OUT': PIN_RF_OUT,
-				'PIN_IR_IN': PIN_IR_IN,
-				'PIN_IR_OUT': PIN_IR_OUT,
-				'PIN_ASR_IN': PIN_ASR_IN,
-				'PIN_LD1115H': PIN_LD1115H,
-				'PIN_DEBUG_LED': PIN_DEBUG_LED,
-				}) ),
+				})) ),
+			( "/get_params", "GET", lambda clie, resp: resp.WriteResponseJSONOk(P) ),
+			( "/set_params", "GET", lambda clie, resp: setParams(clie.GetRequestQueryString(True)) ),
 			( "/hello", "GET", lambda *_: f'Hello world!' ),
 			( "/exec", "GET", lambda clie, resp: Exec(clie.GetRequestQueryString(True)) ),
 			( "/eval", "GET", lambda clie, resp: Eval(clie.GetRequestQueryString(True)) ),
-			( "/wifi_restart", "GET", lambda *_: self.set_cmd('restartWifi') ),
+			( "/set_cmd", "GET", lambda clie, resp: self.set_cmd(clie.GetRequestQueryString(True)) ),
 			( "/wifi_save", "POST", lambda clie, resp: save_file('secret.py', clie.YieldRequestContent()) ),
 			( "/wifi_load", "GET", lambda clie, resp: resp.WriteResponseJSONOk(read_py_obj('secret.py')) ),
-			( "/reboot", "GET", lambda *_: self.set_cmd('reboot') ),
-			( "/rf_record", "GET", lambda clie, resp: resp.WriteResponseJSONOk(rfc.recv()) ),
-			( "/ir_record", "GET", lambda clie, resp: resp.WriteResponseJSONOk(irc.recv()) ),
+			( "/rf_record", "GET", lambda *_: str(rfc.recv()) ),
+			( "/ir_record", "GET", lambda *_: str(irc.recv()) ),
 			( "/rc_run", "GET", lambda cli, *arg: execRC(cli.GetRequestQueryString(True))),
 			( "/rc_exec", "POST", lambda cli, *arg: execRC(cli.ReadRequestContent())),
 			( "/rl_run", "GET", lambda cli, *arg: execRL(cli.GetRequestQueryString(True), cli._addr)),
 			( "/rl_exec", "POST", lambda cli, *arg: execRL(cli.ReadRequestContent(), cli._addr)),
 			( "/rc_save", "POST", lambda clie, resp: save_file(RCFILE, clie.YieldRequestContent()) ),
 			( "/rc_load", "GET", lambda clie, resp: resp.WriteResponseFile(RCFILE) ),
+			( "/save_P", "GET", lambda *_: save_params() ),
+			( "/load_P", "GET", lambda *_: load_params() ),
 			( "/list_files", "GET", lambda clie, resp: resp.WriteResponseYield(list_files()) ),
 			( "/delete_files", "GET", lambda clie, resp: deleteFile(clie.GetRequestQueryString(True)) ),
 			( "/mkdir", "GET", lambda clie, resp: mkdir(clie.GetRequestQueryString(True)) ),
@@ -315,9 +306,8 @@ class WebServer:
 		self.poll.register(self.sock_web, select.POLLIN)
 		self.poll_tmout = -1
 		set_uart = lambda p: (sys.stdin, sys.stdout) if p==20 else (UART(1, 115200, tx=0, rx=1, timeout_char=100) if p==1 else None,)*2
-		# set_uart = lambda p: (sys.stdin, sys.stdout) if p==20 else (UART(1, 115200, tx=0, rx=1) if p==1 else None,)*2
-		self.uart_ASR, self.uart_ASR_out = set_uart(PIN_ASR_IN)
-		self.uart_LD1115H, self.uart_LD1115H_out = set_uart(PIN_LD1115H)
+		self.uart_ASR, self.uart_ASR_out = set_uart(P['PIN_ASR_IN'])
+		self.uart_LD1115H, self.uart_LD1115H_out = set_uart(P['PIN_LD1115H'])
 		self.sock_map = {self.sock_web: self.mws.run_once}
 		self.cpIP = captivePortalIP
 		if captivePortalIP:
@@ -329,12 +319,12 @@ class WebServer:
 		else:
 			self.sock_dns = None
 
-		if not g.SMART_CTRL:
+		if not P['SMART_CTRL']:
 			return
-		if self.uart_ASR != None:
+		if is_valid_pin('PIN_ASR_IN'):
 			self.poll.register(self.uart_ASR, select.POLLIN)
 			self.sock_map[self.uart_ASR] = self.handleASR
-		if self.uart_LD1115H != None:
+		if is_valid_pin('PIN_LD1115H'):
 			g.LD1115H = LD1115H(self.mws, self.uart_LD1115H)
 			self.poll_tmout = 1
 			self.poll.register(self.uart_LD1115H, select.POLLIN)
@@ -385,59 +375,57 @@ class WebServer:
 				self.sock_map[tp[0]]()
 				gc.collect()
 				time.sleep(0.1)
-				if self.cmd=='reboot':
-					machine.reset()
-				elif self.cmd=='restartWifi':
-					start_wifi()
-				elif self.cmd:
-					execRC(self.cmd)
-				self.cmd = ''
+				if self.cmd:
+					Exec(self.cmd)
+					self.cmd = ''
 			if hasattr(g, 'LD1115H'):
 				g.LD1115H.run1()
 
-# Globals
+# Load global rc
 build_rc()
-gc.collect()
 if '__init__' in g.rc_set:
 	execRC('__init__')
 
-MWS.DEBUG = g.DEBUG
-if type(PIN_DEBUG_LED) != int:
-	flashLED=lambda **kw:None
-else:
-	digitalWrite(PIN_DEBUG_LED, 1)
-	def flashLED(intv=0.1, N=3):
+# Load global params
+load_params(g)
+
+MWS.DEBUG = P['DEBUG']
+flashLED=lambda **kw:None
+if is_valid_pin('DEBUG_dpin_num'):
+	g.DEBUG_dpin(1)
+	def flashLED(intv=0.2, N=3):
 		for i in range(N):
-			digitalWrite(PIN_DEBUG_LED, 1)
+			g.DEBUG_dpin(1)
 			time.sleep(intv)
-			digitalWrite(PIN_DEBUG_LED, 0)
+			g.DEBUG_dpin(0)
 			time.sleep(intv)
 
 gc.collect()
 
-if use_BLE:
+if P['use_BLE']:
 	from lib_BLE import *
-if type(PIN_ASR_IN) == int:
+if is_valid_pin('PIN_ASR_IN'):
 	from lib_TCPIP import *
-if type(PIN_LD1115H) == int:
+if is_valid_pin('PIN_LD1115H'):
 	from lib_LD1115H import *
-if int in [type(i) for i in [PIN_RF_IN, PIN_RF_OUT, PIN_IR_IN, PIN_IR_OUT]]:
+if True in [is_valid_pin(i) for i in 'PIN_RF_IN PIN_RF_OUT PIN_IR_IN PIN_IR_OUT'.split()]:
 	from lib_RC import *
-if type(PIN_RF_IN)==int or type(PIN_RF_OUT)==int:
-	rfc = RF433RC(PIN_RF_IN, PIN_RF_OUT)
-if type(PIN_IR_IN)==int or type(PIN_IR_OUT)==int:
-	irc = IRRC(PIN_IR_IN, PIN_IR_OUT)
+if is_valid_pin('PIN_RF_IN') or is_valid_pin('PIN_RF_OUT'):
+	rfc = RF433RC(P['PIN_RF_IN'], P['PIN_RF_OUT'])
+if is_valid_pin('PIN_IR_IN') or is_valid_pin('PIN_IR_OUT'):
+	irc = IRRC(P['PIN_IR_IN'], P['PIN_IR_OUT'])
+
+gc.collect()
 
 ### MAIN function
 def run():
 	cpIP = start_wifi()
 	prt(wifi)
 	g.server = WebServer(captivePortalIP=cpIP)
+	SetTimer('syncNTP', 12*3600, True, syncNTP)
+	g.DEBUG_dpin(0)
 	if '__postinit__' in g.rc_set:
 		execRC('__postinit__')
-	if type(PIN_DEBUG_LED) == int:
-		digitalWrite(PIN_DEBUG_LED, 0)
-	SetTimer('syncNTP', 12*3600, True, syncNTP)
 	g.server.run()
 
 gc.collect()

@@ -26,7 +26,7 @@ def connect_wifi():
 		sta_if.active(False)
 		time.sleep(1)
 	try:
-		cred = eval(open('secret.py').read())
+		cred = read_py_obj('secret.py')
 		sta_if.active(True)
 		WIFI_IP, WIFI_SUBNET, WIFI_GATEWAY, WIFI_DNS = [cred.get(v, '') for v in ['WIFI_IP', 'WIFI_SUBNET', 'WIFI_GATEWAY', 'WIFI_DNS']]
 		if WIFI_IP and WIFI_SUBNET and WIFI_GATEWAY and WIFI_DNS:
@@ -165,7 +165,7 @@ def execRC(s):
 			return '\r\n'.join(res)
 		elif type(s)==str:
 			if s.startswith('http'):
-				url.get(url_encode(s)).close()
+				url.get(url_encode(s),timeout=5).close()
 			else:
 				code = get_rc_code(s)
 				return execRC(eval(s) if code==None else code)
@@ -250,6 +250,7 @@ class WebServer:
 			( "/upload_file", "POST", lambda clie, resp: save_file(clie.GetRequestQueryString(True), clie.YieldRequestContent()) ),
 		]
 		self.mws = MWS(routeHandlers=routeHandlers, port=port, bindIP='0.0.0.0', webPath="/static")
+		self.mws.CommonHeader = {'Access-Control-Allow-Origin': '*'}
 		self.sock_web = self.mws.run(max_conn=max_conn, loop_forever=False)
 		self.poll = select.poll()
 		self.poll.register(self.sock_web, select.POLLIN)
@@ -338,9 +339,8 @@ if '__init__' in g.rc_set:
 load_params(g)
 
 MWS.DEBUG = P['DEBUG']
-if not is_valid_pin('DEBUG_dpin_num'):
-	flashLED=lambda **kw:None
-else:
+flashLED=lambda **kw:None
+if is_valid_pin('DEBUG_dpin_num'):
 	g.DEBUG_dpin(1)
 	def flashLED(intv=0.2, N=3):
 		for i in range(N):

@@ -34,8 +34,19 @@ input {font-size:15px;}
 <script>
 	var xmlHttp = new XMLHttpRequest();
 	function getById(id_str) { return document.getElementById(id_str); }
-	function GET(url, method = 'GET', data = null) {
-		xmlHttp.open(method, url, false);
+	function GET(url, onOkay=null, onFail=null) {
+		var xmlHttp = new XMLHttpRequest();
+		xmlHttp.open('GET', url, onOkay!=null||onFail!=null);
+		if(onOkay!=null) xmlHttp.onload = onOkay;
+		if(onFail!=null) xmlHttp.onerror = xmlHttp.onabort = xmlHttp.ontimeout = onFail;
+		xmlHttp.send(null);
+		return xmlHttp.responseText;
+	}
+	function POST(url, data = null, onOkay=null, onFail=null){
+		var xmlHttp = new XMLHttpRequest();
+		xmlHttp.open('POST', url, onOkay!=null||onFail!=null);
+		if(onOkay!=null) xmlHttp.onload = onOkay;
+		if(onFail!=null) xmlHttp.onerror = xmlHttp.onabort = xmlHttp.ontimeout = onFail;
 		xmlHttp.send(data);
 		return xmlHttp.responseText;
 	}
@@ -49,7 +60,7 @@ input {font-size:15px;}
 		var ret = '';
 		for (var n = 1; n <= N; ++n)
 			ret += [1, 2, 3].map(x => tb.rows[n].children[x].textContent).join('\t') + '\n';
-		alert(GET('/rc_save', 'POST', ret));
+			alert(POST('/rc_save', ret));
 	}
 	function load() {
 		try {
@@ -58,11 +69,8 @@ input {font-size:15px;}
 			var lines = txt.split('\n');
 			while (tb.rows.length > 1) tb.deleteRow(1);
 			rid = 1;
-			for (var line of lines){
-				var row = add_new_row();
-				[row.children[0].textContent, row.children[1].textContent] = line.split('\t');
-				row.children[2].children[row.children[0].textContent.endsWith('/')?0:1].style.display = "none";
-			}
+			for (var line of lines)
+				add_new_row(line.split('\t'));
 		} catch (err) {
 			alert(err);
 		}
@@ -102,11 +110,17 @@ input {font-size:15px;}
 			var elem = getById('R'+rid);
 			var oldfn = elem.children[0].textContent.replace(/\/+$/, '');
 			var newfull = oldfn.split('/').slice(0,-1).join('/') +'/' + newfn;
-			alert(GET('/move_file', 'POST', oldfn+'\n'+newfull).trim());
+			alert(POST('/move_file', oldfn+'\n'+newfull).trim());
 			load();
 		} catch (err) {
 			alert(err);
 		}
+	}
+	function flash(rid){
+		var fn = getById('R'+rid).children[0].textContent;
+		var bn = fn.split('/').at(-1);
+		if(fn.endsWith('.mpy')) GET(`/eval?esp.add_frozen("${fn}","${bn}")`, (e)=>{alert(e.target.responseText)});
+		else if(fn.endsWith('.bin')) GET(`/exec?import inisetup;inisetup.fwupdate("${fn}")`);
 	}
 	function preventDefaults(e){e.preventDefault();}
 	function onDrop(e){
@@ -117,7 +131,7 @@ input {font-size:15px;}
 			dstFile = e.target.textContent;
 			drag_rid = 0;
 			if(srcFile==dstFile) return;
-			alert(GET('/move_file', 'POST', srcFile+'\n'+dstFile+'\n'));
+			alert(POST('/move_file', srcFile+'\n'+dstFile+'\n'));
 			load();
 		}else{
 			var fs = Array.from(e.dataTransfer.files);
@@ -133,7 +147,7 @@ input {font-size:15px;}
 				var rd = new FileReader();
 				var fn = dstPath.endsWith('/')?(dstPath+f.name):dstPath;
 				rd.onload = () => {
-					res += GET('/upload_file?'+fn, 'POST', rd.result)+' : '+fn+'\r\n';
+					res += POST('/upload_file?'+fn, rd.result)+' : '+fn+'\r\n';
 					up1();
 				};
 				rd.readAsArrayBuffer(f);
@@ -141,20 +155,21 @@ input {font-size:15px;}
 			up1();
 		}
 	}
-	function add_new_row() {
+	function add_new_row(its) {
 		var row = tb.insertRow(tb.rows.length);
 		row.setAttribute('id', 'R'+rid);
-		row.innerHTML = `<td class="ptr" draggable=true ondragstart="drag_rid=${rid}" ondragover="preventDefaults(event)"></td> <td></td>
-<td style="text-align:center">
-	<input type='button' onclick='download(${rid})' value='Download' title="Download this file/folder">
-	<input type='button' onclick='mkdir(${rid})' value='mkdir' title="Create a new folder under this folder">
-	<input type='button' onclick='rename(${rid})' value='Rename' title="Rename this file/folder">
+		row.innerHTML = `<td class="ptr" draggable=true ondragstart="drag_rid=${rid}" ondragover="preventDefaults(event)">${its[0]}</td>
+<td>${its[1]}</td>
+<td style="text-align:center">`+ (its[0].endsWith('/')?
+	`<input type='button' onclick='mkdir(${rid})' value='mkdir' title="Create a new folder under this folder">`
+	:`<input type='button' onclick='download(${rid})' value='Download' title="Download this file">`)
+	+((its[0].endsWith('.mpy')||its[0].endsWith('.bin'))?`<input type='button' onclick='flash(${rid})' value='Flash' title="Flash firmware">`:``)
+	+`<input type='button' onclick='rename(${rid})' value='Rename' title="Rename this file/folder">
 	<input type='button' onclick='deleteFile(${rid})' value='Delete' title="Delete this file/folder">
 </td>`;
 		rid++;
 		var obj = row.children[0];
 		obj.addEventListener("drop", onDrop, false);
-		return row;
 	}
 	window.onload = () => { load(); }
 </script>

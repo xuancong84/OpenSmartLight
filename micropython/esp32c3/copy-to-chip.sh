@@ -44,9 +44,11 @@ done
 
 copy_if rc-codes.txt
 
-set +e
-pyboard -f mkdir  static
-set -e
+if ! pyboard -f ls static/; then
+	set +e
+	pyboard -f mkdir  static
+	set -e
+fi
 
 copy_if static/*
 copy_if *.tcp

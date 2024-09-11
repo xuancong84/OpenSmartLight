@@ -47,7 +47,7 @@
   from {bottom: 30px; opacity: 1;}
   to {bottom: 0; opacity: 0;}
 }
-.content_editable {
+.wrap {
     white-space: pre-wrap;       /* css-3 */
     white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
     white-space: -pre-wrap;      /* Opera 4-6 */
@@ -222,6 +222,7 @@ input {font-size:15px;}
 	var requesting = false;
 	var snackbar = getById('snackbar');
 	var keepUpdating = getById('keepUpdating');
+	function isString(s){return typeof s === 'string' || s instanceof String;}
 	function GET(url, onOkay=null, onFail=null) {
 		var xmlHttp = new XMLHttpRequest();
 		xmlHttp.open('GET', url, onOkay!=null||onFail!=null);
@@ -239,7 +240,7 @@ input {font-size:15px;}
 		return xmlHttp.responseText;
 	}
 	function toast(msg) {
-		if(typeof msg != 'string')
+		if(!isString(msg))
 			msg = msg.target.responseText || (msg.target.statusText+' '+msg.target.status);
 		var randint = Math.round(Math.random()*10000);
 		var e = document.createElement('div');
@@ -271,13 +272,14 @@ input {font-size:15px;}
 	function save() {
 		var N = tb.rows.length - 2;
 		var ret = '';
+		var X = [...Array(tb.rows[0].childElementCount).keys()].slice(1,-1);
 		for (var n = 1; n <= N; ++n){
-			for(var x of [1,2,3])
+			for(var x of X)
 				if(tb.rows[n].children[x].textContent.includes('\n') || tb.rows[n].children[x].textContent.includes('\r')){
 					alert(`Error: Row ${n} Column ${x} contains multiple lines`);
 					return;
 				}
-			ret += [1, 2, 3].map(x => tb.rows[n].children[x].textContent).join('\t') + '\n';
+			ret += X.map(x => tb.rows[n].children[x].textContent).join('\t') + '\n';
 		}
 		POST('/rc_save', ret, toast, toast);
 	}
@@ -332,8 +334,8 @@ input {font-size:15px;}
 		try{G = JSON.parse(txt)} catch(e){return}
 		set_fields2(getById(box_name), G);
 	}
-	function clear_all(){
-		while (tb.rows.length > 2) tb.deleteRow(1);
+	function clear_all(t=tb, n=2){
+		while (t.rows.length > n) t.deleteRow(1);
 	}
 	function update(mask=1){
 		if(requesting) return;
@@ -395,9 +397,9 @@ input {font-size:15px;}
 		var row = tb.insertRow(insp);
 		row.setAttribute('id', 'R'+rid);
 		row.innerHTML = `<th class="ptr" draggable=true ondragstart="drag_rid=${rid};" ondrop="drop(${rid})" ondragover="allowDrop(event)">${insp}</th>
-<td contenteditable="true" class="content_editable"></td>
-<td contenteditable="true" class="content_editable"></td>
-<td contenteditable="true" class="content_editable"></td>
+<td contenteditable="true" class="wrap"></td>
+<td contenteditable="true" class="wrap"></td>
+<td contenteditable="true" class="wrap"></td>
 <td style="text-align:center">
 	<input type='button' onclick='recordRF(${rid})' value='Record-RF' title="Record 433MHz remote controller signal">
 	<input type='button' onclick='recordIR(${rid})' value='Record-IR' title="Record infrared remote controller signal">

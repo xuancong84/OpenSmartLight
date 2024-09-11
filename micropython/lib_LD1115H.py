@@ -60,7 +60,7 @@ class LD1115H:
 		self.led_discharge_dpin(False)
 
 		gc.collect()
-		
+
 	def status(self):
 		return {
 			'is_smartlight_on': self.is_smartlight_on,
