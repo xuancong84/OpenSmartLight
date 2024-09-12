@@ -4,7 +4,6 @@ from time import sleep, sleep_ms, ticks_ms
 from math import sqrt
 from array import array
 from lib_common import *
-from microWebSrv import MicroWebSrv as MWS
 
 gc.collect()
 
@@ -36,9 +35,10 @@ class LD1115H:
 		'midnight_starts': ["23:00", "23:00", "23:00", "23:00", "00:00", "00:00", "23:00"],
 		'midnight_stops': ["07:00", "07:00", "07:00", "07:00", "07:00", "07:00", "07:00"]
 	}
-	def __init__(self, mws:MWS, uart):  # Typically ~15 frames
+
+	def __init__(self, uart):  # Typically ~15 frames
 		# init status
-		self.tm_last_ambient = int(time.time()*1000)
+		self.tm_last_ambient = round(time.time()*1000)
 		self.elapse = 0
 		self.uart = uart
 
@@ -61,8 +61,6 @@ class LD1115H:
 
 		# keep PWM capacitor discharged before LED smooth on
 		self.led_discharge_dpin(False)
-
-		gc.collect()
 
 	def status(self):
 		return {

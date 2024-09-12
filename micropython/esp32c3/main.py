@@ -271,6 +271,13 @@ class WebServer:
 				'flash_size': esp.flash_size(),
 				'LD1115H': g.LD1115H.status() if hasattr(g, 'LD1115H') else None,
 				})) ),
+			# ( "/status", "GET", lambda clie, resp: resp.WriteResponseJSONOk({
+			# 	'datetime': getFullDateTime(),
+			# 	'heap_free': gc.mem_free(),
+			# 	'stack_free': Try(lambda: 14336-micropython.stack_use()),
+			# 	'flash_size': esp.flash_size(),
+			# 	# 'LD1115H': g.LD1115H.status() if hasattr(g, 'LD1115H') else None,
+			# 	}) ),
 			( "/get_params", "GET", lambda clie, resp: resp.WriteResponseJSONOk(P) ),
 			( "/set_params", "GET", lambda clie, resp: setParams(clie.GetRequestQueryString(True)) ),
 			( "/hello", "GET", lambda *_: f'Hello world!' ),
@@ -325,7 +332,8 @@ class WebServer:
 			self.poll.register(self.uart_ASR, select.POLLIN)
 			self.sock_map[self.uart_ASR] = self.handleASR
 		if is_valid_pin('PIN_LD1115H'):
-			g.LD1115H = LD1115H(self.mws, self.uart_LD1115H)
+			g.LD1115H = LD1115H(self.uart_LD1115H)
+			gc.collect()
 			self.poll_tmout = 1
 			self.poll.register(self.uart_LD1115H, select.POLLIN)
 			self.sock_map[self.uart_LD1115H] = g.LD1115H.handleUART
@@ -420,16 +428,14 @@ gc.collect()
 ### MAIN function
 def run():
 	cpIP = start_wifi()
+	gc.collect()
 	prt(wifi)
 	g.server = WebServer(captivePortalIP=cpIP)
+	gc.collect()
 	SetTimer('syncNTP', 12*3600, True, syncNTP)
 	g.DEBUG_dpin(0)
 	if '__postinit__' in g.rc_set:
 		execRC('__postinit__')
 	g.server.run()
 
-gc.collect()
 
-if not isFile('debug') or reset_cause()==1:
-	run()
-	reset()

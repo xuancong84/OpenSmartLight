@@ -32,6 +32,14 @@ copy_if() {
 	done
 }
 
+copy2root_if() {
+	for f in "$@"; do
+		if [ -s "$f" ]; then
+			pyboard -f cp "$f" :
+		fi
+	done
+}
+
 mpy-cross ../microWebSrv.py
 pyboard -f cp ../microWebSrv.mpy :
 
@@ -41,8 +49,6 @@ for f in main.py modules.py rescue.py lib*.py; do
 	echo "Copying $fmpy ..."
 	copy_if $fmpy
 done
-
-copy_if rc-codes.txt
 
 if ! pyboard -f ls static/; then
 	set +e
@@ -54,5 +60,13 @@ copy_if static/*
 copy_if *.tcp
 copy_if webrepl_cfg.py
 copy_if secret.py
-copy_if boot.py
 
+for arg in "$@"; do
+	if [ -d "$arg" ]; then
+		copy2root_if $arg/*
+	elif [ -f "$arg" ]; then
+		copy_if "$arg"
+	fi
+done
+
+copy_if boot.py

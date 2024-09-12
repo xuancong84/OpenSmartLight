@@ -22,6 +22,8 @@ try :
 except :
 	pass
 
+g_mv = memoryview(bytearray(1024))
+
 class MicroWebSrvRoute :
 	def __init__(self, route, method, func, routeArgNames, routeRegex) :
 		self.route         = route        
@@ -310,7 +312,7 @@ class MicroWebSrv :
 								except Exception as ex :
 									if DEBUG:
 										print(f'MicroWebSrv handler exception:\r\n  - In route {self._method} {self._resPath}\r\n  - {ex}')
-									raise ex
+									response.WriteResponseJSONError(500, obj={'Message': str(ex)})
 							elif self._method.upper() == "GET" :
 								filepath = self._microWebSrv._physPathFromURLPath(self._resPath)
 								if filepath :
@@ -523,16 +525,18 @@ class MicroWebSrv :
 
 		# ------------------------------------------------------------------------
 
-		def _write(self, data, strEncoding='ISO-8859-1') :
+		def _write(self, data, strEncoding='utf8') :
 			if data :
 				if type(data) == str :
 					data = data.encode(strEncoding)
-				data = memoryview(data)
-				while data :
-					n = self._client._socketfile.write(data)
-					if n is None :
+					gc.collect()
+				mv = memoryview(data)
+				N = len(data)
+				while N>0:
+					try:
+						N -= self._client._socketfile.write(mv[-N:])
+					except:
 						return False
-					data = data[n:]
 				return True
 			return False
 
@@ -635,15 +639,15 @@ class MicroWebSrv :
 		# ------------------------------------------------------------------------
 
 		def WriteResponseFile(self, filepath, contentType=None, headers=None):
+			global g_mv
 			try:
 				size = stat(filepath)[6]
 				self._writeBeforeContent(200, headers, contentType, None, size)
-				buf = bytearray(1024)
 				fp = open(filepath, 'rb')
 				while size>0:
-					x = fp.readinto(buf)
+					x = fp.readinto(g_mv)
 					size -= x
-					if not self._write(buf[:x]):
+					if not self._write(g_mv[:x]):
 						return False
 				return True
 			except Exception as e:

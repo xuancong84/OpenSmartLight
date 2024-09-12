@@ -14,8 +14,14 @@ except:
 try:
 	open('debug').close()
 except:
-	import rescue
+	import gc, rescue
 	rescue.rescue()
 	del rescue
+	gc.collect()
 
 from main import *
+gc.collect()
+
+if not isFile('debug') or reset_cause()==1:
+	run()
+	reset()

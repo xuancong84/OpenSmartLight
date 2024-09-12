@@ -15,6 +15,7 @@ langcodes
 unidecode
 natsort
 git+https://github.com/klattimer/LGWebOSRemote.git
+qrcode
 
 # below are optional
 ipython

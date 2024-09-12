@@ -1,4 +1,4 @@
-import os, time, ntptime, network
+import os, time, ntptime, network, gc
 from machine import Timer, ADC, Pin, PWM
 
 Timers = {}	# {'timer-name': [last-stamp-sec, period-in-sec, True (is periodic or oneshot), callback_func]}
@@ -156,7 +156,8 @@ def syncNTP():
 			ntptime.settime()
 			break
 		except:
-			pass
+			time.sleep(1)
+			gc.collect()
 	t = time.time()-t
 	for k, v in Timers.items():
 		v[0] += t
