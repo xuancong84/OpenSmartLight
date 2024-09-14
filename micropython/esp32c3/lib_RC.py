@@ -106,7 +106,7 @@ class RC():
 		p = self.tx_pin
 
 		# ** Time critical **
-		st_irq = machine.disable_irq()
+		# st_irq = machine.disable_irq()
 		for i in range(self.nrepeat):
 			level = init_level^self.tx_inv
 			p(level)
@@ -116,7 +116,7 @@ class RC():
 				level = 1-level
 				while ticks_us()<tm_til: pass
 				p(level)
-		machine.enable_irq(st_irq)
+		# machine.enable_irq(st_irq)
 		# ** End of time critical **
 
 		p(self.tx_inv)	# turn off radio
