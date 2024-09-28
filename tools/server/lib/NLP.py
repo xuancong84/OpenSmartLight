@@ -30,15 +30,16 @@ def Open(fn, mode='r', **kwargs):
 KKS = pykakasi.kakasi()
 cookies_opt = []
 TransNatSort = lambda lst: natsorted(lst, key=unidecode)
+isdir = lambda t: os.path.isdir(expand_path(t))
 listdir = lambda t: TransNatSort(Try(lambda: os.listdir(expand_path(t)), []))
-showdir = lambda t: [(p+'/' if os.path.isdir(os.path.join(t,p)) else p) for p in listdir(t) if not p.startswith('.')]
+showdir = lambda t: [(p+'/' if isdir(os.path.join(t,p)) else p) for p in listdir(t) if not p.startswith('.')]
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
 translit = lambda t: unidecode(t).lower()
 get_alpha = lambda t: ''.join([c for c in t if c in string.ascii_letters])
 get_alnum = lambda t: ''.join([c for c in t if c in string.ascii_letters+string.digits])
 to_romaji = lambda t: ' '.join([its['hepburn'] for its in KKS.convert(t)])
 ls_media_files = lambda fullpath, exts=media_file_exts: [f'{fullpath}/{f}'.replace('//','/') for f in listdir(fullpath) if not f.startswith('.') and '.'+f.split('.')[-1].lower() in exts]
-ls_subdir = lambda fullpath: [g.rstrip('/') for f in listdir(fullpath) for g in [f'{fullpath}/{f}'.replace('//','/')] if not f.startswith('.') and os.path.isdir(g)]
+ls_subdir = lambda fullpath: [g.rstrip('/') for f in listdir(fullpath) for g in [f'{fullpath}/{f}'.replace('//','/')] if not f.startswith('.') and isdir(g)]
 mrl2path = lambda t: unquote(t).replace('file://', '').strip() if t.startswith('file://') else (t.strip() if t.startswith('/') else '')
 is_json_lst = lambda s: s.startswith('["') and s.endswith('"]')
 load_m3u = lambda fn: [i for L in Open(fn).readlines() for i in [mrl2path(L)] if i]
@@ -161,6 +162,13 @@ def findSong(name, lang=None, flist=[], unique=False):
 	return None
 
 
+def match_episode(episode:int, lst):
+	for ii,it in enumerate(lst):
+		for num_field in re.findall(r'[0-9]+', os.path.basename(it)):
+			if int(num_field)==episode:
+				return ii
+	return min(episode-1, len(lst))
+
 def findMedia(name, lang=None, stack=0, stem=None, episode=None, base_path=SHARED_PATH):
 	if episode == None:
 		stem = name
@@ -187,7 +195,7 @@ def findMedia(name, lang=None, stack=0, stem=None, episode=None, base_path=SHARE
 		if res!=None:
 			return (item, res)
 		if episode and len(lst2)>=episode:
-			return (item, episode-1)
+			return (item, match_episode(episode, lst2))
 		return item
 	if stack<MAX_WALK_LEVEL:
 		for d in d_lst:

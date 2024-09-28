@@ -82,7 +82,7 @@ h1 {
   <span onclick="promptOpenFolder()" title="显示当前视频的URL链接">🔗</span>
  </div>
  <div id="menu1" class="playmenu" style="font-size: xx-large; font-weight: bold; text-align: center; height: 80%;">
-  <h1 id="header1"><span id="title1">{{listname}}</span><span id="loopButton" style="position:absolute; right: 4px; cursor:pointer" onclick="toggle_loop()">🔁</span></h1>
+  <h1 id="header1"><span id="title1">{{listname}}</span><span id="loopButton" style="position:absolute; right: 4px; cursor:pointer" onclick="toggle_loop()" title="单曲循环">🔁</span></h1>
   <div id="list1" style="overflow-y: scroll; max-height: 90%;">
     {% for name in playlist %}
     <a id="a{{loop.index0}}" onclick="ws.send('goto_idx {{loop.index0}}')">{{name}}</a>
@@ -90,7 +90,7 @@ h1 {
   </div>
  </div>
  <div id="menu2" class="playmenu" style="font-size: xx-large; font-weight: bold; top: 8px; text-align: left; height: 80%;">
-  <h1 id="header2"><span id="title2"></span><span style="position:absolute; right:4px; cursor:pointer;" onclick="lsdir('.')">🏠</span></h1>
+  <h1 id="header2"><span id="title2"></span><span style="position:absolute; right:4px; cursor:pointer;" onclick="lsdir('.')" title="返回当前播放目录">🏠</span></h1>
   <div id="list2" style="overflow-y: scroll; max-height: 90%;"></div>
  </div>
  <div id="menu3" class="playmenu" style="font-size: x-large; font-weight: bold; text-align: left; transform:none; width:auto; max-height: 50%;">
@@ -243,7 +243,7 @@ function onRecStop(){
   req.send(blob);
 }
 function lsdir(tgtDir=null){
-  if(tgtDir=='.') tgtDir=v.src.split('/').slice(4,-1).join('/');
+  if(tgtDir=='.') tgtDir=decodeURI(v.src.split('/').slice(4,-1).join('/'));
   if(tgtDir!=null) cur_dir=tgtDir.replace(/\/*$/, '');
   ws.send('lsdir '+cur_dir);
 }

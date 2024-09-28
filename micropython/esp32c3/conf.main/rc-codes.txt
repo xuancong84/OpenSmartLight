@@ -85,6 +85,9 @@ MRLN	主人房吊灯开启	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise',
 MRLF	主人房吊灯关闭	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba32174d24cbfa8171221b55c7d6bc}
 GRLN	客人房吊灯开启	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151bab2178d24cbfa58716c1555896706}
 GRLF	客人房吊灯关闭	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba32178d24cbfa487182fb55675c13}
+GRL9	客人房吊灯调至最亮	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'0201011afff9084913f069254e3151ba3e178d5bb4fa097133ca55d6030a'}
+GRL5	客人房吊灯调至中等	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'0201011afff9084913f069254e3151ba3e178d245afa15715da455b895e7'}
+GRL1	客人房吊灯调至最暗	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':'0201011afff9084913f069254e3151ba3e178d2493fab971c0395525a95c'}
 CRLN	中间房吊灯开启	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151bab217cd24cbfa3c71cab3552f72b5}
 CRLF	中间房吊灯关闭	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3217cd24cbfadc71ed9455083cd9}
 MRL9	主人房吊灯最亮	好的	1		{'protocol': 'BLE', 'cmd': 'gap_advertise', 'data':0x0201011afff9084913f069254e3151ba3e174d9b74fa997166df5583fe87}

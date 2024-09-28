@@ -29,7 +29,7 @@ class RC():
 		cur_freq = machine.freq()
 		machine.freq(160000000)
 		sleep(0.1)
-		st_irq = machine.disable_irq()
+		# st_irq = machine.disable_irq()
 		tm_til = ticks_us()+self.recv_dur
 		init_level = v = p()
 		for x in range(nedges):
@@ -37,7 +37,7 @@ class RC():
 			arr[x] = ticks_us()
 			if arr[x]>tm_til: break
 			v = p()
-		machine.enable_irq(st_irq)
+		# machine.enable_irq(st_irq)
 		machine.freq(cur_freq)
 		# ** End of time critical **
 
@@ -106,17 +106,22 @@ class RC():
 		p = self.tx_pin
 
 		# ** Time critical **
-		# st_irq = machine.disable_irq()
-		for i in range(self.nrepeat):
-			level = init_level^self.tx_inv
-			p(level)
-			tm_til = ticks_us()
-			for dt in arr:
-				tm_til += dt
-				level = 1-level
-				while ticks_us()<tm_til: pass
-				p(level)
-		# machine.enable_irq(st_irq)
+		print('DEBUG0', self.nrepeat, init_level, self.tx_inv, arr)
+		st_irq = machine.disable_irq()
+		tm_til = ticks_us()+1000
+		while ticks_us()<tm_til: pass
+
+		# for i in range(self.nrepeat):
+		# 	level = init_level^self.tx_inv
+		# 	p(level)
+		# 	tm_til = ticks_us()
+		# 	for dt in arr:
+		# 		tm_til += dt
+		# 		level = 1-level
+		# 		while ticks_us()<tm_til: pass
+		# 		p(level)
+		machine.enable_irq(st_irq)
+		print('DEBUG tms=', t1, t2, t3)
 		# ** End of time critical **
 
 		p(self.tx_inv)	# turn off radio

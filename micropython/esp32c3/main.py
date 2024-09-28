@@ -224,7 +224,7 @@ lastCMD, lastTMS, lastSRC = '', 0, ''
 def execRL(s, SRC=''):
 	global lastCMD, lastTMS, lastSRC
 	tms = time.time()
-	run = s!=lastCMD or abs(tms-lastTMS)>g.RL_MAX_DELAY or SRC==lastSRC
+	run = s!=lastCMD or abs(tms-lastTMS)>P['RL_MAX_DELAY'] or SRC==lastSRC
 	lastCMD, lastTMS, lastSRC = s, tms, SRC
 	return execRC(s) if run else 'SKIP'
 
@@ -271,13 +271,6 @@ class WebServer:
 				'flash_size': esp.flash_size(),
 				'LD1115H': g.LD1115H.status() if hasattr(g, 'LD1115H') else None,
 				})) ),
-			# ( "/status", "GET", lambda clie, resp: resp.WriteResponseJSONOk({
-			# 	'datetime': getFullDateTime(),
-			# 	'heap_free': gc.mem_free(),
-			# 	'stack_free': Try(lambda: 14336-micropython.stack_use()),
-			# 	'flash_size': esp.flash_size(),
-			# 	# 'LD1115H': g.LD1115H.status() if hasattr(g, 'LD1115H') else None,
-			# 	}) ),
 			( "/get_params", "GET", lambda clie, resp: resp.WriteResponseJSONOk(P) ),
 			( "/set_params", "GET", lambda clie, resp: setParams(clie.GetRequestQueryString(True)) ),
 			( "/hello", "GET", lambda *_: f'Hello world!' ),
@@ -437,5 +430,3 @@ def run():
 	if '__postinit__' in g.rc_set:
 		execRC('__postinit__')
 	g.server.run()
-
-
