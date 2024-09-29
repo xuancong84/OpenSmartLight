@@ -1,4 +1,4 @@
-import os, sys, gc, machine, network, socket, select, time, random, esp, micropython
+import os, sys, gc, machine, network, socket, select, time, random, esp, esp32, micropython
 import urequests as url
 from array import array
 from time import ticks_us, ticks_diff
@@ -259,6 +259,9 @@ def asr_block(fn, t):
 	g.server.uart_ASR.readline()
 	return ret
 
+def heap_free():
+	return sum([q[1] for q in esp32.idf_heap_info(esp32.HEAP_DATA)])
+
 class WebServer:
 	def __init__(self, host='0.0.0.0', captivePortalIP='', port=80, max_conn=0):
 		self.cmd = ''
@@ -266,7 +269,7 @@ class WebServer:
 			( "/", "GET", lambda clie, resp: resp.WriteResponseFile('/static/hub.html', "text/html") ),
 			( "/status", "GET", lambda clie, resp: resp.WriteResponseJSONOk(auto_status(g, {
 				'datetime': getFullDateTime(),
-				'heap_free': gc.mem_free(),
+				'heap_free': f'{gc.mem_free()} {heap_free()}',
 				'stack_free': Try(lambda: 14336-micropython.stack_use()),
 				'flash_size': esp.flash_size(),
 				'LD1115H': g.LD1115H.status() if hasattr(g, 'LD1115H') else None,

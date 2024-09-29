@@ -658,7 +658,8 @@ def tv_wscmd(name, cmd):
 		ws = ip2websock[ip]
 		tvd = ip2tvdata[ip]
 		if cmd == 'pause':
-			ws.send('v.pause()')
+			ws.send(' pause()')
+			return ws.receive()
 		elif cmd == 'resume':
 			ws.send('v.play()')
 		elif cmd == 'rewind':
@@ -816,7 +817,7 @@ class VoicePrompt:
 	def __enter__(self):	# preserve environment
 		global player
 		if self.tv_name and is_tv_on(self.tv_name):
-			tv_wscmd(self.tv_name, 'pause')
+			self.paused = tv_wscmd(self.tv_name, 'pause')
 			self.cur_vol = tvVolume(self.tv_name)
 		elif player!=None:
 			self.cur_sta = player.is_playing()
@@ -829,7 +830,8 @@ class VoicePrompt:
 		if self.tv_name:
 			if self.cur_vol:
 				tvVolume(self.tv_name, self.cur_vol)
-			tv_wscmd(self.tv_name, 'resume')
+			if self.paused != 'true':
+				tv_wscmd(self.tv_name, 'resume')
 		else:
 			if self.cur_vol != None:
 				set_volume(self.cur_vol)

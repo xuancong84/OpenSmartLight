@@ -50,28 +50,60 @@ h1 {
   text-decoration: none; /* Remove underline from links */
 }
 .playmenu a:hover { background-color: #aaa; }
+.unsel {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+.xxlarge { font-size: xx-large; }
+.xlarge { font-size: x-large; }
 .larger { font-size: larger; }
 .vsb { margin-top: 8px; }
 </style>
 </head>
 <body style="background-color:black; overflow: hidden;">
- <video id='video0' autoplay controls onended="ws.send('next')" onclick="clickvid(event)"
-    onseeked="markCounter=0" ontouchmove="timerRst()" onmousemove="timerRst()">
- </video>
+ <div id="vcontainer">
+  <video id='video0' autoplay controls onended="ws.send('next')" onclick="clickvid(event)"
+      onseeked="markCounter=0" ontouchmove="timerRst()" onmousemove="timerRst()">
+  </video>
+  <div id="flashmsg" class="overlay" style="font-size: xx-large; left:50%; top:20%; transform: translate(-50%, -50%); z-index: 100 !important; display: none;"></div>
+ </div>
+ <div id="controls" style="display: none; z-index: 100 !important; font-size: xx-large;">
+  <div class="overlay unsel" style="left:25%; bottom:var(--edge-pad); transform: translateX(-50%);" onclick="handleKey('<')" title="浏览文件夹">🏃-</div>
+  <div class="overlay unsel" style="left:75%; bottom:var(--edge-pad); transform: translateX(-50%);" onclick="handleKey('>')" title="浏览文件夹">🏃+</div>
+  <div class="overlay xlarge unsel" style="left:0; top:calc(20% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',0)" title="-4s">❬</div>
+  <div class="overlay xlarge unsel" style="left:0; top:calc(30% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',1)" title="-8s">❬❬</div>
+  <div class="overlay xlarge unsel" style="left:0; top:calc(40% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',2)" title="-15s">❬❬❬</div>
+  <div class="overlay xlarge unsel" style="left:0; top:calc(60% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',3)" title="-30s">❰</div>
+  <div class="overlay xlarge unsel" style="left:0; top:calc(70% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',4)" title="-1min">❰❰</div>
+  <div class="overlay xlarge unsel" style="left:0; top:calc(80% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',5)" title="-2min">❰❰❰</div>
+  <div class="overlay xlarge unsel" style="right:0; top:calc(20% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',0)" title="+4s">❭</div>
+  <div class="overlay xlarge unsel" style="right:0; top:calc(30% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',1)" title="+8s">❭❭</div>
+  <div class="overlay xlarge unsel" style="right:0; top:calc(40% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',2)" title="+15s">❭❭❭</div>
+  <div class="overlay xlarge unsel" style="right:0; top:calc(60% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',3)" title="+30s">❱</div>
+  <div class="overlay xlarge unsel" style="right:0; top:calc(70% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',4)" title="+1min">❱❱</div>
+  <div class="overlay xlarge unsel" style="right:0; top:calc(80% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',5)" title="+2min">❱❱❱</div>
+ </div>
  <div id="ovl">
-  <div class="overlay" style="left:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('prev')">◀</div>
-  <div class="overlay" style="right:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('next')">▶</div>
-  <div class="overlay" id="menuIcon0" style="left:50%; top:0px; transform: translateX(-50%);" onclick="toggle_menu(1)" title="当前播放列表">▤</div>
+  <div class="overlay unsel" style="left:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('prev')" title="PREVIOUS">◀</div>
+  <div class="overlay unsel" style="right:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('next')" title="NEXT">▶</div>
+  <div class="overlay unsel" id="menuIcon0" style="left:50%; top:0px; transform: translateX(-50%);" onclick="toggle_menu(1)" title="当前播放列表">▤</div>
  </div>
  <div id="ovl2">
-  <div class="overlay" style="left:50%; top:calc(50% - 50px); transform: translate(-50%, -50%);" onclick="v.currentTime=0;v.play()" title="重头开始播放">↻</div>
-  <div class="overlay" id="menuIcon1" style="left:50%; bottom:var(--edge-pad); transform: translateX(-50%);" onclick="toggle_menu(2)" title="浏览文件夹">📁</div>
+  <div class="overlay unsel" style="left:50%; top:calc(50% - 50px); transform: translate(-50%, -50%);" onclick="v.currentTime=0;v.play()" title="重头开始播放">↻</div>
+  <div class="overlay unsel" id="menuIcon1" style="left:50%; bottom:var(--edge-pad); transform: translateX(-50%);" onclick="toggle_menu(2)" title="浏览文件夹">📁</div>
  </div>
  <div id="recButtons" class="overlay hoverShow" style="left:0px; top:16px;" >
   <span id="recButton" title="播放指定文件（本地录音）" onclick="play_recorded()">🎙</span>
   <span title="播放指定文件（树莓派录音）" onclick="ws.send('play_spoken_indir')">🎤</span>
  </div>
- <div class="overlay hoverShow" style="right:0px; top:16px;" onclick="ws.send('report_title')" title="播报当前歌曲名称">🗣</div>
+ <div class="overlay hoverShow" style="right:0px; top:16px;">
+  <span onclick="toggle_hide([controls])" title="播放设置">⚙</span>
+  <span onclick="ws.send('report_title')" title="播报当前歌曲名称">🗣</span>
+ </div>
  <div class="overlay" style="left:0px; bottom:var(--edge-pad);">
   <span class="hoverShow" title="复制视频链接然后扫码下载播放" onclick="showQR()">📱</span>
   <span id="QRcontainer" style="background-color: #fff; display: none;"></span>
@@ -126,7 +158,7 @@ var audios, start_time, recorder_timeout, last_subtt;
 
 // Set global object handles
 for(var vname of ['ovl', 'ovl2', 'menu1', 'menu2', 'menu3', 'list1', 'list2', 'list3', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'T2Slang', 'S2Ttext',
-  'T2Stext', 'S2Tmatch', 'recButton', 'QRcontainer', 'showSubtt', 'recButtons'])
+  'T2Stext', 'S2Tmatch', 'recButton', 'QRcontainer', 'showSubtt', 'recButtons', 'flashmsg', 'controls'])
   window.eval(`var ${vname} = getById("${vname}")`);
 
 function create_wsock(){
@@ -135,6 +167,8 @@ function create_wsock(){
     if(ev.data.startsWith('\t')){
       var its = ev.data.split('\t');
       window[its[1]](its[2]);
+    }else if(ev.data.startsWith(' ')){
+      ws.send(eval(ev.data.slice(1)));
     }else setTimeout(ev.data, 1);
   });
   return ws;
@@ -148,7 +182,11 @@ function ws_send(data){ // on-demand open websocket
     ws.onopen = ()=>{ws.onopen=null; ws.send(data);}
   }
 }
-
+function pause(){
+  if(v.paused) return true;
+  v.pause();
+  return false;
+}
 function setvsrc(url, ii=0){
   v.src = url;
   if(!url){
@@ -177,6 +215,7 @@ function setvsrc(url, ii=0){
   showSubtt.style.display = 'none';
   ws_send('list_subtitles ' + cur_file);
 
+  if(!menuMode) show_flashmsg(decodeURI(ttl.split('/').slice(-1)).split('#')[0]);
   if(menuMode!=2) return;
   if(cur_file.endsWith(getById('b'+ii).text)) setvidx(ii, 'b');
   else{
@@ -229,6 +268,13 @@ function play_recorded(){
     recorder.stop();
     clearTimeout(recorder_timeout);
   }
+}
+var flash_tmr;
+function show_flashmsg(msg, delay=2000){
+  flashmsg.style.display = 'block';
+  flashmsg.innerHTML = msg;
+  clearTimeout(flash_tmr);
+  flash_tmr = setTimeout(()=>{flashmsg.style.display = 'none'}, delay);
 }
 function onRecStop(){
   recButtons.classList.add('hoverShow');
@@ -439,6 +485,54 @@ if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
   console.log("getUserMedia not supported on your browser!"); recButton.style.display='none';
 }
 T2Sframe.style.display = S2Tframe.style.display = getCookie('infoDisp', 'none');
+function handleKey(key, amount=0){
+  switch (key) {
+    case "f":
+      document.fullscreenElement?document.exitFullscreen():getById('vcontainer').requestFullscreen();
+      break;
+    case "ArrowLeft":
+      v.currentTime -= 3.75*2**amount;
+      break;
+    case "ArrowRight":
+      v.currentTime += 3.75*2**amount;
+      break;
+    case "ArrowUp":
+      v.volume = Math.min(1, v.volume+.1);
+      show_flashmsg(`Volume = ${v.volume.toFixed(1)}`);
+      break;
+    case "ArrowDown":
+      v.volume = Math.max(0, v.volume-.1);
+      show_flashmsg(`Volume = ${v.volume.toFixed(1)}`);
+      break;
+    case ">":
+      v.playbackRate += .25;
+      show_flashmsg(`PlaySpeed = ${v.playbackRate.toFixed(2)}`);
+      break;
+    case "<":
+      v.playbackRate = Math.max(.25, v.playbackRate-.25);
+      show_flashmsg(`PlaySpeed = ${v.playbackRate.toFixed(2)}`);
+      break;
+    case " ":
+      v.paused?v.play():v.pause();
+      break;
+    case "p":
+      ws.send('prev');
+      break;
+    case "n":
+      ws.send('next');
+      break;
+    default:
+      return false;
+  }
+  return true;
+}
+window.addEventListener("keydown", function (event) {
+  var amount = 0;
+  if(event.shiftKey) amount+=4;
+  if(event.altKey) amount+=2;
+  if(event.metaKey) amount+=1;
+  if(handleKey(event.key, amount)) event.preventDefault();
+}, true);
 </script>
 </body>
 </html>
