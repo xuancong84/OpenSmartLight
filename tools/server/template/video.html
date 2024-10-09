@@ -12,6 +12,12 @@
   font-weight: bold;
   line-height: 1;
   cursor: pointer;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 :root { --edge-pad: 100px; }
 .hoverShow { opacity: 0; }
@@ -50,18 +56,11 @@ h1 {
   text-decoration: none; /* Remove underline from links */
 }
 .playmenu a:hover { background-color: #aaa; }
-.unsel {
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    -khtml-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-}
 .xxlarge { font-size: xx-large; }
 .xlarge { font-size: x-large; }
 .larger { font-size: larger; }
 .vsb { margin-top: 8px; }
+.z50 { z-index: 50; }
 </style>
 </head>
 <body style="background-color:black; overflow: hidden;">
@@ -70,39 +69,39 @@ h1 {
       onseeked="markCounter=0" ontouchmove="timerRst()" onmousemove="timerRst()">
   </video>
   <div id="flashmsg" class="overlay" style="font-size: xx-large; left:50%; top:20%; transform: translate(-50%, -50%); z-index: 100 !important; display: none;"></div>
- </div>
- <div id="controls" style="display: none; z-index: 100 !important; font-size: xx-large;">
-  <div class="overlay unsel" style="left:25%; bottom:var(--edge-pad); transform: translateX(-50%);" onclick="handleKey('<')" title="浏览文件夹">🏃-</div>
-  <div class="overlay unsel" style="left:75%; bottom:var(--edge-pad); transform: translateX(-50%);" onclick="handleKey('>')" title="浏览文件夹">🏃+</div>
-  <div class="overlay xlarge unsel" style="left:0; top:calc(20% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',0)" title="-4s">❬</div>
-  <div class="overlay xlarge unsel" style="left:0; top:calc(30% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',1)" title="-8s">❬❬</div>
-  <div class="overlay xlarge unsel" style="left:0; top:calc(40% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',2)" title="-15s">❬❬❬</div>
-  <div class="overlay xlarge unsel" style="left:0; top:calc(60% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',3)" title="-30s">❰</div>
-  <div class="overlay xlarge unsel" style="left:0; top:calc(70% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',4)" title="-1min">❰❰</div>
-  <div class="overlay xlarge unsel" style="left:0; top:calc(80% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',5)" title="-2min">❰❰❰</div>
-  <div class="overlay xlarge unsel" style="right:0; top:calc(20% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',0)" title="+4s">❭</div>
-  <div class="overlay xlarge unsel" style="right:0; top:calc(30% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',1)" title="+8s">❭❭</div>
-  <div class="overlay xlarge unsel" style="right:0; top:calc(40% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',2)" title="+15s">❭❭❭</div>
-  <div class="overlay xlarge unsel" style="right:0; top:calc(60% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',3)" title="+30s">❱</div>
-  <div class="overlay xlarge unsel" style="right:0; top:calc(70% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',4)" title="+1min">❱❱</div>
-  <div class="overlay xlarge unsel" style="right:0; top:calc(80% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',5)" title="+2min">❱❱❱</div>
+  <div id="controls" style="display: none; z-index: 100;">
+    <div class="overlay z50" style="left:25%; top:0; transform: translateX(-50%);" onclick="handleKey('<')" title="浏览文件夹">🏃-</div>
+    <div class="overlay z50" style="left:75%; top:0; transform: translateX(-50%);" onclick="handleKey('>')" title="浏览文件夹">🏃+</div>
+    <div class="overlay z50 xlarge" style="left:0; top:calc(20% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',0)" title="-4s">❬&nbsp;&nbsp;</div>
+    <div class="overlay z50 xlarge" style="left:0; top:calc(30% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',1)" title="-8s">❬❬&nbsp;</div>
+    <div class="overlay z50 xlarge" style="left:0; top:calc(40% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',2)" title="-15s">❬❬❬</div>
+    <div class="overlay z50 xlarge" style="left:0; top:calc(60% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',3)" title="-30s">❰&nbsp;&nbsp;</div>
+    <div class="overlay z50 xlarge" style="left:0; top:calc(70% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',4)" title="-1min">❰❰&nbsp;</div>
+    <div class="overlay z50 xlarge" style="left:0; top:calc(80% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowLeft',5)" title="-2min">❰❰❰</div>
+    <div class="overlay z50 xlarge" style="right:0; top:calc(20% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',0)" title="+4s">&nbsp;&nbsp;❭</div>
+    <div class="overlay z50 xlarge" style="right:0; top:calc(30% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',1)" title="+8s">&nbsp;❭❭</div>
+    <div class="overlay z50 xlarge" style="right:0; top:calc(40% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',2)" title="+15s">❭❭❭</div>
+    <div class="overlay z50 xlarge" style="right:0; top:calc(60% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',3)" title="+30s">&nbsp;&nbsp;❱</div>
+    <div class="overlay z50 xlarge" style="right:0; top:calc(70% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',4)" title="+1min">&nbsp;❱❱</div>
+    <div class="overlay z50 xlarge" style="right:0; top:calc(80% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',5)" title="+2min">❱❱❱</div>
+  </div>
+  <div class="overlay hoverShow" style="right:0; top:0;">
+    <span onclick="toggle_hide([controls])" title="播放设置">⚙</span>
+    <span onclick="ws.send('report_title')" title="播报当前歌曲名称">🗣</span>
+  </div>
  </div>
  <div id="ovl">
-  <div class="overlay unsel" style="left:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('prev')" title="PREVIOUS">◀</div>
-  <div class="overlay unsel" style="right:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('next')" title="NEXT">▶</div>
-  <div class="overlay unsel" id="menuIcon0" style="left:50%; top:0px; transform: translateX(-50%);" onclick="toggle_menu(1)" title="当前播放列表">▤</div>
+  <div class="overlay" style="left:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('prev')" title="PREVIOUS">◀</div>
+  <div class="overlay" style="right:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('next')" title="NEXT">▶</div>
+  <div class="overlay" id="menuIcon0" style="left:50%; top:0px; transform: translateX(-50%);" onclick="toggle_menu(1)" title="当前播放列表">▤</div>
  </div>
  <div id="ovl2">
-  <div class="overlay unsel" style="left:50%; top:calc(50% - 50px); transform: translate(-50%, -50%);" onclick="v.currentTime=0;v.play()" title="重头开始播放">↻</div>
-  <div class="overlay unsel" id="menuIcon1" style="left:50%; bottom:var(--edge-pad); transform: translateX(-50%);" onclick="toggle_menu(2)" title="浏览文件夹">📁</div>
+  <div class="overlay" style="left:50%; top:calc(50% - 50px); transform: translate(-50%, -50%);" onclick="v.currentTime=0;v.play()" title="重头开始播放">↻</div>
+  <div class="overlay" id="menuIcon1" style="left:50%; bottom:var(--edge-pad); transform: translateX(-50%);" onclick="toggle_menu(2)" title="浏览文件夹">📁</div>
  </div>
- <div id="recButtons" class="overlay hoverShow" style="left:0px; top:16px;" >
+ <div id="recButtons" class="overlay hoverShow" style="left:0; top:0;" >
   <span id="recButton" title="播放指定文件（本地录音）" onclick="play_recorded()">🎙</span>
   <span title="播放指定文件（树莓派录音）" onclick="ws.send('play_spoken_indir')">🎤</span>
- </div>
- <div class="overlay hoverShow" style="right:0px; top:16px;">
-  <span onclick="toggle_hide([controls])" title="播放设置">⚙</span>
-  <span onclick="ws.send('report_title')" title="播报当前歌曲名称">🗣</span>
  </div>
  <div class="overlay" style="left:0px; bottom:var(--edge-pad);">
   <span class="hoverShow" title="复制视频链接然后扫码下载播放" onclick="showQR()">📱</span>
@@ -472,7 +471,7 @@ function set_subtt(track_num, cb=null){
 setvsrc("{{file_path|safe}}", {{cur_ii}});
 var edge_pad = Number(getComputedStyle(document.documentElement).getPropertyValue('--edge-pad').slice(0,-2));
 var scr_size = Math.max(screen.width, screen.height);
-document.styleSheets[0].cssRules[0].style.fontSize=`${scr_size/16}px`;
+document.styleSheets[0].cssRules[0].style.fontSize=`${scr_size/20}px`;
 setInterval(timerInc, 2000);
 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
   navigator.mediaDevices.getUserMedia({audio: true,},)

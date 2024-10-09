@@ -273,7 +273,7 @@ class MicroWebSrv :
 		# ------------------------------------------------------------------------
 
 		def __init__(self, microWebSrv, socket, addr) :
-			socket.settimeout(2)
+			socket.settimeout(3)
 			self._microWebSrv   = microWebSrv
 			self._socket        = socket
 			self._addr          = addr
@@ -363,8 +363,8 @@ class MicroWebSrv :
 
 		def _parseFirstLine(self, response) :
 			try :
-				elements = self._socketfile.readline().decode().strip().split()
-				if len(elements) == 3 :
+				elements = self._socketfile.readline().decode().strip().split() + ['HTTP/0.9']
+				if len(elements) >= 3 :
 					self._method  = elements[0].upper()
 					self._path    = elements[1]
 					self._httpVer = elements[2].upper()
