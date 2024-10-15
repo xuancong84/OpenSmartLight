@@ -167,7 +167,7 @@ function create_wsock(){
       var its = ev.data.split('\t');
       window[its[1]](its[2]);
     }else if(ev.data.startsWith(' ')){
-      ws.send(eval(ev.data.slice(1)));
+      ws.send('\t'+eval(ev.data.slice(1)));
     }else setTimeout(ev.data, 1);
   });
   return ws;
@@ -245,7 +245,7 @@ function setvidx(ii, L='a'){
 function play_audio(fn, reply=false){
   var aud = new Audio(fn);
   if(reply)
-    aud.onended = ()=>{ws.send('audio_ended')};
+    aud.onended = ()=>{ws.send('\taudio_ended')};
   aud.play();
 }
 function play_recorded(){

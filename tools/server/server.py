@@ -33,7 +33,8 @@ ping = lambda ip: os.system(f'ping -W 1 -c 1 {ip}')==0
 
 inst = vlc.Instance()
 event = vlc.EventType()
-ev_voice = threading.Event()
+ev_mutex = threading.Event()
+ev_reply = None
 asr_model = None
 asr_input = DEFAULT_S2T_SND_FILE
 player = None
@@ -652,20 +653,24 @@ def _load_subtitles(video_file, n_subs, ip):
 
 @app.route('/tv_wscmd/<name>/<path:cmd>')
 def tv_wscmd(name, cmd):
+	global ev_reply, ev_mutex
 	LOG(name+' : '+cmd)
 	try:
 		ip = get_tv_ip(name)
 		ws = ip2websock[ip]
 		tvd = ip2tvdata[ip]
-		if cmd == 'pause':
+		if cmd.startswith('\t'):
+			ev_reply = cmd[1:]
+			ev_mutex.set()
+		elif cmd == 'pause':
+			ev_mutex.clear()
 			ws.send(' pause()')
-			return ws.receive()
+			ev_mutex.wait()
+			return ev_reply
 		elif cmd == 'resume':
 			ws.send('v.play()')
 		elif cmd == 'rewind':
 			ws.send('v.currentTime=0')
-		elif cmd == 'audio_ended':
-			ev_voice.set()
 		elif cmd == 'hideQR':
 			ws.send('QRcontainer.style.opacity=0;')
 		elif cmd == 'play_spoken_inlst':
@@ -766,7 +771,7 @@ def get_recorder(devs, wait=3):
 	return '0'
 
 def play_audio(fn, block=False, tv_name=None):
-	ev_voice.clear()
+	ev_mutex.clear()
 	if tv_name:
 		if not is_tv_on(tv_name):
 			hex_cmd = ASRchip_voice_hex.get(os.path.basename(fn).split('.')[0], '')
@@ -777,14 +782,14 @@ def play_audio(fn, block=False, tv_name=None):
 				hex_cmd, delay = hex_cmd[:2]
 			requests.get(f'{ASRchip_voice_IP}/asr_write?{hex_cmd}')
 			time.sleep(delay)
-			ev_voice.set()
-			return ev_voice
+			ev_mutex.set()
+			return ev_mutex
 		res = tv_wscmd(tv_name, f'play_audio("/{f"voice?{random.randint(0,999999)}" if fn==DEFAULT_T2S_SND_FILE else fn}",true)')
 		assert res == 'OK'
 	else:
-		RUNSYS(f'mplayer -really-quiet -noconsolecontrols {fn}', ev_voice)
-	if block: ev_voice.wait()
-	return ev_voice
+		RUNSYS(f'mplayer -really-quiet -noconsolecontrols {fn}', ev_mutex)
+	if block: ev_mutex.wait()
+	return ev_mutex
 
 def record_audio(tm_sec=5, file_path=DEFAULT_S2T_SND_FILE):
 	os.system(f'ffmpeg -y -f pulse -i {get_recorder(MIC_RECORDER)} -ac 1 -t {tm_sec} {file_path}')
