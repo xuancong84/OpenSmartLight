@@ -86,9 +86,12 @@ h1 {
     <div class="overlay z50 xlarge" style="right:0; top:calc(80% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',5)" title="+2min">❱❱❱</div>
   </div>
   <div class="overlay hoverShow" style="right:0; top:0;">
-    <span onclick="toggle_hide([controls])" title="播放设置">⚙</span>
     <span onclick="ws.send('report_title')" title="播报当前歌曲名称">🗣</span>
+    <span onclick="toggle_hide([controls])" title="播放设置">⚙</span>
+    <span onclick="handleKey('f')" title="切换全屏">⿴</span>
   </div>
+  <div class="overlay hoverShow" style="left:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('prev')" title="PREVIOUS">◀</div>
+  <div class="overlay hoverShow" style="right:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('next')" title="NEXT">▶</div>
  </div>
  <div id="ovl">
   <div class="overlay" style="left:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('prev')" title="PREVIOUS">◀</div>
@@ -504,11 +507,11 @@ function handleKey(key, amount=0){
       show_flashmsg(`Volume = ${v.volume.toFixed(1)}`);
       break;
     case ">":
-      v.playbackRate += .25;
+      v.playbackRate += .1;
       show_flashmsg(`PlaySpeed = ${v.playbackRate.toFixed(2)}`);
       break;
     case "<":
-      v.playbackRate = Math.max(.25, v.playbackRate-.25);
+      v.playbackRate = Math.max(.1, v.playbackRate-.1);
       show_flashmsg(`PlaySpeed = ${v.playbackRate.toFixed(2)}`);
       break;
     case " ":
