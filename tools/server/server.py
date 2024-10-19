@@ -822,7 +822,7 @@ class VoicePrompt:
 	def __enter__(self):	# preserve environment
 		global player
 		if self.tv_name and is_tv_on(self.tv_name):
-			self.paused = tv_wscmd(self.tv_name, 'pause')
+			self.cur_sta = tv_wscmd(self.tv_name, 'pause')
 			self.cur_vol = tvVolume(self.tv_name)
 		elif player!=None:
 			self.cur_sta = player.is_playing()
@@ -835,7 +835,7 @@ class VoicePrompt:
 		if self.tv_name:
 			if self.cur_vol:
 				tvVolume(self.tv_name, self.cur_vol)
-			if self.paused != 'true':
+			if self.cur_sta != 'true':
 				tv_wscmd(self.tv_name, 'resume')
 		else:
 			if self.cur_vol != None:

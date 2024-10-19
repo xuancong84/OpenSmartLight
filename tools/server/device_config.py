@@ -36,7 +36,9 @@ ASRchip_voice_hex = {
 	'asr_not_found': ('a5020a', 3),
 	'asr_not_found_drama': ('a5020a', 3),
 	'asr_not_found_file': ('a5020a', 3),
-	'asr_found': ('a5000a', 3)
+	'asr_found': ('a5000a', 3),
+	'asr_found_drama': ('a5000a', 3),
+	'asr_found_file': ('a5000a', 3),
 }
 
 VOICE_CMD_FFWD_DCT = {
