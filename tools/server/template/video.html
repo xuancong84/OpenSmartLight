@@ -110,6 +110,7 @@ h1 {
   <span class="hoverShow" title="复制视频链接然后扫码下载播放" onclick="showQR()">📱</span>
   <span id="QRcontainer" style="background-color: #fff; display: none;"></span>
   <span class="hoverShow" id="showSubtt" title="选择字幕" onclick="toggle_menu(3)" style="display: none;">字幕</span>
+  <span class="hoverShow" id="showAudioTracks" title="选择音轨" onclick="toggle_menu(4)" style="display: none;">音轨</span>
  </div>
  <div class="overlay hoverShow" style="right:0px; bottom:var(--edge-pad);">
   <span onclick="toggle_hide([T2Sframe,S2Tframe])" title="显示详情（语音识别及语音合成）">💬</span>
@@ -128,9 +129,13 @@ h1 {
   <div id="list2" style="overflow-y: scroll; max-height: 90%;"></div>
  </div>
  <div id="menu3" class="playmenu" style="font-size: x-large; font-weight: bold; text-align: left; transform:none; width:auto; max-height: 50%;">
-  <p id="t_subtt_status0" style="margin:0; color:yellow; display: none;">Loading subtitles, please wait ...</p>
-  <p id="t_subtt_status1" style="margin:0; color:lime; display:none;">Subtitles loaded!</p>
+  <p id="t_subtt_status0" style="margin:0; color:yellow; display: none;">正在提取字幕，请稍候 ...</p>
+  <p id="t_subtt_status1" style="margin:0; color:lime; display:none;">字幕加载完成！</p>
   <div id="list3" style="overflow-y: scroll;"></div>
+ </div>
+ <div id="menu4" class="playmenu" style="font-size: x-large; font-weight: bold; text-align: left; transform:none; width:auto; max-height: 50%;">
+  <p id="t_audtk_status0" style="margin:0; color: lime; ">请选择音轨：</p>
+  <div id="list4" style="overflow-y: scroll;"></div>
  </div>
  <div id="S2Tframe" style="background-color: #04AA6D; position: absolute; opacity:0.8; font-size: x-large; font-weight: bold; top: 30%; left:5%; width:20%;">
   <h1>【语音识别详情】</h1>
@@ -159,8 +164,8 @@ var recorder = null, subtt_info = null, subtt_loaded = 0; // 0: not loaded; 1: l
 var audios, start_time, recorder_timeout, last_subtt;
 
 // Set global object handles
-for(var vname of ['ovl', 'ovl2', 'menu1', 'menu2', 'menu3', 'list1', 'list2', 'list3', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'T2Slang', 'S2Ttext',
-  'T2Stext', 'S2Tmatch', 'recButton', 'QRcontainer', 'showSubtt', 'recButtons', 'flashmsg', 'controls'])
+for(var vname of ['ovl', 'ovl2', 'menu1', 'menu2', 'menu3', 'menu4', 'list1', 'list2', 'list3', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'showAudioTracks',
+  'T2Slang', 'S2Ttext', 'T2Stext', 'S2Tmatch', 'recButton', 'QRcontainer', 'showSubtt', 'recButtons', 'flashmsg', 'controls'])
   window.eval(`var ${vname} = getById("${vname}")`);
 
 function create_wsock(){
@@ -216,6 +221,10 @@ function setvsrc(url, ii=0){
   subtt_loaded = 0;
   showSubtt.style.display = 'none';
   ws_send('list_subtitles ' + cur_file);
+
+  // handle multiple audio-tracks
+  showAudioTracks.style.display = "none";
+  setTimeout(()=>{if(v.audioTracks!=null && v.audioTracks.length>1)showAudioTracks.style.display="inline";}, 2000)
 
   if(!menuMode) show_flashmsg(decodeURI(ttl.split('/').slice(-1)).split('#')[0]);
   if(menuMode!=2) return;
@@ -297,11 +306,6 @@ function lsdir(tgtDir=null){
 }
 function toggle_menu(mode){
   menuMode = (menuMode==mode?0:mode);
-  menu1.style.display = menuMode==1?"block":"none";
-  menu2.style.display = menuMode==2?"block":"none";
-  menu3.style.display = menuMode==3?"block":"none";
-  getById('menuIcon0').textContent = menuMode==1?"▿":"▤";
-  getById('menuIcon1').textContent = menuMode==2?"▵":"📁";
   if(menuMode==1){
     menu1.style.top=getById('menuIcon0').offsetHeight+'px';
     getById('list1').style.maxHeight = `calc(100% - ${getById('header1').offsetHeight}px)`;
@@ -320,10 +324,22 @@ function toggle_menu(mode){
       ws_send(`load_subtitles ${subtt_info.length} ${cur_file}`);
       subtt_loaded = 1;
     }
-    showSubtt.style.opacity = 1;
-  }else{
-    showSubtt.style.opacity = '';
+  }else if(menuMode==4){
+    menu4.style.bottom=`${getById('menuIcon1').offsetHeight+edge_pad}px`;
+    list4.innerHTML = '';
+    for(let ii=0; ii<v.audioTracks.length; ii++){
+      var atrack = v.audioTracks[ii];
+      var chktxt = atrack.enabled?"checked":"";
+      list4.innerHTML += `<div onclick="v.audioTracks[${ii}].enabled=true;toggle_menu(0)" ><input id="at${ii}" type="radio" ${chktxt}><a style="display:inline">${ii+1}: ${atrack.language}</a></div>`
+    }
   }
+  menu1.style.display = menuMode==1?"block":"none";
+  menu2.style.display = menuMode==2?"block":"none";
+  menu3.style.display = menuMode==3?"block":"none";
+  menu4.style.display = menuMode==4?"block":"none";
+  getById('menuIcon0').textContent = menuMode==1?"▿":"▤";
+  getById('menuIcon1').textContent = menuMode==2?"▵":"📁";
+  showSubtt.style.opacity = (menuMode==3?1:0);
 }
 function getCookie(cookieName, dft="") {
   var name = cookieName + "=";
