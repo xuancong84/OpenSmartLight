@@ -62,6 +62,7 @@ h1 {
 .vsb { margin-top: 8px; }
 .z50 { z-index: 50; }
 </style>
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body style="background-color:black; overflow: hidden;">
  <div id="vcontainer">
@@ -86,9 +87,9 @@ h1 {
     <div class="overlay z50 xlarge" style="right:0; top:calc(80% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',5)" title="+2min">❱❱❱</div>
   </div>
   <div class="overlay hoverShow" style="right:0; top:0;">
-    <span onclick="ws.send('report_title')" title="播报当前歌曲名称">🗣</span>
-    <span onclick="toggle_hide([controls])" title="播放设置">⚙</span>
-    <span onclick="handleKey('f')" title="切换全屏">⿴</span>
+    <span onclick="ws.send('report_title')" title="播报当前歌曲名称" class="icon-speak"></span>
+    <span onclick="toggle_hide([controls])" title="播放设置" class="icon-gear"></span>
+    <span onclick="handleKey('f')" id="toggle-fs" title="切换全屏" class="icon-expand"></span>
   </div>
   <div class="overlay hoverShow" style="left:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('prev')" title="PREVIOUS">◀</div>
   <div class="overlay hoverShow" style="right:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('next')" title="NEXT">▶</div>
@@ -103,18 +104,18 @@ h1 {
   <div class="overlay" id="menuIcon1" style="left:50%; bottom:var(--edge-pad); transform: translateX(-50%);" onclick="toggle_menu(2)" title="浏览文件夹">📁</div>
  </div>
  <div id="recButtons" class="overlay hoverShow" style="left:0; top:0;" >
-  <span id="recButton" title="播放指定文件（本地录音）" onclick="play_recorded()">🎙</span>
-  <span title="播放指定文件（树莓派录音）" onclick="ws.send('play_spoken_indir')">🎤</span>
+  <span id="recButton" title="播放指定文件（本地录音）" onclick="play_recorded()" class="icon-mic-local"></span>
+  <span title="播放指定文件（树莓派录音）" onclick="ws.send('play_spoken_indir')" class="icon-mic-station"></span>
  </div>
  <div class="overlay" style="left:0px; bottom:var(--edge-pad);">
   <span class="hoverShow" title="复制视频链接然后扫码下载播放" onclick="showQR()">📱</span>
   <span id="QRcontainer" style="background-color: #fff; display: none;"></span>
-  <span class="hoverShow" id="showSubtt" title="选择字幕" onclick="toggle_menu(3)" style="display: none;">字幕</span>
-  <span class="hoverShow" id="showAudioTracks" title="选择音轨" onclick="toggle_menu(4)" style="display: none;">音轨</span>
+  <span class="hoverShow icon-subtitles" id="showSubtt" title="选择字幕" onclick="toggle_menu(3)" style="display: none;"></span>
+  <span class="hoverShow icon-sound-tracks" id="showAudioTracks" title="选择音轨" onclick="toggle_menu(4)" style="display: none;"></span>
  </div>
  <div class="overlay hoverShow" style="right:0px; bottom:var(--edge-pad);">
-  <span onclick="toggle_hide([T2Sframe,S2Tframe])" title="显示详情（语音识别及语音合成）">💬</span>
-  <span onclick="promptOpenFolder()" title="显示当前视频的URL链接">🔗</span>
+  <span onclick="toggle_hide([T2Sframe,S2Tframe])" title="显示详情（语音识别及语音合成）" class="icon-details"></span>
+  <span onclick="promptOpenFolder()" title="显示当前视频的URL链接" class="icon-link"></span>
  </div>
  <div id="menu1" class="playmenu" style="font-size: xx-large; font-weight: bold; text-align: center; height: 80%;">
   <h1 id="header1"><span id="title1">{{listname}}</span><span id="loopButton" style="position:absolute; right: 4px; cursor:pointer" onclick="toggle_loop()" title="单曲循环">🔁</span></h1>
@@ -162,6 +163,7 @@ var cur_dir = "", cur_file;
 var v = getById("video0");
 var recorder = null, subtt_info = null, subtt_loaded = 0; // 0: not loaded; 1: loading; 2:loaded
 var audios, start_time, recorder_timeout, last_subtt;
+var isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
 
 // Set global object handles
 for(var vname of ['ovl', 'ovl2', 'menu1', 'menu2', 'menu3', 'menu4', 'list1', 'list2', 'list3', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'showAudioTracks',
@@ -224,7 +226,13 @@ function setvsrc(url, ii=0){
 
   // handle multiple audio-tracks
   showAudioTracks.style.display = "none";
-  setTimeout(()=>{if(v.audioTracks!=null && v.audioTracks.length>1)showAudioTracks.style.display="inline";}, 2000)
+  setTimeout(()=>{
+    if(isChrome && v.audioTracks==undefined && getCookie("chromeSelectAudio")==''){
+      if(confirm('For Chrome browser, you must enable "Experimental Web Platform features" in "chrome://flags/" to select audio tracks. Prevent this dialog in the future?'))
+        document.cookie = `chromeSelectAudio=hide; path=/; max-age=31536000`;
+    }
+    if(v.audioTracks!=null && v.audioTracks.length>1) showAudioTracks.style.display="inline";
+  }, 2000);
 
   if(!menuMode) show_flashmsg(decodeURI(ttl.split('/').slice(-1)).split('#')[0]);
   if(menuMode!=2) return;
@@ -325,7 +333,8 @@ function toggle_menu(mode){
       subtt_loaded = 1;
     }
   }else if(menuMode==4){
-    menu4.style.bottom=`${getById('menuIcon1').offsetHeight+edge_pad}px`;
+    menu4.style.left = showAudioTracks.offsetLeft+'px';
+    menu4.style.bottom = (showAudioTracks.offsetHeight+edge_pad)+'px';
     list4.innerHTML = '';
     for(let ii=0; ii<v.audioTracks.length; ii++){
       var atrack = v.audioTracks[ii];
@@ -339,7 +348,8 @@ function toggle_menu(mode){
   menu4.style.display = menuMode==4?"block":"none";
   getById('menuIcon0').textContent = menuMode==1?"▿":"▤";
   getById('menuIcon1').textContent = menuMode==2?"▵":"📁";
-  showSubtt.style.opacity = (menuMode==3?1:0);
+  showSubtt.style.opacity = (menuMode==3?1:'');
+  showAudioTracks.style.opacity = (menuMode==4?1:'');
 }
 function getCookie(cookieName, dft="") {
   var name = cookieName + "=";
@@ -506,7 +516,13 @@ T2Sframe.style.display = S2Tframe.style.display = getCookie('infoDisp', 'none');
 function handleKey(key, amount=0){
   switch (key) {
     case "f":
-      document.fullscreenElement?document.exitFullscreen():getById('vcontainer').requestFullscreen();
+      if(document.fullscreenElement){
+        document.exitFullscreen();
+        getById('toggle-fs').classList.replace('icon-fullscreen-exit', 'icon-expand');
+      }else{
+        getById('vcontainer').requestFullscreen();
+        getById('toggle-fs').classList.replace('icon-expand', 'icon-fullscreen-exit');
+      }
       break;
     case "ArrowLeft":
       v.currentTime -= 3.75*2**amount;
