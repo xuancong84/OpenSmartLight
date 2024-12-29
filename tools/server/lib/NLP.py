@@ -31,6 +31,7 @@ KKS = pykakasi.kakasi()
 cookies_opt = []
 TransNatSort = lambda lst: natsorted(lst, key=unidecode)
 isdir = lambda t: os.path.isdir(expand_path(t))
+isfile = lambda t: os.path.isfile(expand_path(t))
 listdir = lambda t: TransNatSort(Try(lambda: os.listdir(expand_path(t)), []))
 showdir = lambda t: [(p+'/' if isdir(os.path.join(t,p)) else p) for p in listdir(t) if not p.startswith('.')]
 to_pinyin = lambda t: pinyin.get(t, format='numerical')
@@ -182,13 +183,13 @@ def findMedia(name, lang=None, stack=0, stem=None, episode=None, base_path=SHARE
 			stem = stem[:-1]
 		episode = Try(lambda: int(episode if episode.isdigit() else zh2num(episode)), '')
 	d_lst = ls_subdir(base_path)
-	lst = d_lst if episode else (d_lst+ls_media_files(base_path))
+	lst = d_lst+ls_media_files(base_path)
 	res = findSong(name, lang, lst)
 	if res==None and name!=stem:
 		res = findSong(stem, lang, lst)
 	if res!=None:
 		item = lst[res]
-		if os.path.isfile(item):
+		if isfile(item):
 			return item
 		lst2 = ls_media_files(item)
 		res = findSong(name, lang, lst2, True)	# full match takes precedence
@@ -386,3 +387,8 @@ def sec2hhmmss(sec, sub_second=False):
 def hhmmss2sec(hms):
 	hh, mm, ss = [float(i) for i in (['0', '0']+hms.split(':'))[-3:]]
 	return hh*3600 + mm*60 + ss
+
+
+if __name__ == '__main__':
+	res = findMedia('朱罗记公园1', lang='zh', base_path='~/mnt/Movies')
+	print(res)
