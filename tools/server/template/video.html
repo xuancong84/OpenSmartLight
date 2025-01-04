@@ -196,6 +196,7 @@ function pause(){
   v.pause();
   return false;
 }
+var cb_sndTrack;
 function setvsrc(url, ii=0){
   v.src = url;
   if(!url){
@@ -226,13 +227,16 @@ function setvsrc(url, ii=0){
 
   // handle multiple audio-tracks
   showAudioTracks.style.display = "none";
-  setTimeout(()=>{
-    if(isChrome && v.audioTracks==undefined && getCookie("chromeSelectAudio")==''){
-      if(confirm('For Chrome browser, you must enable "Experimental Web Platform features" in "chrome://flags/" to select audio tracks. Prevent this dialog in the future?'))
-        document.cookie = `chromeSelectAudio=hide; path=/; max-age=31536000`;
+  cb_sndTrack = setInterval(()=>{
+    if(v.currentTime>0.5){
+      clearInterval(cb_sndTrack);
+      if(isChrome && v.audioTracks==undefined && getCookie("chromeSelectAudio")==''){
+        if(confirm('For Chrome browser, you must enable "Experimental Web Platform features" in "chrome://flags/" to select audio tracks. Prevent this dialog in the future?'))
+          document.cookie = `chromeSelectAudio=hide; path=/; max-age=31536000`;
+      }
+      if(v.audioTracks!=null && v.audioTracks.length>1) showAudioTracks.style.display="inline";
     }
-    if(v.audioTracks!=null && v.audioTracks.length>1) showAudioTracks.style.display="inline";
-  }, 2000);
+  }, 1000);
 
   if(!menuMode) show_flashmsg(decodeURI(ttl.split('/').slice(-1)).split('#')[0]);
   if(menuMode!=2) return;
@@ -312,6 +316,11 @@ function lsdir(tgtDir=null){
   if(tgtDir!=null) cur_dir=tgtDir.replace(/\/*$/, '');
   ws.send('lsdir '+cur_dir);
 }
+function setAudioTrack(ii=0){
+  for(var i=0; i<v.audioTracks.length; i++)
+    v.audioTracks[i].enabled=(i==ii);
+  toggle_menu(0);
+}
 function toggle_menu(mode){
   menuMode = (menuMode==mode?0:mode);
   if(menuMode==1){
@@ -339,7 +348,7 @@ function toggle_menu(mode){
     for(let ii=0; ii<v.audioTracks.length; ii++){
       var atrack = v.audioTracks[ii];
       var chktxt = atrack.enabled?"checked":"";
-      list4.innerHTML += `<div onclick="v.audioTracks[${ii}].enabled=true;toggle_menu(0)" ><input id="at${ii}" type="radio" ${chktxt}><a style="display:inline">${ii+1}: ${atrack.language}</a></div>`
+      list4.innerHTML += `<div onclick="setAudioTrack(${ii})" ><input id="at${ii}" type="radio" ${chktxt}><a style="display:inline">${ii+1}: ${atrack.language}</a></div>`
     }
   }
   menu1.style.display = menuMode==1?"block":"none";
