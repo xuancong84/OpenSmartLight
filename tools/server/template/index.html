@@ -495,10 +495,24 @@ ${'<td contenteditable="true" class="wrap"></td>'.repeat(tb.rows[0].childElement
 	return row;
 }
 var siriWave, recorder, recorder_timeout, use_recorded, audios, spectrum, dBASpectrum, taskHandle, source, asr_func, g_stream, g_devices;
+var g_asrInit = false;
 const wav_win = getById('waveform'), updateFreq = 5;
 RA = f => 12194 ** 2 * f ** 4 /((f ** 2 + 20.6 ** 2) * Math.sqrt((f ** 2 + 107.7 ** 2) * (f ** 2 + 737.9 ** 2)) * (f ** 2 + 12194 ** 2));
 A = f => 20 * Math.log10(RA(f)) + 2.0;
 function ASR(func=''){
+	if(!g_asrInit){
+		g_asrInit = true;
+		if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+			navigator.mediaDevices.getUserMedia({audio: true,},)
+				.then(stream => Promise.all([stream, navigator.mediaDevices.enumerateDevices()]))
+				.then(([stream, devices]) => { g_stream = stream; g_devices = devices; ASR(func); })
+				.catch((err) => { alert(`The following getUserMedia error occurred: ${err}`);
+			});
+		} else {
+			alert("getUserMedia not supported on your browser!");
+		}
+		return;
+	}
 	if(g_stream==null && window.location.href.startsWith('http://')){
 		if(confirm("Only HTTPS websites can have access to microphone, do you want to redirect to HTTPS website?")){
 			var port = parseInt(window.location.href.split(':')[2]);
@@ -617,15 +631,6 @@ window.onload = () => {
 	scr0.style.maxHeight=`calc( 100% - ${h}px )`;
 	scr0.style.display='block';
 	scr0.style.overflow="auto";
-}
-if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-	navigator.mediaDevices.getUserMedia({audio: true,},)
-		.then(stream => Promise.all([stream, navigator.mediaDevices.enumerateDevices()]))
-		.then(([stream, devices]) => { g_stream = stream; g_devices = devices; })
-		.catch((err) => { console.error(`The following getUserMedia error occurred: ${err}`);
-	});
-} else {
-	console.log("getUserMedia not supported on your browser!");
 }
 </script>
 </body>

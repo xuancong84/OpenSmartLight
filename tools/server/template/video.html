@@ -126,7 +126,12 @@ h1 {
   </div>
  </div>
  <div id="menu2" class="playmenu" style="font-size: xx-large; font-weight: bold; top: 8px; text-align: left; height: 80%;">
-  <h1 id="header2"><span id="title2"></span><span style="position:absolute; right:4px; cursor:pointer;" onclick="lsdir('.')" title="返回当前播放目录">🏠</span></h1>
+  <h1 id="header2"><span id="title2" style='display:inline-block'></span>
+    <span id="title2-after" style="position:absolute; right:4px;">
+      <span style="cursor:pointer" onclick="lsdir('..')" title="返回上一层目录">⮢</span>
+      <span style="cursor:pointer" onclick="lsdir('.')" title="返回当前播放目录">🏠</span>
+    </span>
+  </h1>
   <div id="list2" style="overflow-y: scroll; max-height: 90%;"></div>
  </div>
  <div id="menu3" class="playmenu" style="font-size: x-large; font-weight: bold; text-align: left; transform:none; width:auto; max-height: 50%;">
@@ -196,7 +201,7 @@ function pause(){
   v.pause();
   return false;
 }
-var cb_sndTrack;
+var cb_sndTrack, cur_ii;
 function setvsrc(url, ii=0){
   v.src = url;
   if(!url){
@@ -216,7 +221,7 @@ function setvsrc(url, ii=0){
     while(!('currentTime' in v));
     setTimeout(`if(v.currentTime<${tm}-2.5)v.currentTime=${tm}`, 2500);
   }
-  setvidx(ii);
+  setvidx(cur_ii = ii);
 
   // handle subtitles
   v.innerHTML = '';
@@ -265,6 +270,7 @@ function showQR(){
 function setvidx(ii, L='a'){
   for(var i=0; getById(L+i)!=null; i++)
     getById(L+i).style.color = (i==ii?"#1f0":"#eee");
+  getById(L+ii).scrollIntoView({block: "center"});
 }
 function play_audio(fn, reply=false){
   var aud = new Audio(fn);
@@ -313,6 +319,7 @@ function onRecStop(){
 }
 function lsdir(tgtDir=null){
   if(tgtDir=='.') tgtDir=decodeURI(v.src.split('/').slice(4,-1).join('/'));
+  else if(tgtDir=='..') tgtDir = cur_dir.indexOf('/')>=0 ? cur_dir.split('/').slice(0,-1).join('/') : "";
   if(tgtDir!=null) cur_dir=tgtDir.replace(/\/*$/, '');
   ws.send('lsdir '+cur_dir);
 }
@@ -323,9 +330,12 @@ function setAudioTrack(ii=0){
 }
 function toggle_menu(mode){
   menuMode = (menuMode==mode?0:mode);
+  menu1.style.display = menuMode==1?"block":"none";
+  menu2.style.display = menuMode==2?"block":"none";
   if(menuMode==1){
     menu1.style.top=getById('menuIcon0').offsetHeight+'px';
     getById('list1').style.maxHeight = `calc(100% - ${getById('header1').offsetHeight}px)`;
+    setvidx(cur_ii);
   }else if(menuMode==2){
     menu2.style.bottom=`${getById('menuIcon1').offsetHeight+edge_pad}px`;
     if(list2.innerHTML=='') lsdir();
@@ -335,6 +345,7 @@ function toggle_menu(mode){
         if(cur_file == (cur_dir?(cur_dir+'/'+getById('b'+i).text):getById('b'+i).text)) ii = i;
       if(ii>=0) setvidx(ii, 'b');
     }
+    getById("title2").style.width = `calc(100% - ${getById("title2-after").offsetWidth}px)`;
   }else if(menuMode==3){
     menu3.style.bottom=`${getById('menuIcon1').offsetHeight+edge_pad}px`;
     if(subtt_loaded==0){
@@ -351,8 +362,6 @@ function toggle_menu(mode){
       list4.innerHTML += `<div onclick="setAudioTrack(${ii})" ><input id="at${ii}" type="radio" ${chktxt}><a style="display:inline">${ii+1}: ${atrack.language}</a></div>`
     }
   }
-  menu1.style.display = menuMode==1?"block":"none";
-  menu2.style.display = menuMode==2?"block":"none";
   menu3.style.display = menuMode==3?"block":"none";
   menu4.style.display = menuMode==4?"block":"none";
   getById('menuIcon0').textContent = menuMode==1?"▿":"▤";
@@ -424,25 +433,29 @@ function showDir(data){
   list2.innerHTML = '';
   getById('title2').textContent = `Folder: /${cur_dir}`;
   getById('list2').style.maxHeight = `calc(100% - ${getById('header2').offsetHeight}px)`;
-  if(cur_dir){
-    var parent_dir = cur_dir.indexOf('/')>=0 ? cur_dir.split('/').slice(0,-1).join('/') : "";
-    list2.innerHTML += `<a onclick="lsdir('${parent_dir}')">../</a>`;
-  }
-  var i=0, j=0;
+  if(cur_dir)
+    list2.innerHTML += `<a onclick="lsdir('..')">../</a>`;
+  var i=0, j=0, scrollTo_id=-1, scrollTo_cur_max=0;
   dir_list = [];
   subdir_list = [];
   for(var fn of data.split('\n')){
     fulln = cur_dir?(cur_dir+'/'+fn):fn;
     if(fn.endsWith('/')){
-      list2.innerHTML += `<a onclick="lsdir(subdir_list[${j}])">${fn}</a>`;
+      list2.innerHTML += `<a id="b${i}" onclick="lsdir(subdir_list[${j}])">${fn}</a>`;
       subdir_list.push(fulln);
       j+=1;
     }else{
-      list2.innerHTML += `<a id="b${i}" onclick="gotoFile(event,${i})" href="/files/${fulln}" style="color:${fulln.endsWith(cur_file)?"#1f0":"#eee"}">${fn}</a>`;
+      list2.innerHTML += `<a id="b${i}" onclick="gotoFile(event,${i})" href="/files/${fulln}">${fn}</a>`;
       dir_list.push(fulln);
-      i+=1;
     }
+    if(cur_file.startsWith(fulln) && fulln.length>scrollTo_cur_max){
+      scrollTo_id = i;
+      scrollTo_cur_max = fulln.length;
+    }
+    i+=1;
   }
+  if(scrollTo_id>=0)
+    setTimeout(()=>{setvidx(scrollTo_id, 'b');}, 0);
 }
 function updateList(arr){
   playlist = arr.split('\n');
