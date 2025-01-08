@@ -128,7 +128,7 @@ h1 {
  <div id="menu2" class="playmenu" style="font-size: xx-large; font-weight: bold; top: 8px; text-align: left; height: 80%;">
   <h1 id="header2"><span id="title2" style='display:inline-block'></span>
     <span id="title2-after" style="position:absolute; right:4px;">
-      <span style="cursor:pointer" onclick="lsdir('..')" title="返回上一层目录">⮢</span>
+      <span style="cursor:pointer; color:yellow;" onclick="lsdir('..')" title="返回上一层目录" class="icon-level-up"></span>
       <span style="cursor:pointer" onclick="lsdir('.')" title="返回当前播放目录">🏠</span>
     </span>
   </h1>
@@ -446,12 +446,12 @@ function showDir(data){
       j+=1;
     }else{
       list2.innerHTML += `<a id="b${i}" onclick="gotoFile(event,${i})" href="/files/${fulln}">${fn}</a>`;
-      dir_list.push(fulln);
     }
     if(cur_file.startsWith(fulln) && fulln.length>scrollTo_cur_max){
       scrollTo_id = i;
       scrollTo_cur_max = fulln.length;
     }
+    dir_list.push(fulln);
     i+=1;
   }
   if(scrollTo_id>=0)
