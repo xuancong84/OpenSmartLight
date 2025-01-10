@@ -503,7 +503,7 @@ function ASR(func=''){
 	if(!g_asrInit){
 		g_asrInit = true;
 		if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-			navigator.mediaDevices.getUserMedia({audio: true,},)
+			navigator.mediaDevices.getUserMedia({audio: true, deviceId:'default'},)
 				.then(stream => Promise.all([stream, navigator.mediaDevices.enumerateDevices()]))
 				.then(([stream, devices]) => { g_stream = stream; g_devices = devices; ASR(func); })
 				.catch((err) => { alert(`The following getUserMedia error occurred: ${err}`);

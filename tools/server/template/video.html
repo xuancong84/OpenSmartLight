@@ -116,6 +116,7 @@ h1 {
  <div class="overlay hoverShow" style="right:0px; bottom:var(--edge-pad);">
   <span onclick="toggle_hide([T2Sframe,S2Tframe])" title="显示详情（语音识别及语音合成）" class="icon-details"></span>
   <span onclick="promptOpenFolder()" title="显示当前视频的URL链接" class="icon-link"></span>
+  <span onclick="showMediaInfo()" title="显示当前媒体文件的详细信息" class="icon-info"></span>
  </div>
  <div id="menu1" class="playmenu" style="font-size: xx-large; font-weight: bold; text-align: center; height: 80%;">
   <h1 id="header1"><span id="title1">{{listname}}</span><span id="loopButton" style="position:absolute; right: 4px; cursor:pointer" onclick="toggle_loop()" title="单曲循环">🔁</span></h1>
@@ -143,6 +144,7 @@ h1 {
   <p id="t_audtk_status0" style="margin:0; color: lime; ">请选择音轨：</p>
   <div id="list4" style="overflow-y: scroll;"></div>
  </div>
+ <div id="INFOframe" style="color: yellow; background-color: blue; position: absolute; opacity:0.9; white-space:pre-wrap; font-size: medium; left:5%; width:90%; display: none; z-index: 50;"></div>
  <div id="S2Tframe" style="background-color: #04AA6D; position: absolute; opacity:0.8; font-size: x-large; font-weight: bold; top: 30%; left:5%; width:20%;">
   <h1>【语音识别详情】</h1>
   <h1>语种：<span id="S2Tlang">{{S2T_lang}}</span></h1>
@@ -171,7 +173,7 @@ var audios, start_time, recorder_timeout, last_subtt;
 var isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
 
 // Set global object handles
-for(var vname of ['ovl', 'ovl2', 'menu1', 'menu2', 'menu3', 'menu4', 'list1', 'list2', 'list3', 'S2Tframe', 'T2Sframe', 'S2Tlang', 'showAudioTracks',
+for(var vname of ['ovl', 'ovl2', 'menu1', 'menu2', 'menu3', 'menu4', 'list1', 'list2', 'list3', 'S2Tframe', 'T2Sframe', 'INFOframe', 'S2Tlang', 'showAudioTracks',
   'T2Slang', 'S2Ttext', 'T2Stext', 'S2Tmatch', 'recButton', 'QRcontainer', 'showSubtt', 'recButtons', 'flashmsg', 'controls'])
   window.eval(`var ${vname} = getById("${vname}")`);
 
@@ -267,10 +269,19 @@ function showQR(){
     req.send();
   }
 }
-function setvidx(ii, L='a'){
+var info_file;
+function showMediaInfo(){
+  toggle_hide([INFOframe]);
+  if(INFOframe.style.display!='none' && info_file!=cur_file){
+    ws_send('show_mediainfo ' + cur_file);
+    info_file = cur_file;
+    INFOframe.style.top = menuIcon0Height+'px';
+  }
+}
+function setvidx(ii, L='a', scrollIntoView=false){
   for(var i=0; getById(L+i)!=null; i++)
     getById(L+i).style.color = (i==ii?"#1f0":"#eee");
-  getById(L+ii).scrollIntoView({block: "center"});
+  if(scrollIntoView) getById(L+ii).scrollIntoView({block: "center"});
 }
 function play_audio(fn, reply=false){
   var aud = new Audio(fn);
@@ -333,9 +344,9 @@ function toggle_menu(mode){
   menu1.style.display = menuMode==1?"block":"none";
   menu2.style.display = menuMode==2?"block":"none";
   if(menuMode==1){
-    menu1.style.top=getById('menuIcon0').offsetHeight+'px';
+    menu1.style.top=menuIcon0Height+'px';
     getById('list1').style.maxHeight = `calc(100% - ${getById('header1').offsetHeight}px)`;
-    setvidx(cur_ii);
+    setvidx(cur_ii, 'a', true);
   }else if(menuMode==2){
     menu2.style.bottom=`${getById('menuIcon1').offsetHeight+edge_pad}px`;
     if(list2.innerHTML=='') lsdir();
@@ -387,7 +398,8 @@ function getCookie(cookieName, dft="") {
 function toggle_hide(objs){
   var disp = objs[0].style.display=='none'?'block':'none';
   for(var obj of objs) obj.style.display=disp;
-  document.cookie = `infoDisp=${disp}; path=/; max-age=31536000`;
+  if(objs.indexOf(S2Tframe)>=0)
+    document.cookie = `infoDisp=${disp}; path=/; max-age=31536000`;
 }
 function toggle_loop(val=null){
   v.loop = val==null?(!v.loop):val;
@@ -455,7 +467,7 @@ function showDir(data){
     i+=1;
   }
   if(scrollTo_id>=0)
-    setTimeout(()=>{setvidx(scrollTo_id, 'b');}, 0);
+    setTimeout(()=>{setvidx(scrollTo_id, 'b', true);}, 0);
 }
 function updateList(arr){
   playlist = arr.split('\n');
@@ -525,7 +537,7 @@ var scr_size = Math.max(screen.width, screen.height);
 document.styleSheets[0].cssRules[0].style.fontSize=`${scr_size/20}px`;
 setInterval(timerInc, 2000);
 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-  navigator.mediaDevices.getUserMedia({audio: true,},)
+  navigator.mediaDevices.getUserMedia({audio: true, deviceId:'default'},)
     .then((stream) => {
       recorder = new MediaRecorder(stream, {mimeType: 'audio/webm'}); recButton.style.display='inline';
       recorder.ondataavailable = (e) => { audios.push(e.data); if(recorder.state=='inactive') onRecStop(); };})
@@ -535,6 +547,7 @@ if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
   console.log("getUserMedia not supported on your browser!"); recButton.style.display='none';
 }
 T2Sframe.style.display = S2Tframe.style.display = getCookie('infoDisp', 'none');
+var menuIcon0Height = getById('menuIcon0').offsetHeight;
 function handleKey(key, amount=0){
   switch (key) {
     case "f":

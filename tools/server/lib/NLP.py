@@ -1,13 +1,16 @@
 import os, sys, io, re, time, string, json, threading, yt_dlp, gzip
-import pykakasi, pinyin, logging, requests, shutil, subprocess
+import pykakasi, pinyin, logging, requests, shutil, subprocess, asyncio
 from unidecode import unidecode
 from urllib.parse import unquote
 from werkzeug import local
 from natsort import natsorted
-
+from googletrans import Translator
 from lib.ChineseNumber import *
 from lib.settings import *
 from device_config import *
+
+ggl_translator = Translator()
+KKS = pykakasi.kakasi()
 
 def Try(*args):
 	exc = ''
@@ -19,6 +22,7 @@ def Try(*args):
 	return str(exc)
 
 expand_path = lambda t: os.path.expandvars(os.path.expanduser(t))
+detect_lang = lambda t: Try(lambda: asyncio.run(ggl_translator.detect(t)).lang, '')
 
 def Open(fn, mode='r', **kwargs):
 	if fn == '-':
@@ -26,8 +30,6 @@ def Open(fn, mode='r', **kwargs):
 	fn = expand_path(fn)
 	return gzip.open(fn, mode, **kwargs) if fn.lower().endswith('.gz') else open(fn, mode, **kwargs)
 
-
-KKS = pykakasi.kakasi()
 cookies_opt = []
 TransNatSort = lambda lst: natsorted(lst, key=unidecode)
 isdir = lambda t: os.path.isdir(expand_path(t))
@@ -79,6 +81,7 @@ def runsys(cmd, event=None):
 def RUNSYS(cmd, event=None):
 	threading.Thread(target=runsys, args=(cmd, event)).start()
 
+run_thread = lambda F: threading.Thread(target=lambda: F()).start()
 get_filesize = lambda fn: Try(lambda: os.path.getsize(fn), 0)
 
 def fuzzy(txt, dct=FUZZY_PINYIN):

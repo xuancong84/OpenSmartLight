@@ -232,7 +232,7 @@ def _play(tm_info, filename=''):
 
 @app.route('/play/<tm_info>/<path:filename>')
 def play(tm_info, filename=''):
-	threading.Thread(target=_play, args=(tm_info, filename)).start()
+	run_thread(lambda: _play(tm_info, filename))
 	return 'OK'
 
 @app.route('/pause')
@@ -452,7 +452,7 @@ def _report_title(tv_name):
 @app.route('/report_title')
 @app.route('/report_title/<tv_name>')
 def report_title(tv_name=None):
-	threading.Thread(target=_report_title, args=(tv_name,)).start()
+	run_thread(lambda: _report_title(tv_name))
 	return 'OK'
 
 def send_wol(mac, ip='255.255.255.255'):
@@ -617,7 +617,8 @@ def _tvPlay(name, listfilename, url_root):
 
 @app.route('/tvPlay/<name>/<path:listfilename>')
 def tvPlay(name, listfilename, url_root=None):
-	threading.Thread(target=_tvPlay, args=(name, listfilename, url_root or get_url_root(request))).start()
+	url_root = url_root or get_url_root(request)
+	run_thread(lambda: _tvPlay(name, listfilename, url_root))
 	return 'OK'
 
 last_save_time = time.time()
@@ -650,6 +651,13 @@ def _load_subtitles(video_file, n_subs, ip):
 			LOG(f'Finished Loading {n_subs} subtitle tracks from "{video_file}": {out}')
 		ip2subtt[ip] = video_file
 	ip2websock[ip].send('load_subtitles()')
+
+def _show_mediainfo(fn, ip):
+	fsize = os.stat(SHARED_PATH+fn).st_size
+	txt = RUN(['ffprobe', SHARED_PATH+fn], shell=False, stderr=subprocess.STDOUT).splitlines()
+	ii = [i for i,L in enumerate(txt) if L.startswith('Input ')][0]
+	res = '\n'.join(['File size: %d (%.2f MB)'%(fsize, fsize/1024/1024)]+txt[ii:])
+	tv_wscmd(ip, f'INFOframe.textContent=`{res.replace("`","")}`;')
 
 @app.route('/tv_wscmd/<name>/<path:cmd>')
 def tv_wscmd(name, cmd):
@@ -697,7 +705,10 @@ def tv_wscmd(name, cmd):
 			args = cmd.split(' ', 2)
 			n_subs = int(args[1])
 			file_path = SHARED_PATH+args[2]
-			threading.Thread(target=_load_subtitles, args=(file_path, n_subs, ip)).start()
+			run_thread(lambda: _load_subtitles(file_path, n_subs, ip))
+		elif cmd.startswith('show_mediainfo '):
+			args = cmd.split(' ', 1)
+			run_thread(lambda: _show_mediainfo(args[1], ip))
 		else:
 			if cmd in ['next', 'prev']:
 				tvd['cur_ii'] = (tvd['cur_ii']+(1 if cmd=='next' else -1))%len(tvd['playlist'])
@@ -904,12 +915,14 @@ def _play_last(name=None, url_root=None):
 @app.route('/play_last')
 @app.route('/play_last/<tv_name>')
 def play_last(tv_name=None):
-	threading.Thread(target=_play_last, args=(tv_name, get_url_root(request))).start()
+	url_root = get_url_root(request)
+	run_thread(lambda: _play_last(tv_name, url_root))
 	return 'OK'
 
 def handle_ASR_indir(asr_out, tv_name, rel_path, url_root):
 	res = findMedia(asr_out['text'].strip(), asr_out['language'], base_path=SHARED_PATH+rel_path)
 	if res == None:
+		setInfo(tv_name, asr_out["text"], asr_out['language'], 'S2T', '')
 		play_audio('voice/asr_not_found_drama.mp3' if rel_path else 'voice/asr_not_found_file.mp3', True, tv_name)
 		return 'ASR okay, but media file not found!'
 	else:
@@ -964,7 +977,7 @@ def play_spoken_drama(tv_name=None, rel_path=''):
 		rel_path, handle_ASR_indir, url_root)
 	if is_post:
 		return F()
-	threading.Thread(target=F).start()
+	run_thread(F)
 	return 'OK'
 
 @app.route('/play_spoken_inlst', methods=['GET', 'POST'])
@@ -979,8 +992,8 @@ def play_spoken_song(tv_name=None, lst_filename=''):
 # Play spoken file recorded locally on the local device
 @app.route('/play_recorded', methods=['POST'])
 def play_recorded():
-	recfn = save_post_file()
-	threading.Thread(target=recog_and_play, args=('', request.remote_addr, '', handle_ASR_indir, get_url_root(request), recfn)).start()
+	recfn, req = save_post_file(), request._get_current_object()
+	run_thread(lambda: recog_and_play('', req.remote_addr, '', handle_ASR_indir, get_url_root(req), recfn))
 	return 'OK'
 
 # For Ecovacs

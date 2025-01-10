@@ -13,4 +13,4 @@ lang2id = {Language.ENGLISH: 'en', Language.CHINESE: 'zh', Language.HINDI: 'hi',
 	Language.ARABIC: 'ar', Language.BENGALI: 'bn', Language.RUSSIAN: 'ru', Language.PORTUGUESE: 'pt', Language.URDU: 'ur',
 	Language.INDONESIAN:'id', Language.GERMAN: 'de', Language.JAPANESE: 'ja', Language.TURKISH: 'tr', Language.TAMIL: 'ta',
 	Language.VIETNAMESE: 'vi', Language.KOREAN: 'ko', Language.THAI: 'th', Language.GREEK: 'el', Language.HEBREW: 'he', 
-	Language.MALAY: 'ms'}
+	Language.MALAY: 'ms', Language.DUTCH: 'nl', Language.ITALIAN: 'it', Language.POLISH: 'pl'}
