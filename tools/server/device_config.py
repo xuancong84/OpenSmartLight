@@ -69,7 +69,12 @@ VOICE_CMD_FFWD_DCT = {
 	'客人房电视机快退': 'commonTV',
 }
 
+SECRET_VARS = ['ASR_CLOUD_URL', 'CUSTOM_CMDLINES', 'HUBS', 'ACCUWEATHER_API_GET']
 if os.path.isfile('secret.py'):
-	from secret import *
+	import secret
+else:
+	class A: pass
+	secret = A()
 
-SECRET_VARS = ['ASR_CLOUD_URL', 'CUSTOM_CMDLINES', 'HUBS']
+for var in SECRET_VARS:
+	exec(f'{var}=getattr(secret, "{var}", None)', globals(), globals())

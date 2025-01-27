@@ -81,13 +81,16 @@ def runsys(cmd, event=None):
 def RUNSYS(cmd, event=None):
 	threading.Thread(target=runsys, args=(cmd, event)).start()
 
-run_thread = lambda F: threading.Thread(target=lambda: F()).start()
+run_thread = lambda F, *args: threading.Thread(target=lambda: F(*args)).start()
 get_filesize = lambda fn: Try(lambda: os.path.getsize(fn), 0)
 
 def fuzzy(txt, dct=FUZZY_PINYIN):
 	for src, tgt in dct.items():
 		txt = txt.replace(src, tgt)
 	return txt
+
+_json2pyc = {'null': 'None', 'false': 'False', 'true': 'True'}
+json2pyc = lambda t: fuzzy(t, _json2pyc)
 
 fn2dur = {}
 def getDuration(fn):
@@ -390,6 +393,24 @@ def sec2hhmmss(sec, sub_second=False):
 def hhmmss2sec(hms):
 	hh, mm, ss = [float(i) for i in (['0', '0']+hms.split(':'))[-3:]]
 	return hh*3600 + mm*60 + ss
+
+def xauth_add(key=None):
+	"""
+	Xauth add magic key to screen :0
+	"""
+	try:
+		mkey = key or RUN(['xauth', 'list'], shell=False).splitlines()[0].split()[-1]
+		RUN(['xauth', 'add', ':0', '.', mkey], shell=False)
+	except:
+		pass
+
+def get_weather():
+	obj = Try(lambda: eval(json2pyc(requests.get(ACCUWEATHER_API_GET).text))[0], {})
+	tempDegC = Try(lambda: obj['Temperature']['Metric']['Value'], None)
+	humidity = Try(lambda: obj['RelativeHumidity'], None)
+	realfeel = Try(lambda: obj['RealFeelTemperatureShade']['Metric']['Value'], None)
+	weatherT = Try(lambda: obj['WeatherText'], None)
+	return tempDegC, humidity, realfeel, weatherT
 
 
 if __name__ == '__main__':

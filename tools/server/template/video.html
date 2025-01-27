@@ -66,10 +66,12 @@ h1 {
 </head>
 <body style="background-color:black; overflow: hidden;">
  <div id="vcontainer">
-  <video id='video0' autoplay controls onended="ws.send('next')" onclick="clickvid(event)"
+  <video id='video0' autoplay controls onended="ws_send('next')" onclick="clickvid(event)"
       onseeked="markCounter=0" ontouchmove="timerRst()" onmousemove="timerRst()">
   </video>
   <div id="flashmsg" class="overlay" style="font-size: xx-large; left:50%; top:20%; transform: translate(-50%, -50%); z-index: 100 !important; display: none;"></div>
+  <div id="banner0" class="overlay" style="font-size: xx-large; left:50%; top:50%; transform: translate(-50%, -50%); z-index: 100 !important; display: none; max-width: 50%;
+    background-color: #222; opacity: 90%;">正在处理，完毕后将重新开始播放...</div>
   <div id="controls" style="display: none; z-index: 100;">
     <div class="overlay z50" style="left:25%; top:0; transform: translateX(-50%);" onclick="handleKey('<')" title="浏览文件夹">🏃-</div>
     <div class="overlay z50" style="left:75%; top:0; transform: translateX(-50%);" onclick="handleKey('>')" title="浏览文件夹">🏃+</div>
@@ -87,16 +89,16 @@ h1 {
     <div class="overlay z50 xlarge" style="right:0; top:calc(80% - 50px); transform: translateY(-50%);" onclick="handleKey('ArrowRight',5)" title="+2min">❱❱❱</div>
   </div>
   <div class="overlay hoverShow" style="right:0; top:0;">
-    <span onclick="ws.send('report_title')" title="播报当前歌曲名称" class="icon-speak"></span>
+    <span onclick="ws_send('report_title')" title="播报当前歌曲名称" class="icon-speak"></span>
     <span onclick="toggle_hide([controls])" title="播放设置" class="icon-gear"></span>
     <span onclick="handleKey('f')" id="toggle-fs" title="切换全屏" class="icon-expand"></span>
   </div>
-  <div class="overlay hoverShow" style="left:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('prev')" title="PREVIOUS">◀</div>
-  <div class="overlay hoverShow" style="right:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('next')" title="NEXT">▶</div>
+  <div class="overlay hoverShow" style="left:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws_send('prev')" title="跳回前一部">◀</div>
+  <div class="overlay hoverShow" style="right:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws_send('next')" title="跳到下一部">▶</div>
  </div>
  <div id="ovl">
-  <div class="overlay" style="left:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('prev')" title="PREVIOUS">◀</div>
-  <div class="overlay" style="right:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws.send('next')" title="NEXT">▶</div>
+  <div class="overlay" style="left:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws_send('prev')" title="跳回前一部">◀</div>
+  <div class="overlay" style="right:0px; top:calc(50% - 50px); transform: translateY(-50%);" onclick="ws_send('next')" title="跳到下一部">▶</div>
   <div class="overlay" id="menuIcon0" style="left:50%; top:0px; transform: translateX(-50%);" onclick="toggle_menu(1)" title="当前播放列表">▤</div>
  </div>
  <div id="ovl2">
@@ -105,7 +107,7 @@ h1 {
  </div>
  <div id="recButtons" class="overlay hoverShow" style="left:0; top:0;" >
   <span id="recButton" title="播放指定文件（本地录音）" onclick="play_recorded()" class="icon-mic-local"></span>
-  <span title="播放指定文件（树莓派录音）" onclick="ws.send('play_spoken_indir')" class="icon-mic-station"></span>
+  <span title="播放指定文件（树莓派录音）" onclick="ws_send('play_spoken_indir')" class="icon-mic-station"></span>
  </div>
  <div class="overlay" style="left:0px; bottom:var(--edge-pad);">
   <span class="hoverShow" title="复制视频链接然后扫码下载播放" onclick="showQR()">📱</span>
@@ -122,7 +124,7 @@ h1 {
   <h1 id="header1"><span id="title1">{{listname}}</span><span id="loopButton" style="position:absolute; right: 4px; cursor:pointer" onclick="toggle_loop()" title="单曲循环">🔁</span></h1>
   <div id="list1" style="overflow-y: scroll; max-height: 90%;">
     {% for name in playlist %}
-    <a id="a{{loop.index0}}" onclick="ws.send('goto_idx {{loop.index0}}')">{{name}}</a>
+    <a id="a{{loop.index0}}" onclick="ws_send('goto_idx {{loop.index0}}')">{{name}}</a>
     {% endfor %}
   </div>
  </div>
@@ -144,7 +146,11 @@ h1 {
   <p id="t_audtk_status0" style="margin:0; color: lime; ">请选择音轨：</p>
   <div id="list4" style="overflow-y: scroll;"></div>
  </div>
- <div id="INFOframe" style="color: yellow; background-color: blue; position: absolute; opacity:0.9; white-space:pre-wrap; font-size: medium; left:5%; width:90%; display: none; z-index: 50;"></div>
+ <div id="EDITframe" style="color: yellow; background-color: blue; overflow: auto; position: absolute; opacity:0.9; white-space:pre-wrap;
+    font-size: medium; left:5%; width:90%; display: none; z-index: 50;">
+  <button onclick="norm_vol()" title="对当前媒体文件的音量进行标准化调整，重新压缩音频并替换原文件">标准化媒体音量</button>
+  <div id="INFOframe"></div>
+ </div>
  <div id="S2Tframe" style="background-color: #04AA6D; position: absolute; opacity:0.8; font-size: x-large; font-weight: bold; top: 30%; left:5%; width:20%;">
   <h1>【语音识别详情】</h1>
   <h1>语种：<span id="S2Tlang">{{S2T_lang}}</span></h1>
@@ -173,8 +179,8 @@ var audios, start_time, recorder_timeout, last_subtt;
 var isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
 
 // Set global object handles
-for(var vname of ['ovl', 'ovl2', 'menu1', 'menu2', 'menu3', 'menu4', 'list1', 'list2', 'list3', 'S2Tframe', 'T2Sframe', 'INFOframe', 'S2Tlang', 'showAudioTracks',
-  'T2Slang', 'S2Ttext', 'T2Stext', 'S2Tmatch', 'recButton', 'QRcontainer', 'showSubtt', 'recButtons', 'flashmsg', 'controls'])
+for(var vname of ['ovl', 'ovl2', 'menu1', 'menu2', 'menu3', 'menu4', 'list1', 'list2', 'list3', 'S2Tframe', 'T2Sframe', 'INFOframe', 'EDITframe', 'S2Tlang',
+  'showAudioTracks', 'T2Slang', 'S2Ttext', 'T2Stext', 'S2Tmatch', 'recButton', 'QRcontainer', 'showSubtt', 'recButtons', 'flashmsg', 'controls', 'banner0'])
   window.eval(`var ${vname} = getById("${vname}")`);
 
 function create_wsock(){
@@ -184,7 +190,7 @@ function create_wsock(){
       var its = ev.data.split('\t');
       window[its[1]](its[2]);
     }else if(ev.data.startsWith(' ')){
-      ws.send('\t'+eval(ev.data.slice(1)));
+      ws_send('\t'+eval(ev.data.slice(1)));
     }else setTimeout(ev.data, 1);
   });
   return ws;
@@ -224,6 +230,7 @@ function setvsrc(url, ii=0){
     setTimeout(`if(v.currentTime<${tm}-2.5)v.currentTime=${tm}`, 2500);
   }
   setvidx(cur_ii = ii);
+  show_banner(-1);
 
   // handle subtitles
   v.innerHTML = '';
@@ -271,11 +278,11 @@ function showQR(){
 }
 var info_file;
 function showMediaInfo(){
-  toggle_hide([INFOframe]);
-  if(INFOframe.style.display!='none' && info_file!=cur_file){
+  toggle_hide([EDITframe]);
+  if(EDITframe.style.display!='none' && info_file!=cur_file){
     ws_send('show_mediainfo ' + cur_file);
     info_file = cur_file;
-    INFOframe.style.top = menuIcon0Height+'px';
+    EDITframe.style.top = menuIcon0Height+'px';
   }
 }
 function setvidx(ii, L='a', scrollIntoView=false){
@@ -286,7 +293,7 @@ function setvidx(ii, L='a', scrollIntoView=false){
 function play_audio(fn, reply=false){
   var aud = new Audio(fn);
   if(reply)
-    aud.onended = ()=>{ws.send('\taudio_ended')};
+    aud.onended = ()=>{ws_send('\taudio_ended')};
   aud.play();
 }
 function play_recorded(){
@@ -332,7 +339,7 @@ function lsdir(tgtDir=null){
   if(tgtDir=='.') tgtDir=decodeURI(v.src.split('/').slice(4,-1).join('/'));
   else if(tgtDir=='..') tgtDir = cur_dir.indexOf('/')>=0 ? cur_dir.split('/').slice(0,-1).join('/') : "";
   if(tgtDir!=null) cur_dir=tgtDir.replace(/\/*$/, '');
-  ws.send('lsdir '+cur_dir);
+  ws_send('lsdir '+cur_dir);
 }
 function setAudioTrack(ii=0){
   for(var i=0; i<v.audioTracks.length; i++)
@@ -424,10 +431,10 @@ function timerInc() {
   passCounter += v.paused;
   if(markCounter>60){
     markCounter = 0;
-    ws.send(`mark ${v.currentTime}`);
+    ws_send(`mark ${v.currentTime}`);
   }else if(passCounter>60){
     passCounter = 0;
-    ws.send('pass');
+    ws_send('pass');
   }
 }
 function timerRst() {
@@ -438,7 +445,7 @@ function timerRst() {
 }
 function gotoFile(ev, i){
   ev.preventDefault();
-  ws.send("goto_file "+dir_list[i]);
+  ws_send("goto_file "+dir_list[i]);
   setvidx(i, 'b');
 }
 function showDir(data){
@@ -475,7 +482,7 @@ function updateList(arr){
   getById('title1').textContent = `${cur_dir}`;
   list1.innerHTML = '';
   for(var [i,fn] of playlist.entries())
-    list1.innerHTML += `<a id="a${i}" onclick="ws.send('goto_idx ${i}')">${fn}</a>`;
+    list1.innerHTML += `<a id="a${i}" onclick="ws_send('goto_idx ${i}')">${fn}</a>`;
 }
 function list_subtitles(s_lst){
   subtt_info = JSON.parse(s_lst);
@@ -514,7 +521,7 @@ function load_subtitles(){
   }
 }
 function set_subtt(track_num, cb=null){
-  if(subtt_loaded!=2) return alert('Please wait for loading subtitles!');
+  if(subtt_loaded!=2) return alert('请耐心等待加载字幕！');
   last_subtt = '';
   if(cb==null){
     for(var i=0; i<v.textTracks.length; i++){
@@ -529,6 +536,15 @@ function set_subtt(track_num, cb=null){
       last_subtt = last_subtt.slice(0,-1);
   }
   document.cookie = `subtt=${last_subtt}; path=/; max-age=31536000`;
+}
+function show_banner(id=1){
+  if(id==1) banner0.style.display = 'block';
+  else if(id==-1) banner0.style.display = 'none';
+}
+function norm_vol(){
+  v.pause();
+  ws_send('norm_vol ' + cur_file);
+  show_banner(1);
 }
 
 setvsrc("{{file_path|safe}}", {{cur_ii}});
@@ -585,10 +601,10 @@ function handleKey(key, amount=0){
       v.paused?v.play():v.pause();
       break;
     case "p":
-      ws.send('prev');
+      ws_send('prev');
       break;
     case "n":
-      ws.send('next');
+      ws_send('next');
       break;
     default:
       return false;

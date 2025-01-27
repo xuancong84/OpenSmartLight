@@ -291,7 +291,7 @@ def norm_song_volume(fn):
 			audio.export(get_bak_fn(fn+'.m4a'), format='ipod')
 		audio += (STD_VOL_DBFS - audio.dBFS)
 		audio.export(fn+'.m4a', format='ipod')
-		os.system(f'ffmpeg -y -i {fn} -i {fn}.m4a -c copy -map 0 -map -0:a -map 1:a {fn}.tmp.mp4')
+		RUN(['ffmpeg', '-y', '-i', fn, '-i', fn+'.m4a', '-c', 'copy', '-map', '0', '-map', '-0:a', '-map', '1:a', fn+'.tmp.mp4'], shell=False, timeout=None)
 		os.system('sync')
 		os.rename(f'{fn}.tmp.mp4', fn)
 		os.system('sync')
@@ -302,11 +302,13 @@ def norm_song_volume(fn):
 		audio += (STD_VOL_DBFS - audio.dBFS)
 		audio.export(fn, format=('mp3' if fn.lower().endswith('.mp3') else 'ipod'))
 
-def _normalize_vol(song):
+def _normalize_vol(song, remote_ip=None):
 	global player, last_get_file_ip
 	if song:
 		fn = os.path.expanduser(song if song.startswith('~') else (SHARED_PATH+'/'+song))
 		norm_song_volume(fn)
+		if remote_ip in ip2websock and remote_ip in ip2tvdata:
+			tv_wscmd(remote_ip, f'goto_idx {ip2tvdata[remote_ip]["cur_ii"]}')
 	elif player is not None:
 		mrl = mplayer.get_media().get_mrl()
 		cur_ii = filelist.index(mrl2path(mrl))
@@ -329,7 +331,7 @@ def _normalize_vol(song):
 @app.route('/normalize_vol')
 @app.route('/normalize_vol/<path:song>')
 def normalize_vol(song=''):
-	threading.Timer(0, lambda: _normalize_vol(song)).start()
+	run_thread(_normalize_vol, song, request.remote_addr)
 	return 'OK'
 
 @app.route('/playFrom/<name>')
@@ -690,6 +692,8 @@ def tv_wscmd(name, cmd):
 		elif cmd.startswith('mark '):
 			mark(name, float(cmd.split()[1]))
 			tv(name, 'screenOn')
+		elif cmd.startswith('norm_vol '):
+			run_thread(_normalize_vol, cmd.split(' ', 1)[1], ip)
 		elif cmd.startswith('loop_mode '):
 			ws.send(f"toggle_loop({cmd.split(' ',1)[1]})")
 		elif cmd.startswith('lsdir '):
@@ -1002,6 +1006,11 @@ def play_recorded():
 def ecovacs(name='', cmd=''):
 	return RUN(f'./ecovacs-cmd.sh {name} {cmd} &')
 
+# For ceiling fan control
+@app.route('/ceilingFan', defaults={'name': '', 'level': None})
+@app.route('/ceilingFan/<name>/<level>')
+def ecovacs(name='', level=''):
+	return RUN(f'./ecovacs-cmd.sh {name} {level} &')
 
 # For OpenHomeKaraoke
 @app.route('/KTV/<cmd>')
@@ -1140,6 +1149,7 @@ if __name__ == '__main__':
 	parser.add_argument('--asr', '-a', help='host ASR server', action='store_true')
 	parser.add_argument('--asr-model', '-am', default='base', help='ASR model to load')
 	parser.add_argument('--no-console', '-nc', help='do not open console', action='store_true')
+	parser.add_argument('--no-xauth', '-nx', help='do not xauth add magic key', action='store_true')
 	parser.add_argument('--hide-subtitle', '-nosub', help='whether to hide subtitles', action='store_true')
 	parser.add_argument('--browser-cookies', '-c', default = "auto",
 		help = "YouTube downloader can use browser cookies from the specified path (see the --cookies-from-browser option of yt-dlp), it can also be auto (default): automatically determine based on OS; none: do not use any browser cookies",
@@ -1165,6 +1175,9 @@ if __name__ == '__main__':
 		print('Offline ASR model loaded successfully ...', file=sys.stderr)
 	else:
 		asr_model = None
+
+	# Allow tmux/ssh session to display over HDMI output screen
+	xauth_add()
 
 	# For capturing yt-dlp thread's STDIO
 	enable_proxy()
