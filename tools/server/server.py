@@ -236,7 +236,8 @@ def get_voice(fn=''):
 
 @app.route('/subtt/<path:fn>')
 def subtt(fn='0.vtt'):
-	return send_from_directory(f'{TMP_DIR}/.subtitles/', fn, conditional=True)
+	rfp = os.path.realpath(os.path.join(SHARED_PATH, fn))
+	return send_from_directory(os.path.join(TMP_DIR, '.subtitles'), rfp.lstrip('/'), conditional=True)
 
 @app.route('/subtitle/<show>')
 def show_subtitle(show=None):
@@ -905,20 +906,25 @@ def MARK(name, data):
 	updateMarker(tvd)
 
 def _load_subtitles(video_file, ip, force=False):
-	out_dir = f'{TMP_DIR}/.subtitles/{video_file[len(SHARED_PATH):]}'
+	video_file = os.path.realpath(video_file)
+	out_dir = os.path.join(TMP_DIR, '.subtitles', video_file.lstrip('/'))
 	if force or (not os.path.isdir(out_dir)) or (not listdir(out_dir)):
 		Try(lambda: os.makedirs(out_dir))
 		stt_info = list_subtitles(video_file, force=force)
-		txt_stt = [fn.split('.')[0] for lang, fn in stt_info if fn.endswith('.vtt')]
-		bmp_stt = [fn.split('.')[0] for lang, fn in stt_info if fn.endswith('.sup')]
-		n_subs = len(txt_stt+bmp_stt)
-		LOG(f'Loading {n_subs} subtitle tracks ({len(txt_stt)} text & {len(bmp_stt)} bitmap tracks) from "{video_file}" ...')
+		txt_stt = [fn.split('.')[0] for lang, fn, codec in stt_info if fn.endswith('.vtt')]
+		vobsub_stt = [fn.split('.')[0] for lang, fn, codec in stt_info if fn.endswith('.sup') and codec=='dvd_subtitle']
+		pgs_stt = [fn.split('.')[0] for lang, fn, codec in stt_info if fn.endswith('.sup') and codec=='hdmv_pgs_subtitle']
+		n_subs = len(txt_stt+vobsub_stt+pgs_stt)
+		LOG(f'Loading {n_subs} subtitle tracks ({len(txt_stt)} text & {len(vobsub_stt)+len(pgs_stt)} bitmap tracks) from "{video_file}" ...')
 		if txt_stt:
 			RUN(['ffmpeg', '-y', '-i', video_file]+[it for k in txt_stt for it in ['-map', f'0:{k}', '-f', 'webvtt', f'{out_dir}/{k}.vtt']], shell=False, timeout=9999)
-		if bmp_stt:
-			RUN(['mkvextract', 'tracks', video_file] + [f'{k}:{out_dir}/{k}' for k in bmp_stt], shell=False, timeout=9999)
-			for k in bmp_stt:
+		if vobsub_stt:
+			RUN(['mkvextract', 'tracks', video_file] + [f'{k}:{out_dir}/{k}' for k in vobsub_stt], shell=False, timeout=9999)
+			for k in vobsub_stt:
 				runsys(f'DISPLAY=:0 java -jar lib/BDSup2Sub512.jar -o "{out_dir}/{k}.sup" "{out_dir}/{k}.idx"')
+		if pgs_stt:
+			# hdmv_pgs_subtitle is already stored in the raw PGS format that dvdsub.js decodes, so a plain stream copy suffices
+			RUN(['ffmpeg', '-y', '-i', video_file]+[it for k in pgs_stt for it in ['-map', f'0:{k}', '-c:s', 'copy', f'{out_dir}/{k}.sup']], shell=False, timeout=9999)
 		LOG(f'Finished loading {n_subs} subtitle tracks from "{video_file}"')
 	IP2websock.send(ip, 'load_subtitles()')
 
@@ -1351,7 +1357,7 @@ def cmpASR(rel_path=''):
 
 @app.route('/audio_cache/<path:rel_path>')
 def serve_audio(rel_path):
-	target_path = os.path.join(AUDIO_CACHE_DIR, rel_path)
+	target_path = os.path.join(AUDIO_CACHE_DIR, rel_path.lstrip('/'))
 	if not os.path.isfile(target_path):
 		prepare_TTS(os.path.basename(target_path).split('.')[0], fn=target_path)
 	return send_file(target_path)
@@ -1360,7 +1366,7 @@ def serve_audio(rel_path):
 @app.route('/speak_file/<path:subpath>')
 def speak_file(subpath=""):
 	# Security: Ensure we stay inside BASE_DIR
-	target_path = os.path.normpath(os.path.join(SHARED_PATH, subpath))
+	target_path = os.path.normpath(os.path.join(SHARED_PATH, subpath.lstrip('/')))
 	if not target_path.startswith(SHARED_PATH.rstrip('/')):
 		return "Access Denied", 403
 

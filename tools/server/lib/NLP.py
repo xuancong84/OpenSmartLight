@@ -491,13 +491,15 @@ def ffprobe_streams(fn):
 	out = RUN(['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', fn], shell=False)
 	return json.loads(out.strip())
 
+BITMAP_SUBTITLE_CODECS = {'dvd_subtitle', 'hdmv_pgs_subtitle'}
+
 fullpath2stt_info = {}
 def list_subtitles(fullpath, force=False):
 	realpath = os.path.realpath(fullpath)
 	if force or realpath not in fullpath2stt_info:
 		try:
-			obj = ffprobe_streams(fullpath)
-			fullpath2stt_info[realpath] = [[get_subts_tagInfo(s['tags']), str(s["index"])+('.sup' if s["codec_name"]=="dvd_subtitle" else '.vtt') ]
+			obj = ffprobe_streams(realpath)
+			fullpath2stt_info[realpath] = [[get_subts_tagInfo(s['tags']), str(s["index"])+('.sup' if s["codec_name"] in BITMAP_SUBTITLE_CODECS else '.vtt'), s["codec_name"]]
 								  for s in obj['streams'] if s['codec_type']=='subtitle']
 		except Exception as e:
 			fullpath2stt_info[realpath] = []
