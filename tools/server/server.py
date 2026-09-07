@@ -102,6 +102,15 @@ def tv2lginfo(tv_name):
 	return ret
 get_tv_ip = lambda t: Try(lambda: tv2lginfo(t)['ip'], t)
 get_tv_data = lambda t: ip2tvdata[ip_strip(Try(lambda: tv2lginfo(t)['ip'], t))]
+def ip2tvname(t):
+	# resolve a bare/port-suffixed IP (e.g. from a websocket peer address) back to its configured TV name
+	if t in _tv2lginfo:
+		return t
+	ip = ip_strip(t)
+	for tv_name, info in _tv2lginfo.items():
+		if info.get('ip')==ip:
+			return tv_name
+	return t
 get_hub_url = lambda name: HUBS.get(name, name if [s for s in HUBS.values() if url_is_ip(name, s)] else '')
 
 
@@ -967,7 +976,7 @@ def tv_wscmd(name, cmd):
 			report_title(name, cmd.split(' ', 1)[1])
 		elif cmd.startswith('mark '):
 			mark(name, *cmd.split(' ', 2)[1:])
-			tv(name, 'screenOn')
+			tv(ip2tvname(name), 'screenOn')
 		elif cmd.startswith('MARK '):
 			MARK(name, json.loads(cmd.split(' ', 1)[1]))
 		elif cmd.startswith('goto_idx '):
